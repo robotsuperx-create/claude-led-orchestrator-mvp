@@ -3,6 +3,7 @@ package claudeorchestrator
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -147,5 +148,68 @@ func TestValidatorSurfacesInjectedRunnerErrors(t *testing.T) {
 	result, err := validator.Check(context.Background(), ports.ValidationRequest{})
 	if err != nil || result.Passed || len(result.Issues) != 1 || !strings.Contains(result.Issues[0], "runner unavailable") {
 		t.Fatalf("Check() = %+v, %v; want failed report", result, err)
+	}
+}
+
+type validatorSandboxFake struct {
+	requests []ports.SandboxRunRequest
+	result   ports.SandboxRunResult
+}
+
+func (f *validatorSandboxFake) Run(_ context.Context, request ports.SandboxRunRequest) (ports.SandboxRunResult, error) {
+	f.requests = append(f.requests, request)
+	return f.result, nil
+}
+
+func TestValidatorUsesConfiguredSandboxForWorktree(t *testing.T) {
+	worktree := t.TempDir()
+	sandbox := &validatorSandboxFake{result: ports.SandboxRunResult{Stdout: []byte("sandbox validation\n")}}
+	runner := CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) {
+		t.Fatal("host runner must not be called when validator sandbox is configured")
+		return CommandOutput{}, nil
+	})
+	validator, err := NewValidatorWithSandbox(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test", "./..."}}},
+		time.Second, runner, sandbox, "ao/worker:v1",
+		ports.SandboxResourceLimits{MemoryBytes: 256 << 20, NanoCPUs: 1_000_000_000, PIDs: 128},
+	)
+	if err != nil {
+		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
+	}
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{
+		Results: []ports.CollectedTaskResult{{Task: ports.PlannedSubtask{
+			Metadata: map[string]string{ports.SubtaskMetadataKeyWorktreePath: worktree},
+		}}},
+	})
+	if err != nil || !result.Passed {
+		t.Fatalf("Check() = %+v, %v; want passed", result, err)
+	}
+	if len(sandbox.requests) != 1 {
+		t.Fatalf("sandbox calls = %d, want 1", len(sandbox.requests))
+	}
+	request := sandbox.requests[0]
+	if request.RootFS != "ao/worker:v1" || request.ProjectRoot != filepath.Clean(worktree) || request.WorkDir != "/workspace" || !request.NoNetwork {
+		t.Fatalf("sandbox request = %+v, want constrained worktree request", request)
+	}
+	if got := strings.Join(request.Argv, "\x00"); got != "go\x00test\x00./..." {
+		t.Fatalf("sandbox argv = %q, want fixed argv", got)
+	}
+}
+
+func TestValidatorSandboxRequiresWorktreePath(t *testing.T) {
+	sandbox := &validatorSandboxFake{}
+	validator, err := NewValidatorWithSandbox(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test"}}},
+		time.Second, CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil }),
+		sandbox, "ao/worker:v1", ports.SandboxResourceLimits{MemoryBytes: 1, NanoCPUs: 1, PIDs: 1},
+	)
+	if err != nil {
+		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
+	}
+	if _, err := validator.Check(context.Background(), ports.ValidationRequest{}); err == nil || !strings.Contains(err.Error(), "worktree path") {
+		t.Fatalf("Check() error = %v, want missing worktree path", err)
+	}
+	if len(sandbox.requests) != 0 {
+		t.Fatalf("sandbox calls = %d, want 0", len(sandbox.requests))
 	}
 }

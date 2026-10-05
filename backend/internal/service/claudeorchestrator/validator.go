@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -80,15 +81,29 @@ type ValidationResult struct {
 // Validator runs a fixed set of allowlisted validation commands. The timeout
 // bounds the whole validation pass, not each command independently.
 type Validator struct {
-	commands []ValidationCommand
-	timeout  time.Duration
-	runner   CommandRunner
+	commands      []ValidationCommand
+	timeout       time.Duration
+	runner        CommandRunner
+	sandbox       ports.SandboxRunner
+	sandboxImage  string
+	sandboxLimits ports.SandboxResourceLimits
 }
 
 // NewValidator constructs a validator from a fixed argv allowlist and an
 // injected runner. Invalid entries (including shell/interpreter commands) are
 // rejected before any validation request can cause execution.
 func NewValidator(commands []ValidationCommand, timeout time.Duration, runner CommandRunner) (*Validator, error) {
+	return newValidator(commands, timeout, runner, nil, "", ports.SandboxResourceLimits{})
+}
+
+// NewValidatorWithSandbox constructs a validator whose fixed commands execute
+// in the same isolated runtime as worker commands. The worktree is taken only
+// from the server-produced task metadata, never from model-controlled argv.
+func NewValidatorWithSandbox(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits) (*Validator, error) {
+	return newValidator(commands, timeout, runner, sandbox, image, limits)
+}
+
+func newValidator(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits) (*Validator, error) {
 	if len(commands) == 0 {
 		return nil, errors.New("validator requires at least one allowlisted command")
 	}
@@ -127,7 +142,13 @@ func NewValidator(commands []ValidationCommand, timeout time.Duration, runner Co
 		names[name] = struct{}{}
 		fixed[i] = ValidationCommand{Name: name, Argv: append([]string(nil), command.Argv...)}
 	}
-	return &Validator{commands: fixed, timeout: timeout, runner: runner}, nil
+	if sandbox != nil && strings.TrimSpace(image) == "" {
+		return nil, errors.New("validator sandbox image is required")
+	}
+	return &Validator{
+		commands: fixed, timeout: timeout, runner: runner, sandbox: sandbox,
+		sandboxImage: strings.TrimSpace(image), sandboxLimits: limits,
+	}, nil
 }
 
 // Validate implements ports.Validator. Validation failures are reported as a
@@ -143,7 +164,7 @@ func (v *Validator) Validate(ctx context.Context, request ports.ValidationReques
 
 // Check runs the configured commands and returns their structured results.
 // Values from request are intentionally not interpolated into command argv.
-func (v *Validator) Check(ctx context.Context, _ ports.ValidationRequest) (ValidationResult, error) {
+func (v *Validator) Check(ctx context.Context, request ports.ValidationRequest) (ValidationResult, error) {
 	if v == nil || v.runner == nil || len(v.commands) == 0 || v.timeout <= 0 {
 		return ValidationResult{}, ErrValidatorUnavailable
 	}
@@ -153,6 +174,14 @@ func (v *Validator) Check(ctx context.Context, _ ports.ValidationRequest) (Valid
 
 	checkCtx, cancel := context.WithTimeout(ctx, v.timeout)
 	defer cancel()
+	worktreePath := ""
+	if v.sandbox != nil {
+		var err error
+		worktreePath, err = validationWorktreePath(request)
+		if err != nil {
+			return ValidationResult{}, err
+		}
+	}
 
 	result := ValidationResult{Passed: true, Commands: make([]CommandResult, 0, len(v.commands))}
 	for index, command := range v.commands {
@@ -166,7 +195,7 @@ func (v *Validator) Check(ctx context.Context, _ ports.ValidationRequest) (Valid
 			break
 		}
 
-		output, runErr := v.runner.Run(checkCtx, append([]string(nil), command.Argv...))
+		output, runErr := v.runCommand(checkCtx, worktreePath, command.Argv)
 		if runErr == nil && checkCtx.Err() != nil {
 			runErr = checkCtx.Err()
 		}
@@ -199,6 +228,47 @@ func (v *Validator) Check(ctx context.Context, _ ports.ValidationRequest) (Valid
 		}
 	}
 	return result, nil
+}
+
+func (v *Validator) runCommand(ctx context.Context, worktreePath string, argv []string) (CommandOutput, error) {
+	if v.sandbox == nil {
+		return v.runner.Run(ctx, append([]string(nil), argv...))
+	}
+	result, err := v.sandbox.Run(ctx, ports.SandboxRunRequest{
+		RootFS:         v.sandboxImage,
+		ProjectRoot:    worktreePath,
+		WorkDir:        "/workspace",
+		NoNetwork:      true,
+		ResourceLimits: v.sandboxLimits,
+		Timeout:        v.timeout,
+		Argv:           append([]string(nil), argv...),
+	})
+	if err != nil {
+		return CommandOutput{}, err
+	}
+	return CommandOutput{ExitCode: result.ExitCode, Stdout: string(result.Stdout), Stderr: string(result.Stderr)}, nil
+}
+
+func validationWorktreePath(request ports.ValidationRequest) (string, error) {
+	var selected string
+	for _, result := range request.Results {
+		candidate := strings.TrimSpace(result.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath])
+		if candidate == "" {
+			continue
+		}
+		if !filepath.IsAbs(candidate) {
+			return "", errors.New("validator worktree path must be absolute")
+		}
+		candidate = filepath.Clean(candidate)
+		if selected != "" && selected != candidate {
+			return "", errors.New("validator requires one shared worktree path")
+		}
+		selected = candidate
+	}
+	if selected == "" {
+		return "", errors.New("validator sandbox requires a worktree path")
+	}
+	return selected, nil
 }
 
 func commandIssue(result CommandResult) string {

@@ -117,10 +117,36 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	if runner == nil {
 		runner = claudeorchestrator.ExecCommandRunner{}
 	}
+	sandbox := injected.Sandbox
+	if sandbox == nil && cfg.ClaudeOrchestrator.Worker.SandboxEnabled {
+		executor, sandboxErr := sandboxrunner.NewDockerExecutor(sandboxrunner.DockerConfig{
+			Enabled:       true,
+			AllowedImages: []string{cfg.ClaudeOrchestrator.Worker.SandboxImage},
+		})
+		if sandboxErr != nil {
+			return nil, fmt.Errorf("configure Claude orchestrator Docker sandbox: %w", sandboxErr)
+		}
+		sandbox = sandboxrunner.New(executor)
+	}
 	validator := injected.Validator
 	if validator == nil {
 		var err error
-		validator, err = claudeorchestrator.NewValidator(toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands), cfg.ClaudeOrchestrator.Validator.Timeout, runner)
+		if sandbox != nil {
+			validator, err = claudeorchestrator.NewValidatorWithSandbox(
+				toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands),
+				cfg.ClaudeOrchestrator.Validator.Timeout,
+				runner,
+				sandbox,
+				cfg.ClaudeOrchestrator.Worker.SandboxImage,
+				ports.SandboxResourceLimits{
+					MemoryBytes: cfg.ClaudeOrchestrator.Worker.SandboxMemoryBytes,
+					NanoCPUs:    cfg.ClaudeOrchestrator.Worker.SandboxNanoCPUs,
+					PIDs:        cfg.ClaudeOrchestrator.Worker.SandboxPIDs,
+				},
+			)
+		} else {
+			validator, err = claudeorchestrator.NewValidator(toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands), cfg.ClaudeOrchestrator.Validator.Timeout, runner)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("configure Claude orchestrator validator: %w", err)
 		}
@@ -135,17 +161,6 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 			return nil, errors.New("Claude orchestrator worker requires a worktree-capable command runner")
 		}
 		var err error
-		sandbox := injected.Sandbox
-		if sandbox == nil && cfg.ClaudeOrchestrator.Worker.SandboxEnabled {
-			executor, sandboxErr := sandboxrunner.NewDockerExecutor(sandboxrunner.DockerConfig{
-				Enabled:       true,
-				AllowedImages: []string{cfg.ClaudeOrchestrator.Worker.SandboxImage},
-			})
-			if sandboxErr != nil {
-				return nil, fmt.Errorf("configure Claude orchestrator Docker sandbox: %w", sandboxErr)
-			}
-			sandbox = sandboxrunner.New(executor)
-		}
 		worker, err = claudeorchestrator.NewWorkerRuntime(injected.Worktrees, validator, worktreeRunner, claudeorchestrator.WorkerRuntimeConfig{
 			ProjectRoot:  cfg.ClaudeOrchestrator.Worker.ProjectRoot,
 			Commands:     toOrchestratorCommands(cfg.ClaudeOrchestrator.Worker.Commands),
