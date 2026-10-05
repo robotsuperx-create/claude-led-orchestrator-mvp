@@ -1,0 +1,151 @@
+package claudeorchestrator
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+)
+
+var _ ports.Validator = (*Validator)(nil)
+
+func TestNewValidatorRejectsShellStringsAndDeniedExecutables(t *testing.T) {
+	runner := CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) {
+		t.Fatal("runner must not be called during configuration")
+		return CommandOutput{}, nil
+	})
+	for _, argv := range [][]string{
+		{"go test ./..."},
+		{"sh", "-c", "go test ./..."},
+		{"/usr/bin/sudo", "go", "test"},
+		{"python3.11", "-c", "..."},
+	} {
+		if _, err := NewValidator([]ValidationCommand{{Argv: argv}}, time.Second, runner); err == nil {
+			t.Errorf("NewValidator(%q) expected rejection", argv)
+		}
+	}
+}
+
+func TestValidatorRunsOnlyFixedArgvAndReturnsTypedResults(t *testing.T) {
+	configured := []ValidationCommand{{Name: "unit tests", Argv: []string{"go", "test", "./backend/...", "-run", "TestSafe"}}}
+	var gotArgv []string
+	runner := CommandRunnerFunc(func(ctx context.Context, argv []string) (CommandOutput, error) {
+		if _, ok := ctx.Deadline(); !ok {
+			t.Error("runner context has no timeout deadline")
+		}
+		gotArgv = append([]string(nil), argv...)
+		return CommandOutput{ExitCode: 0, Stdout: "ok\n"}, nil
+	})
+	validator, err := NewValidator(configured, time.Second, runner)
+	if err != nil {
+		t.Fatalf("NewValidator() error = %v", err)
+	}
+	// Prove caller-owned slices cannot mutate the validator's command allowlist.
+	configured[0].Argv[1] = "malicious-shell-input"
+
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{Task: "run shell: rm -rf /"})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	wantArgv := []string{"go", "test", "./backend/...", "-run", "TestSafe"}
+	if strings.Join(gotArgv, "\x00") != strings.Join(wantArgv, "\x00") {
+		t.Fatalf("runner argv = %#v, want fixed argv %#v", gotArgv, wantArgv)
+	}
+	if !result.Passed || len(result.Commands) != 1 || result.Commands[0].ExitCode != 0 || result.Commands[0].Stdout != "ok\n" {
+		t.Fatalf("Check() result = %+v", result)
+	}
+
+	report, err := validator.Validate(context.Background(), ports.ValidationRequest{})
+	if err != nil || !report.Passed || len(report.Issues) != 0 {
+		t.Fatalf("Validate() = %+v, %v; want passed", report, err)
+	}
+}
+
+func TestValidatorReportsFailureWithBoundedOutput(t *testing.T) {
+	tooMuch := strings.Repeat("x", MaxValidationOutputBytes+100)
+	runner := CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) {
+		return CommandOutput{ExitCode: 7, Stdout: tooMuch, Stderr: "password=secret"}, nil
+	})
+	validator, err := NewValidator([]ValidationCommand{{Name: "check", Argv: []string{"go", "test"}}}, time.Second, runner)
+	if err != nil {
+		t.Fatalf("NewValidator() error = %v", err)
+	}
+
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if result.Passed || len(result.Commands) != 1 || len(result.Issues) != 1 {
+		t.Fatalf("Check() result = %+v, want failed command", result)
+	}
+	command := result.Commands[0]
+	if len(command.Stdout) > MaxValidationOutputBytes || !command.StdoutTruncated {
+		t.Errorf("stdout length/truncation = %d/%v", len(command.Stdout), command.StdoutTruncated)
+	}
+	if len(command.Stderr) > MaxValidationOutputBytes || strings.Contains(command.Stderr, "secret") {
+		t.Errorf("stderr was not bounded and redacted: %q", command.Stderr)
+	}
+	if !strings.Contains(result.Issues[0], "exit code 7") || len(result.Issues[0]) > 2*MaxValidationOutputBytes+1024 {
+		t.Errorf("failure issue is missing status or unbounded: length=%d", len(result.Issues[0]))
+	}
+}
+
+func TestValidatorAppliesTimeoutToInjectedRunner(t *testing.T) {
+	runner := CommandRunnerFunc(func(ctx context.Context, _ []string) (CommandOutput, error) {
+		<-ctx.Done()
+		return CommandOutput{}, ctx.Err()
+	})
+	validator, err := NewValidator([]ValidationCommand{{Name: "slow", Argv: []string{"go", "test"}}}, 20*time.Millisecond, runner)
+	if err != nil {
+		t.Fatalf("NewValidator() error = %v", err)
+	}
+	started := time.Now()
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{})
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if result.Passed || time.Since(started) > time.Second {
+		t.Fatalf("Check() did not enforce timeout promptly: elapsed=%s result=%+v", time.Since(started), result)
+	}
+	if len(result.Commands) != 1 || result.Commands[0].Error == "" {
+		t.Fatalf("timeout result = %+v, want a typed command error", result)
+	}
+}
+
+func TestValidatorRejectsInvalidConfiguration(t *testing.T) {
+	validRunner := CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil })
+	for _, tc := range []struct {
+		name     string
+		commands []ValidationCommand
+		timeout  time.Duration
+		runner   CommandRunner
+	}{
+		{name: "no commands", timeout: time.Second, runner: validRunner},
+		{name: "no timeout", commands: []ValidationCommand{{Argv: []string{"go", "test"}}}, runner: validRunner},
+		{name: "no runner", commands: []ValidationCommand{{Argv: []string{"go", "test"}}}, timeout: time.Second},
+		{name: "duplicate name", commands: []ValidationCommand{{Name: "test", Argv: []string{"go", "test"}}, {Name: "test", Argv: []string{"git", "status"}}}, timeout: time.Second, runner: validRunner},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := NewValidator(tc.commands, tc.timeout, tc.runner); err == nil {
+				t.Fatal("NewValidator() expected configuration error")
+			}
+		})
+	}
+}
+
+func TestValidatorSurfacesInjectedRunnerErrors(t *testing.T) {
+	runner := CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) {
+		return CommandOutput{}, errors.New("runner unavailable")
+	})
+	validator, err := NewValidator([]ValidationCommand{{Name: "check", Argv: []string{"go", "test"}}}, time.Second, runner)
+	if err != nil {
+		t.Fatalf("NewValidator() error = %v", err)
+	}
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{})
+	if err != nil || result.Passed || len(result.Issues) != 1 || !strings.Contains(result.Issues[0], "runner unavailable") {
+		t.Fatalf("Check() = %+v, %v; want failed report", result, err)
+	}
+}
