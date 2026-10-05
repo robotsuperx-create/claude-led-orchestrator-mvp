@@ -150,9 +150,14 @@ type ClaudeOrchestratorCommandConfig struct {
 
 // ClaudeOrchestratorWorkerConfig configures the worker's fixed command allowlist.
 type ClaudeOrchestratorWorkerConfig struct {
-	ProjectRoot string
-	Commands    []ClaudeOrchestratorCommandConfig
-	Timeout     time.Duration
+	ProjectRoot        string
+	Commands           []ClaudeOrchestratorCommandConfig
+	Timeout            time.Duration
+	SandboxEnabled     bool
+	SandboxImage       string
+	SandboxMemoryBytes int64
+	SandboxNanoCPUs    int64
+	SandboxPIDs        int64
 }
 
 // ClaudeOrchestratorValidatorConfig configures the independent validation pass.
@@ -505,6 +510,22 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 	cfg.DeepSeekProvider = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK")
 	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
 	var err error
+	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
+		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
+		if err != nil {
+			return err
+		}
+	}
+	cfg.Worker.SandboxImage = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE"))
+	if cfg.Worker.SandboxMemoryBytes, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_MEMORY_BYTES"); err != nil {
+		return err
+	}
+	if cfg.Worker.SandboxNanoCPUs, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_NANO_CPUS"); err != nil {
+		return err
+	}
+	if cfg.Worker.SandboxPIDs, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_PIDS"); err != nil {
+		return err
+	}
 	if cfg.Worker.Commands, err = loadClaudeOrchestratorCommands("AO_CLAUDE_ORCHESTRATOR_WORKER_COMMANDS"); err != nil {
 		return err
 	}
@@ -542,6 +563,18 @@ func parseOptionalPositiveDuration(name string) (time.Duration, error) {
 		return 0, fmt.Errorf("invalid %s: must be a positive Go duration", name)
 	}
 	return duration, nil
+}
+
+func parseOptionalPositiveInt64(name string) (int64, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fmt.Errorf("invalid %s: must be a positive integer", name)
+	}
+	return value, nil
 }
 
 func parseTelemetryRemote(raw string) (TelemetryRemote, error) {

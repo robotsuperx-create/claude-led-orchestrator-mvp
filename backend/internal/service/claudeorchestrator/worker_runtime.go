@@ -23,18 +23,26 @@ type WorkerRuntimeConfig struct {
 	ProjectRoot string
 	Commands    []ValidationCommand
 	Timeout     time.Duration
+	// Sandbox, when supplied, becomes the execution boundary for worker
+	// commands. Image and limits are trusted daemon configuration.
+	Sandbox       ports.SandboxRunner
+	SandboxImage  string
+	SandboxLimits ports.SandboxResourceLimits
 }
 
 // WorkerRuntime runs a fixed command allowlist in an already-existing task
 // worktree, then asks the injected validator to inspect the result. It does not
 // create or remove worktrees, and it never merges Git branches.
 type WorkerRuntime struct {
-	worktrees   ports.WorktreeManager
-	validator   ports.Validator
-	runner      WorktreeCommandRunner
-	projectRoot string
-	commands    []ValidationCommand
-	timeout     time.Duration
+	worktrees     ports.WorktreeManager
+	validator     ports.Validator
+	runner        WorktreeCommandRunner
+	projectRoot   string
+	commands      []ValidationCommand
+	timeout       time.Duration
+	sandbox       ports.SandboxRunner
+	sandboxImage  string
+	sandboxLimits ports.SandboxResourceLimits
 }
 
 // NewWorkerRuntime constructs a runtime around existing worktree, validation,
@@ -69,12 +77,15 @@ func NewWorkerRuntime(worktrees ports.WorktreeManager, validator ports.Validator
 		return nil, err
 	}
 	return &WorkerRuntime{
-		worktrees:   worktrees,
-		validator:   validator,
-		runner:      worktreeRunner,
-		projectRoot: filepath.Clean(projectRoot),
-		commands:    commands,
-		timeout:     config.Timeout,
+		worktrees:     worktrees,
+		validator:     validator,
+		runner:        worktreeRunner,
+		projectRoot:   filepath.Clean(projectRoot),
+		commands:      commands,
+		timeout:       config.Timeout,
+		sandbox:       config.Sandbox,
+		sandboxImage:  strings.TrimSpace(config.SandboxImage),
+		sandboxLimits: config.SandboxLimits,
 	}, nil
 }
 
@@ -126,7 +137,7 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 		}
 		// argv is copied from trusted construction-time configuration. No task
 		// field is appended or interpolated, and the runner does not invoke a shell.
-		commandOutput, runErr := r.runner.RunInDirectory(runCtx, worktreePath, append([]string(nil), command.Argv...))
+		commandOutput, runErr := r.runCommand(runCtx, worktreePath, command.Argv)
 		if runErr != nil {
 			return ports.WorkerExecution{}, fmt.Errorf("run allowlisted worker command %q: %s", command.Name, boundedRedacted(runErr.Error()))
 		}
@@ -180,6 +191,31 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 		}, nil
 	}
 	return execution, nil
+}
+
+// runCommand keeps command policy independent from the execution backend. With
+// a sandbox configured, only the selected worktree is exposed and argv is sent
+// literally to the sandbox; otherwise local worktree execution is retained.
+func (r *WorkerRuntime) runCommand(ctx context.Context, worktreePath string, argv []string) (CommandOutput, error) {
+	if r.sandbox == nil {
+		return r.runner.RunInDirectory(ctx, worktreePath, append([]string(nil), argv...))
+	}
+	if r.sandboxImage == "" {
+		return CommandOutput{}, errors.New("worker sandbox image is required")
+	}
+	result, err := r.sandbox.Run(ctx, ports.SandboxRunRequest{
+		RootFS:         r.sandboxImage,
+		ProjectRoot:    worktreePath,
+		WorkDir:        "/workspace",
+		NoNetwork:      true,
+		ResourceLimits: r.sandboxLimits,
+		Timeout:        r.timeout,
+		Argv:           append([]string(nil), argv...),
+	})
+	if err != nil {
+		return CommandOutput{}, err
+	}
+	return CommandOutput{ExitCode: result.ExitCode, Stdout: string(result.Stdout), Stderr: string(result.Stderr)}, nil
 }
 
 func validateWorkerCommands(commands []ValidationCommand) ([]ValidationCommand, error) {

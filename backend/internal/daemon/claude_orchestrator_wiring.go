@@ -10,6 +10,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/claudeorchestrator"
+	"github.com/aoagents/agent-orchestrator/backend/internal/service/sandboxrunner"
 )
 
 // claudeOrchestratorBuildDeps is the composition seam for fake/offline tests
@@ -21,6 +22,7 @@ type claudeOrchestratorBuildDeps struct {
 	Memory    ports.ProjectMemory
 	Worktrees ports.WorktreeManager
 	Runner    claudeorchestrator.CommandRunner
+	Sandbox   ports.SandboxRunner
 }
 
 // claudeOrchestratorWiring is the daemon composition boundary. In the default
@@ -54,6 +56,20 @@ func validateClaudeOrchestratorConfig(cfg config.ClaudeOrchestratorConfig) error
 	}
 	if cfg.Worker.Timeout <= 0 {
 		missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_TIMEOUT")
+	}
+	if cfg.Worker.SandboxEnabled {
+		if strings.TrimSpace(cfg.Worker.SandboxImage) == "" {
+			missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE")
+		}
+		if cfg.Worker.SandboxMemoryBytes <= 0 {
+			missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_MEMORY_BYTES")
+		}
+		if cfg.Worker.SandboxNanoCPUs <= 0 {
+			missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_NANO_CPUS")
+		}
+		if cfg.Worker.SandboxPIDs <= 0 {
+			missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_PIDS")
+		}
 	}
 	if len(cfg.Validator.Commands) == 0 {
 		missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_VALIDATOR_COMMANDS")
@@ -119,10 +135,28 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 			return nil, errors.New("Claude orchestrator worker requires a worktree-capable command runner")
 		}
 		var err error
+		sandbox := injected.Sandbox
+		if sandbox == nil && cfg.ClaudeOrchestrator.Worker.SandboxEnabled {
+			executor, sandboxErr := sandboxrunner.NewDockerExecutor(sandboxrunner.DockerConfig{
+				Enabled:       true,
+				AllowedImages: []string{cfg.ClaudeOrchestrator.Worker.SandboxImage},
+			})
+			if sandboxErr != nil {
+				return nil, fmt.Errorf("configure Claude orchestrator Docker sandbox: %w", sandboxErr)
+			}
+			sandbox = sandboxrunner.New(executor)
+		}
 		worker, err = claudeorchestrator.NewWorkerRuntime(injected.Worktrees, validator, worktreeRunner, claudeorchestrator.WorkerRuntimeConfig{
-			ProjectRoot: cfg.ClaudeOrchestrator.Worker.ProjectRoot,
-			Commands:    toOrchestratorCommands(cfg.ClaudeOrchestrator.Worker.Commands),
-			Timeout:     cfg.ClaudeOrchestrator.Worker.Timeout,
+			ProjectRoot:  cfg.ClaudeOrchestrator.Worker.ProjectRoot,
+			Commands:     toOrchestratorCommands(cfg.ClaudeOrchestrator.Worker.Commands),
+			Timeout:      cfg.ClaudeOrchestrator.Worker.Timeout,
+			Sandbox:      sandbox,
+			SandboxImage: cfg.ClaudeOrchestrator.Worker.SandboxImage,
+			SandboxLimits: ports.SandboxResourceLimits{
+				MemoryBytes: cfg.ClaudeOrchestrator.Worker.SandboxMemoryBytes,
+				NanoCPUs:    cfg.ClaudeOrchestrator.Worker.SandboxNanoCPUs,
+				PIDs:        cfg.ClaudeOrchestrator.Worker.SandboxPIDs,
+			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure Claude orchestrator worker: %w", err)

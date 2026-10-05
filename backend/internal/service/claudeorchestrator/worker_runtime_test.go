@@ -74,6 +74,17 @@ func (f *workerRuntimeValidatorFake) Validate(_ context.Context, request ports.V
 	return f.report, f.err
 }
 
+type workerRuntimeSandboxFake struct {
+	requests []ports.SandboxRunRequest
+	result   ports.SandboxRunResult
+	err      error
+}
+
+func (f *workerRuntimeSandboxFake) Run(_ context.Context, request ports.SandboxRunRequest) (ports.SandboxRunResult, error) {
+	f.requests = append(f.requests, request)
+	return f.result, f.err
+}
+
 func TestWorkerRuntimeUsesExistingMetadataWorktreeAndStaticArgv(t *testing.T) {
 	worktreePath := t.TempDir()
 	projectRoot := t.TempDir()
@@ -130,6 +141,44 @@ func TestWorkerRuntimeUsesExistingMetadataWorktreeAndStaticArgv(t *testing.T) {
 	}
 	if validator.request.Results[0].FinalExecution.Status != ports.WorkerOutcomeCompleted {
 		t.Fatalf("validator received execution = %+v, want completed", validator.request.Results[0].FinalExecution)
+	}
+}
+
+func TestWorkerRuntimeUsesConfiguredSandboxForWorkerCommands(t *testing.T) {
+	worktreePath := t.TempDir()
+	sandbox := &workerRuntimeSandboxFake{result: ports.SandboxRunResult{Stdout: []byte("sandbox output")}}
+	runtime, err := NewWorkerRuntime(
+		&workerRuntimeWorktreeFake{},
+		&workerRuntimeValidatorFake{report: ports.ValidationReport{Passed: true}},
+		&workerRuntimeRunnerFake{err: errors.New("host runner must not be used")},
+		WorkerRuntimeConfig{
+			ProjectRoot:   t.TempDir(),
+			Commands:      []ValidationCommand{{Name: "tests", Argv: []string{"go", "test", "./..."}}},
+			Timeout:       time.Second,
+			Sandbox:       sandbox,
+			SandboxImage:  "ao/worker:v1",
+			SandboxLimits: ports.SandboxResourceLimits{MemoryBytes: 256 << 20, NanoCPUs: 1_000_000_000, PIDs: 128},
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewWorkerRuntime() error = %v", err)
+	}
+	execution, err := runtime.Execute(context.Background(), ports.WorkerRequest{
+		Task:    ports.PlannedSubtask{ID: "sandbox-task", Metadata: map[string]string{ports.SubtaskMetadataKeyWorktreePath: worktreePath}},
+		Attempt: 1,
+	})
+	if err != nil || execution.Status != ports.WorkerOutcomeCompleted {
+		t.Fatalf("Execute() = (%+v, %v), want completed sandbox execution", execution, err)
+	}
+	if len(sandbox.requests) != 1 {
+		t.Fatalf("sandbox requests = %d, want 1", len(sandbox.requests))
+	}
+	request := sandbox.requests[0]
+	if request.RootFS != "ao/worker:v1" || request.ProjectRoot != worktreePath || request.WorkDir != "/workspace" || !request.NoNetwork {
+		t.Fatalf("sandbox request boundary = %+v", request)
+	}
+	if !reflect.DeepEqual(request.Argv, []string{"go", "test", "./..."}) {
+		t.Fatalf("sandbox argv = %q, want fixed argv", request.Argv)
 	}
 }
 
