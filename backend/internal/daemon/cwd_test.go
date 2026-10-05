@@ -11,13 +11,16 @@ func TestStabilizeWorkingDirectoryChdirsToDataDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	dataDir := filepath.Join(t.TempDir(), "ao-data")
+	// Register this cleanup after t.TempDir so it runs first (cleanups run in
+	// LIFO order). Windows cannot remove a directory that is still the process
+	// current working directory.
 	t.Cleanup(func() {
 		if err := os.Chdir(oldCWD); err != nil {
 			t.Fatalf("restore cwd: %v", err)
 		}
 	})
 
-	dataDir := filepath.Join(t.TempDir(), "ao-data")
 	if err := stabilizeWorkingDirectory(dataDir); err != nil {
 		t.Fatalf("stabilizeWorkingDirectory: %v", err)
 	}
