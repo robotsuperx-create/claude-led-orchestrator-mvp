@@ -150,7 +150,12 @@ type ClaudeOrchestratorCommandConfig struct {
 
 // ClaudeOrchestratorWorkerConfig configures the worker's fixed command allowlist.
 type ClaudeOrchestratorWorkerConfig struct {
-	ProjectRoot        string
+	ProjectRoot string
+	// WorktreePath is the default workspace for runs whose request does not
+	// select one. It must be a registered worktree of ProjectRoot (the main
+	// checkout qualifies) and defaults to ProjectRoot when unset. A model plan
+	// can never choose it.
+	WorktreePath       string
 	Commands           []ClaudeOrchestratorCommandConfig
 	Timeout            time.Duration
 	SandboxEnabled     bool
@@ -278,7 +283,8 @@ func (c Config) Addr() string {
 // AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED experimental orchestrator off|on (default off)
 // When on, explicit AO_CLAUDE_ORCHESTRATOR_CLAUDE_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_{BASE_URL,MODEL,API_KEY},
-// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, *_WORKER_COMMANDS (JSON argv),
+// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, optional *_WORKER_WORKTREE_PATH
+// (default: the project root), *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
 // read only by this daemon process and are never returned by HTTP APIs.
@@ -509,6 +515,10 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 	cfg.ClaudeProvider = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE")
 	cfg.DeepSeekProvider = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK")
 	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
+	cfg.Worker.WorktreePath = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
+	if cfg.Worker.WorktreePath == "" {
+		cfg.Worker.WorktreePath = cfg.Worker.ProjectRoot
+	}
 	var err error
 	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)

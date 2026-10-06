@@ -130,10 +130,20 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	}
 	validator := injected.Validator
 	if validator == nil {
+		// Validation always runs inside a verified worktree of the configured
+		// project, so it needs the same worktree boundary as the worker.
+		if injected.Worktrees == nil {
+			return nil, errors.New("Claude orchestrator is enabled but its validator worktree manager is unavailable")
+		}
+		workspace := claudeorchestrator.ValidatorWorkspace{
+			Worktrees:   injected.Worktrees,
+			ProjectRoot: cfg.ClaudeOrchestrator.Worker.ProjectRoot,
+		}
+		commands := toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands)
 		var err error
 		if sandbox != nil {
 			validator, err = claudeorchestrator.NewValidatorWithSandbox(
-				toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands),
+				commands,
 				cfg.ClaudeOrchestrator.Validator.Timeout,
 				runner,
 				sandbox,
@@ -143,9 +153,10 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 					NanoCPUs:    cfg.ClaudeOrchestrator.Worker.SandboxNanoCPUs,
 					PIDs:        cfg.ClaudeOrchestrator.Worker.SandboxPIDs,
 				},
+				workspace,
 			)
 		} else {
-			validator, err = claudeorchestrator.NewValidator(toOrchestratorCommands(cfg.ClaudeOrchestrator.Validator.Commands), cfg.ClaudeOrchestrator.Validator.Timeout, runner)
+			validator, err = claudeorchestrator.NewValidatorInWorkspace(commands, cfg.ClaudeOrchestrator.Validator.Timeout, runner, workspace)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("configure Claude orchestrator validator: %w", err)
@@ -183,6 +194,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	}
 	wiring.service = claudeorchestrator.New(claudeorchestrator.Dependencies{
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
+		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
 	})
 	return wiring, nil
 }

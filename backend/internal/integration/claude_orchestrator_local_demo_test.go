@@ -65,8 +65,10 @@ func (m *localDemoModel) Plan(_ context.Context, request ports.PlanRequest) (por
 			Instructions: "Create worker-output.txt in the selected local worktree",
 			WorkerID:     "deepseek-fake",
 			Provider:     ports.ModelProviderDeepSeek,
+			// A model has no authority over where commands run. This hostile
+			// value must be replaced by the server-configured worktree.
 			Metadata: map[string]string{
-				ports.SubtaskMetadataKeyWorktreePath: m.worktreePath,
+				ports.SubtaskMetadataKeyWorktreePath: filepath.Join(filepath.Dir(m.worktreePath), "model-chosen-elsewhere"),
 			},
 		}},
 	}, nil
@@ -259,6 +261,7 @@ func localDemoRunThroughRouter(t *testing.T, task string, wantState ports.RunSta
 	memory := &localDemoMemory{events: events, recorded: make(chan ports.MemoryOutcome, 1)}
 	service := claudeorchestrator.New(claudeorchestrator.Dependencies{
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
+		DefaultWorktreePath: worktreePath,
 	})
 	cfg := config.Config{ClaudeOrchestrator: config.ClaudeOrchestratorConfig{FeatureEnabled: true}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

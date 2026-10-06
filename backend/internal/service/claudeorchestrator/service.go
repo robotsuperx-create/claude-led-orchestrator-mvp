@@ -24,6 +24,10 @@ type Dependencies struct {
 	Worker    ports.WorkerRuntime
 	Validator ports.Validator
 	Memory    ports.ProjectMemory
+	// DefaultWorktreePath is the trusted operator-configured workspace used
+	// when a request does not select one. Worker and validator still verify
+	// it against the project root before running anything.
+	DefaultWorktreePath string
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -34,6 +38,8 @@ type Service struct {
 	worker    ports.WorkerRuntime
 	validator ports.Validator
 	memory    ports.ProjectMemory
+
+	defaultWorktreePath string
 
 	mu      sync.RWMutex
 	states  map[string]ports.RunState
@@ -48,9 +54,12 @@ func New(deps Dependencies) *Service {
 		worker:    deps.Worker,
 		validator: deps.Validator,
 		memory:    deps.Memory,
-		states:    make(map[string]ports.RunState),
-		running:   make(map[string]bool),
-		cancels:   make(map[string]context.CancelFunc),
+
+		defaultWorktreePath: strings.TrimSpace(deps.DefaultWorktreePath),
+
+		states:  make(map[string]ports.RunState),
+		running: make(map[string]bool),
+		cancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -147,6 +156,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
+	plan = bindTrustedWorkspace(plan, s.worktreeFor(request))
 	result.Plan = plan
 
 	if !s.advance(request.RunID, ports.RunStateExecuting, runCtx) {
@@ -371,6 +381,30 @@ func validatePlan(plan ports.ExecutionPlan) error {
 		seen[task.ID] = struct{}{}
 	}
 	return nil
+}
+
+// worktreeFor selects the trusted workspace for a run: the caller's explicit
+// choice, otherwise the operator-configured default.
+func (s *Service) worktreeFor(request ports.OrchestrationRequest) string {
+	if path := strings.TrimSpace(request.WorktreePath); path != "" {
+		return path
+	}
+	return s.defaultWorktreePath
+}
+
+// bindTrustedWorkspace replaces all subtask metadata with server-owned values.
+// A model plan must never choose where commands run or what gets mounted, so
+// any metadata an implementation decoded from model output is discarded.
+func bindTrustedWorkspace(plan ports.ExecutionPlan, worktreePath string) ports.ExecutionPlan {
+	bound := ports.ExecutionPlan{Summary: plan.Summary, Subtasks: make([]ports.PlannedSubtask, len(plan.Subtasks))}
+	for i, task := range plan.Subtasks {
+		task.Metadata = nil
+		if worktreePath != "" {
+			task.Metadata = map[string]string{ports.SubtaskMetadataKeyWorktreePath: worktreePath}
+		}
+		bound.Subtasks[i] = task
+	}
+	return bound
 }
 
 func workerFailure(execution ports.WorkerExecution) string {

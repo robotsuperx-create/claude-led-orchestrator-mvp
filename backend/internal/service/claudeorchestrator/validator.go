@@ -87,23 +87,46 @@ type Validator struct {
 	sandbox       ports.SandboxRunner
 	sandboxImage  string
 	sandboxLimits ports.SandboxResourceLimits
+	worktrees     ports.WorktreeManager
+	projectRoot   string
+}
+
+// ValidatorWorkspace is the trusted boundary for workspace-scoped validation.
+// Every worktree path taken from task metadata is confirmed by Worktrees to be
+// a registered worktree of ProjectRoot before a command runs in it.
+type ValidatorWorkspace struct {
+	Worktrees   ports.WorktreeManager
+	ProjectRoot string
 }
 
 // NewValidator constructs a validator from a fixed argv allowlist and an
 // injected runner. Invalid entries (including shell/interpreter commands) are
-// rejected before any validation request can cause execution.
+// rejected before any validation request can cause execution. Commands run in
+// the runner's own working directory; prefer NewValidatorInWorkspace so they
+// run in the verified task worktree.
 func NewValidator(commands []ValidationCommand, timeout time.Duration, runner CommandRunner) (*Validator, error) {
-	return newValidator(commands, timeout, runner, nil, "", ports.SandboxResourceLimits{})
+	return newValidator(commands, timeout, runner, nil, "", ports.SandboxResourceLimits{}, nil)
+}
+
+// NewValidatorInWorkspace constructs a host-executed validator whose commands
+// run inside the verified task worktree. The runner must support an explicit
+// working directory.
+func NewValidatorInWorkspace(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, workspace ValidatorWorkspace) (*Validator, error) {
+	if _, ok := runner.(WorktreeCommandRunner); runner != nil && !ok {
+		return nil, errors.New("workspace validator command runner must support an explicit working directory")
+	}
+	return newValidator(commands, timeout, runner, nil, "", ports.SandboxResourceLimits{}, &workspace)
 }
 
 // NewValidatorWithSandbox constructs a validator whose fixed commands execute
 // in the same isolated runtime as worker commands. The worktree is taken only
-// from the server-produced task metadata, never from model-controlled argv.
-func NewValidatorWithSandbox(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits) (*Validator, error) {
-	return newValidator(commands, timeout, runner, sandbox, image, limits)
+// from server-stamped task metadata and is verified against the workspace
+// boundary before it is mounted; a sandbox without that boundary is rejected.
+func NewValidatorWithSandbox(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits, workspace ValidatorWorkspace) (*Validator, error) {
+	return newValidator(commands, timeout, runner, sandbox, image, limits, &workspace)
 }
 
-func newValidator(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits) (*Validator, error) {
+func newValidator(commands []ValidationCommand, timeout time.Duration, runner CommandRunner, sandbox ports.SandboxRunner, image string, limits ports.SandboxResourceLimits, workspace *ValidatorWorkspace) (*Validator, error) {
 	if len(commands) == 0 {
 		return nil, errors.New("validator requires at least one allowlisted command")
 	}
@@ -145,10 +168,25 @@ func newValidator(commands []ValidationCommand, timeout time.Duration, runner Co
 	if sandbox != nil && strings.TrimSpace(image) == "" {
 		return nil, errors.New("validator sandbox image is required")
 	}
-	return &Validator{
+	validator := &Validator{
 		commands: fixed, timeout: timeout, runner: runner, sandbox: sandbox,
 		sandboxImage: strings.TrimSpace(image), sandboxLimits: limits,
-	}, nil
+	}
+	if workspace != nil {
+		if workspace.Worktrees == nil {
+			return nil, errors.New("validator worktree manager is required")
+		}
+		if strings.TrimSpace(workspace.ProjectRoot) == "" {
+			return nil, errors.New("validator project root is required")
+		}
+		projectRoot, err := filepath.Abs(workspace.ProjectRoot)
+		if err != nil {
+			return nil, fmt.Errorf("resolve validator project root: %w", err)
+		}
+		validator.worktrees = workspace.Worktrees
+		validator.projectRoot = filepath.Clean(projectRoot)
+	}
+	return validator, nil
 }
 
 // Validate implements ports.Validator. Validation failures are reported as a
@@ -175,9 +213,18 @@ func (v *Validator) Check(ctx context.Context, request ports.ValidationRequest) 
 	checkCtx, cancel := context.WithTimeout(ctx, v.timeout)
 	defer cancel()
 	worktreePath := ""
-	if v.sandbox != nil {
+	if v.sandbox != nil || v.worktrees != nil {
+		if v.worktrees == nil {
+			// Fail closed: a sandbox bind-mounts the path read-write, so an
+			// unverified (possibly model-influenced) path must never reach it.
+			return ValidationResult{}, errors.New("validator sandbox requires a verified worktree boundary")
+		}
 		var err error
 		worktreePath, err = validationWorktreePath(request)
+		if err != nil {
+			return ValidationResult{}, err
+		}
+		worktreePath, err = verifyWorktree(checkCtx, v.worktrees, v.projectRoot, worktreePath, "validation")
 		if err != nil {
 			return ValidationResult{}, err
 		}
@@ -232,6 +279,13 @@ func (v *Validator) Check(ctx context.Context, request ports.ValidationRequest) 
 
 func (v *Validator) runCommand(ctx context.Context, worktreePath string, argv []string) (CommandOutput, error) {
 	if v.sandbox == nil {
+		if worktreePath != "" {
+			runner, ok := v.runner.(WorktreeCommandRunner)
+			if !ok {
+				return CommandOutput{}, errors.New("validator command runner cannot run in a worktree directory")
+			}
+			return runner.RunInDirectory(ctx, worktreePath, append([]string(nil), argv...))
+		}
 		return v.runner.Run(ctx, append([]string(nil), argv...))
 	}
 	result, err := v.sandbox.Run(ctx, ports.SandboxRunRequest{
@@ -266,9 +320,34 @@ func validationWorktreePath(request ports.ValidationRequest) (string, error) {
 		selected = candidate
 	}
 	if selected == "" {
-		return "", errors.New("validator sandbox requires a worktree path")
+		return "", errors.New("validator requires a worktree path")
 	}
 	return selected, nil
+}
+
+// verifyWorktree confirms through the worktree manager that path is a
+// registered worktree of projectRoot. It is the single gate a task worktree
+// path must pass before validation commands run in, or mount, that directory.
+func verifyWorktree(ctx context.Context, worktrees ports.WorktreeManager, projectRoot, path, subject string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("%s has no existing worktree path", subject)
+	}
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("%s worktree path must be absolute", subject)
+	}
+	path = filepath.Clean(path)
+	status, err := worktrees.Status(ctx, ports.WorktreeStatusRequest{ProjectRoot: projectRoot, Path: path})
+	if err != nil {
+		return "", fmt.Errorf("inspect %s worktree: %w", subject, err)
+	}
+	if returned := strings.TrimSpace(status.Path); returned != "" {
+		resolved, resolveErr := filepath.Abs(returned)
+		if resolveErr != nil || filepath.Clean(resolved) != path {
+			return "", fmt.Errorf("worktree manager returned a different path for %s", subject)
+		}
+	}
+	return path, nil
 }
 
 func commandIssue(result CommandResult) string {

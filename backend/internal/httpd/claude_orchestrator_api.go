@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -21,6 +22,7 @@ const (
 	claudeOrchestratorMaxBodyBytes = 16 * 1024
 	claudeOrchestratorMaxTaskBytes = 8 * 1024
 	claudeOrchestratorMaxRetries   = 3
+	claudeOrchestratorMaxPathBytes = 4 * 1024
 )
 
 // ClaudeOrchestratorRunService is the narrow injectable service contract used by
@@ -55,6 +57,9 @@ type claudeOrchestratorRunRequest struct {
 	Task          string `json:"task"`
 	MaxRetries    int    `json:"maxRetries,omitempty"`
 	ExplicitOptIn bool   `json:"explicitOptIn"`
+	// WorktreePath optionally selects an existing worktree of the configured
+	// project. The worker and validator verify it before running anything.
+	WorktreePath string `json:"worktreePath,omitempty"`
 }
 
 // ClaudeOrchestratorRunResponse is intentionally limited to opaque run identity
@@ -107,6 +112,12 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 		writeClaudeOrchestratorAPIError(w, r, http.StatusBadRequest, "INVALID_MAX_RETRIES", "maxRetries is outside the allowed range")
 		return
 	}
+	body.WorktreePath = strings.TrimSpace(body.WorktreePath)
+	if body.WorktreePath != "" && (len(body.WorktreePath) > claudeOrchestratorMaxPathBytes ||
+		strings.ContainsRune(body.WorktreePath, '\x00') || !filepath.IsAbs(body.WorktreePath)) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusBadRequest, "INVALID_WORKTREE_PATH", "worktreePath must be an absolute path within the allowed size")
+		return
+	}
 
 	runID, err := newClaudeOrchestratorRunID()
 	if err != nil {
@@ -115,7 +126,7 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 	}
 	api.setRunState(runID, ports.RunStatePending)
 	service := api.Service
-	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries}
+	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath}
 	ctx, cancel := context.WithCancel(context.Background())
 	api.registerCancel(runID, cancel)
 	go api.execute(service, request, ctx, cancel)

@@ -102,29 +102,12 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 	if request.Attempt < 1 {
 		return ports.WorkerExecution{}, errors.New("worker attempt must be positive")
 	}
-	worktreePath := strings.TrimSpace(request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath])
-	if worktreePath == "" {
-		return ports.WorkerExecution{}, fmt.Errorf("subtask %q has no existing worktree path in metadata", request.Task.ID)
-	}
-	if !filepath.IsAbs(worktreePath) {
-		return ports.WorkerExecution{}, fmt.Errorf("subtask %q worktree path must be absolute", request.Task.ID)
-	}
-	worktreePath = filepath.Clean(worktreePath)
-
 	runCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	status, err := r.worktrees.Status(runCtx, ports.WorktreeStatusRequest{
-		ProjectRoot: r.projectRoot,
-		Path:        worktreePath,
-	})
+	worktreePath, err := verifyWorktree(runCtx, r.worktrees, r.projectRoot,
+		request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath], fmt.Sprintf("subtask %q", request.Task.ID))
 	if err != nil {
-		return ports.WorkerExecution{}, fmt.Errorf("inspect subtask %q worktree: %w", request.Task.ID, err)
-	}
-	if returnedPath := strings.TrimSpace(status.Path); returnedPath != "" {
-		resolvedStatusPath, resolveErr := filepath.Abs(returnedPath)
-		if resolveErr != nil || filepath.Clean(resolvedStatusPath) != worktreePath {
-			return ports.WorkerExecution{}, fmt.Errorf("worktree manager returned a different path for subtask %q", request.Task.ID)
-		}
+		return ports.WorkerExecution{}, err
 	}
 	if err := runCtx.Err(); err != nil {
 		return ports.WorkerExecution{}, err
