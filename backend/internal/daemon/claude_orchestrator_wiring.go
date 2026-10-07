@@ -133,7 +133,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		// Validation always runs inside a verified worktree of the configured
 		// project, so it needs the same worktree boundary as the worker.
 		if injected.Worktrees == nil {
-			return nil, errors.New("Claude orchestrator is enabled but its validator worktree manager is unavailable")
+			return nil, errors.New("validator worktree manager is unavailable while the Claude orchestrator is enabled")
 		}
 		workspace := claudeorchestrator.ValidatorWorkspace{
 			Worktrees:   injected.Worktrees,
