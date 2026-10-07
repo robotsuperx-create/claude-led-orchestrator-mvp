@@ -150,6 +150,13 @@ if (typeof window !== "undefined") {
 			writeText: async () => undefined,
 			readText: async () => "",
 		},
+		claudeOrchestrator: {
+			info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", sandboxed: false, maxActiveRuns: 0 } }),
+			list: async () => ({ ok: false, error: "disabled" }),
+			start: async () => ({ ok: false, error: "disabled" }),
+			status: async () => ({ ok: false, error: "disabled" }),
+			cancel: async () => ({ ok: false, error: "disabled" }),
+		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),
 			start: async () => ({ state: "starting" }),

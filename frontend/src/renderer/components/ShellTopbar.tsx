@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { Archive, CalendarClock, Folder, LayoutDashboard, Plus } from "lucide-react";
+import { Archive, CalendarClock, Workflow, Folder, LayoutDashboard, Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { NotificationCenter } from "./NotificationCenter";
@@ -122,6 +122,7 @@ export function ShellTopbar({
 	const session = workspaceScope?.session;
 	const isSessionRoute = Boolean(params.sessionId);
 	const isAutomationsRoute = location.pathname === "/automations";
+	const isOrchestratorRoute = location.pathname === "/orchestrator";
 	const isStandaloneBoardRoute = location.pathname === "/sessions" || location.pathname === "/sessions/";
 	const isOrchestrator = session ? isOrchestratorSession(session) : false;
 	const isInspectorOpen = useUiStore((state) =>
@@ -134,7 +135,7 @@ export function ShellTopbar({
 	// route slug. "Board" is the root-board crumb only.
 	const projectId = session?.workspaceId ?? params.projectId;
 	const isProjectBoardRoute = !isSessionRoute && Boolean(projectId);
-	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute && !isAutomationsRoute && !isStandaloneBoardRoute;
+	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute && !isAutomationsRoute && !isOrchestratorRoute && !isStandaloneBoardRoute;
 	const project = workspaceScope?.project;
 	const supportsLocalCues = Boolean(!hostId && project && toProjectKind(project.kind));
 	const projectLabel = project?.name ?? session?.workspaceName ?? (projectId ? "" : t("shell.board"));
@@ -189,6 +190,13 @@ export function ShellTopbar({
 						<span className={cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5")}>
 							<CalendarClock aria-hidden="true" className="size-icon-md" />
 							{t("automations.title")}
+						</span>
+					</div>
+				) : isOrchestratorRoute ? (
+					<div className="inline-flex min-w-0 items-center gap-1.5" data-testid="orchestrator-topbar-label">
+						<span className={cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5")}>
+							<Workflow aria-hidden="true" className="size-icon-md" />
+							{t("orchestrator.title")}
 						</span>
 					</div>
 				) : (isProjectBoardRoute && boardActionsInPanel) ||

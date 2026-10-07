@@ -21,6 +21,7 @@ import {
 	webContents,
 	type WebContents,
 	type OpenDialogOptions,
+	type IpcMainInvokeEvent,
 } from "electron";
 import {
 	setRendererSink,
@@ -41,6 +42,7 @@ import { listFeatureBuilds, getActiveFeatureBuild } from "./main/feature-builds"
 import { initMainSentry, sanitizeRendererCapture } from "./main/sentry-main";
 import { TelemetryPolicyAuthority, resolveDesktopDataDir } from "./main/telemetry-policy-file";
 import { DaemonTelemetryPolicyClient } from "./main/daemon-telemetry-policy-client";
+import { ClaudeOrchestratorClient } from "./main/claude-orchestrator-client";
 import { DesktopTelemetryController } from "./main/desktop-telemetry-controller";
 import { AgentSwitchVisibilityController } from "./main/agent-switch-observability";
 import { readUpdateSettings, type UpdateSettings, type UpdateStatus } from "./main/update-settings";
@@ -1992,6 +1994,25 @@ async function restartDaemon(): Promise<DaemonStatus> {
 	}
 	return startDaemonForRestart();
 }
+
+// Claude orchestrator: the daemon's orchestrator routes are loopback-only and
+// reject browser origins, so the renderer reaches them through these handlers.
+// Only the trusted shell window may call them; results are validated codes and
+// allowlisted fields (see main/claude-orchestrator-client.ts).
+const claudeOrchestratorClient = new ClaudeOrchestratorClient(
+	() => daemonStatus.state === "ready" && daemonStatus.port ? `http://127.0.0.1:${daemonStatus.port}` : null,
+	(url, init) => net.fetch(url, init),
+);
+function isTrustedShellSender(event: IpcMainInvokeEvent): boolean {
+	const trusted = trustedShellWebContents.get(event.sender.id);
+	return trusted === event.sender && !trusted.isDestroyed();
+}
+const untrustedOrchestratorCaller = { ok: false, error: "failed" } as const;
+ipcMain.handle("claudeOrchestrator:info", (event) => isTrustedShellSender(event) ? claudeOrchestratorClient.info() : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:list", (event) => isTrustedShellSender(event) ? claudeOrchestratorClient.list() : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:start", (event, input: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.start(input) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:status", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.status(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:cancel", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.cancel(runId) : untrustedOrchestratorCaller);
 
 ipcMain.handle("daemon:getStatus", () => refreshDaemonStatus());
 ipcMain.handle("daemon:start", () => startDaemon());
