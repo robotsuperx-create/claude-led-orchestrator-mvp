@@ -23,6 +23,12 @@ const (
 	claudeOrchestratorMaxTaskBytes = 8 * 1024
 	claudeOrchestratorMaxRetries   = 3
 	claudeOrchestratorMaxPathBytes = 4 * 1024
+	// DefaultClaudeOrchestratorMaxActiveRuns bounds concurrent runs, each of
+	// which spends provider credit and runs commands.
+	DefaultClaudeOrchestratorMaxActiveRuns = 2
+	// claudeOrchestratorMaxRetainedRuns bounds remembered run records; the
+	// oldest terminal runs are forgotten first.
+	claudeOrchestratorMaxRetainedRuns = 256
 )
 
 // ClaudeOrchestratorRunService is the narrow injectable service contract used by
@@ -39,10 +45,22 @@ type ClaudeOrchestratorRunService interface {
 type ClaudeOrchestratorAPI struct {
 	Service ClaudeOrchestratorRunService
 	Gate    ports.ClaudeOrchestratorRunGate
+	// MaxActiveRuns limits non-terminal runs; zero selects
+	// DefaultClaudeOrchestratorMaxActiveRuns.
+	MaxActiveRuns int
 
-	mu     sync.RWMutex
-	runs   map[string]ports.RunState
-	cancel map[string]context.CancelFunc
+	mu      sync.RWMutex
+	runs    map[string]ports.RunState
+	details map[string]claudeOrchestratorRunDetails
+	order   []string
+	cancel  map[string]context.CancelFunc
+}
+
+// claudeOrchestratorRunDetails holds the non-sensitive outcome of a run.
+type claudeOrchestratorRunDetails struct {
+	Branch         string
+	Commit         string
+	Recommendation ports.MergeOutcome
 }
 
 // Register mounts the isolated local control routes. Callers opt into daemon
@@ -62,12 +80,16 @@ type claudeOrchestratorRunRequest struct {
 	WorktreePath string `json:"worktreePath,omitempty"`
 }
 
-// ClaudeOrchestratorRunResponse is intentionally limited to opaque run identity
-// and lifecycle state. It does not serialize prompts, model output, worker
-// output, errors, credentials, or provider configuration.
+// ClaudeOrchestratorRunResponse is intentionally limited to opaque run
+// identity, lifecycle state, and where the result lives: the run branch, its
+// commit, and the merge recommendation. It does not serialize prompts, model
+// output, worker output, errors, credentials, or provider configuration.
 type ClaudeOrchestratorRunResponse struct {
-	RunID string         `json:"runId"`
-	State ports.RunState `json:"state"`
+	RunID          string             `json:"runId"`
+	State          ports.RunState     `json:"state"`
+	Branch         string             `json:"branch,omitempty"`
+	Commit         string             `json:"commit,omitempty"`
+	Recommendation ports.MergeOutcome `json:"recommendation,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +146,10 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 		writeClaudeOrchestratorAPIError(w, r, http.StatusInternalServerError, "RUN_START_FAILED", "Unable to start Claude orchestrator run")
 		return
 	}
-	api.setRunState(runID, ports.RunStatePending)
+	if !api.reserveRun(runID) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusTooManyRequests, "TOO_MANY_ACTIVE_RUNS", "Too many Claude orchestrator runs are active; wait for one to finish")
+		return
+	}
 	service := api.Service
 	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -194,7 +219,73 @@ func (api *ClaudeOrchestratorAPI) status(w http.ResponseWriter, r *http.Request)
 			state, _ = api.getRunState(runID)
 		}
 	}
-	envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorRunResponse{RunID: runID, State: state})
+	envelope.WriteJSON(w, http.StatusOK, api.response(runID, state))
+}
+
+func (api *ClaudeOrchestratorAPI) response(runID string, state ports.RunState) ClaudeOrchestratorRunResponse {
+	api.mu.RLock()
+	details := api.details[runID]
+	api.mu.RUnlock()
+	return ClaudeOrchestratorRunResponse{
+		RunID: runID, State: state,
+		Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
+	}
+}
+
+// reserveRun registers a new pending run unless the active-run limit is
+// reached, then forgets the oldest terminal runs beyond the retention bound.
+func (api *ClaudeOrchestratorAPI) reserveRun(runID string) bool {
+	limit := api.MaxActiveRuns
+	if limit <= 0 {
+		limit = DefaultClaudeOrchestratorMaxActiveRuns
+	}
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if api.runs == nil {
+		api.runs = make(map[string]ports.RunState)
+	}
+	active := 0
+	for _, state := range api.runs {
+		if !terminalClaudeOrchestratorRunState(state) {
+			active++
+		}
+	}
+	if active >= limit {
+		return false
+	}
+	api.runs[runID] = ports.RunStatePending
+	api.order = append(api.order, runID)
+	if len(api.order) > claudeOrchestratorMaxRetainedRuns {
+		kept := api.order[:0]
+		excess := len(api.order) - claudeOrchestratorMaxRetainedRuns
+		for _, id := range api.order {
+			if excess > 0 && terminalClaudeOrchestratorRunState(api.runs[id]) {
+				delete(api.runs, id)
+				delete(api.details, id)
+				excess--
+				continue
+			}
+			kept = append(kept, id)
+		}
+		api.order = kept
+	}
+	return true
+}
+
+func (api *ClaudeOrchestratorAPI) recordDetails(runID string, result ports.OrchestrationResult) {
+	api.mu.Lock()
+	defer api.mu.Unlock()
+	if _, known := api.runs[runID]; !known {
+		return
+	}
+	if api.details == nil {
+		api.details = make(map[string]claudeOrchestratorRunDetails)
+	}
+	api.details[runID] = claudeOrchestratorRunDetails{
+		Branch:         result.Workspace.Branch,
+		Commit:         result.Workspace.Commit,
+		Recommendation: result.MergeDecision.Decision,
+	}
 }
 
 func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrchestratorRunService, request ports.OrchestrationRequest, cancel context.CancelFunc) {
@@ -212,6 +303,7 @@ func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrc
 	// This context is detached from the HTTP request and remains cancelable
 	// through the run's local control endpoint.
 	result, err := service.Run(ctx, request)
+	api.recordDetails(request.RunID, result)
 	if err == nil && validClaudeOrchestratorRunState(result.State) {
 		state = result.State
 		return

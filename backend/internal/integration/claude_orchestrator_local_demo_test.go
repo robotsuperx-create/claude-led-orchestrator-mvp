@@ -308,8 +308,8 @@ func localDemoRunThroughRouter(t *testing.T, task string, wantState ports.RunSta
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if finalPayload["runId"] != runID || finalPayload["state"] != string(wantState) {
-		t.Fatalf("terminal status = %#v, want runId %q and state %q", finalPayload, runID, wantState)
+	if finalPayload["runId"] != runID || finalPayload["state"] != string(wantState) || finalPayload["recommendation"] != string(wantMerge) {
+		t.Fatalf("terminal status = %#v, want runId %q, state %q and recommendation %q", finalPayload, runID, wantState, wantMerge)
 	}
 
 	select {
@@ -359,8 +359,16 @@ func localDemoDecodeResponse(t *testing.T, response *http.Response, wantStatus i
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("decode HTTP response %q: %v", body, err)
 	}
-	if len(payload) != 2 || payload["runId"] == nil || payload["state"] == nil {
-		t.Fatalf("response fields = %#v, want only runId and state", payload)
+	// Only identity, state, and where the result lives may be returned; no
+	// prompt, model, worker, or error text.
+	allowed := map[string]bool{"runId": true, "state": true, "branch": true, "commit": true, "recommendation": true}
+	for key := range payload {
+		if !allowed[key] {
+			t.Fatalf("response fields = %#v, unexpected field %q", payload, key)
+		}
+	}
+	if payload["runId"] == nil || payload["state"] == nil {
+		t.Fatalf("response fields = %#v, want runId and state", payload)
 	}
 	return payload
 }

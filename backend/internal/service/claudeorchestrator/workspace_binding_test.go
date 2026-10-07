@@ -2,6 +2,7 @@ package claudeorchestrator
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -92,5 +93,39 @@ func TestRunWithoutTrustedWorkspaceStripsModelMetadata(t *testing.T) {
 
 	if len(workerRequests) != 1 || workerRequests[0].Task.Metadata != nil {
 		t.Fatalf("worker metadata = %v, want none when no trusted workspace exists", workerRequests[0].Task.Metadata)
+	}
+}
+
+func TestServiceForgetsOldestFinishedRunStates(t *testing.T) {
+	plan := ports.ExecutionPlan{Subtasks: []ports.PlannedSubtask{{ID: "a", WorkerID: "w"}}}
+	model := &modelFake{
+		planFn: func(context.Context, ports.PlanRequest) (ports.ExecutionPlan, error) { return plan, nil },
+		reviewFn: func(context.Context, ports.ReviewRequest) (ports.ReviewDecision, error) {
+			return ports.ReviewDecision{Decision: ports.ReviewOutcomeApprove}, nil
+		},
+	}
+	service := New(Dependencies{
+		Model: model, Memory: &memoryFake{},
+		Worker: &workerFake{executeFn: func(context.Context, ports.WorkerRequest) (ports.WorkerExecution, error) {
+			return ports.WorkerExecution{Status: ports.WorkerOutcomeCompleted}, nil
+		}},
+		Validator: &validatorFake{validateFn: func(context.Context, ports.ValidationRequest) (ports.ValidationReport, error) {
+			return ports.ValidationReport{Passed: true}, nil
+		}},
+	})
+	total := maxRetainedRunStates + 5
+	for i := 0; i < total; i++ {
+		if _, err := service.Run(context.Background(), ports.OrchestrationRequest{RunID: fmt.Sprintf("r-%d", i), Task: "t"}); err != nil {
+			t.Fatalf("Run %d: %v", i, err)
+		}
+	}
+	if _, ok := service.RunState("r-0"); ok {
+		t.Fatal("the oldest finished run is still retained")
+	}
+	if state, ok := service.RunState(fmt.Sprintf("r-%d", total-1)); !ok || state != ports.RunStateCompleted {
+		t.Fatalf("newest run state = %q, %v; want completed", state, ok)
+	}
+	if len(service.states) > maxRetainedRunStates {
+		t.Fatalf("retained %d states, want at most %d", len(service.states), maxRetainedRunStates)
 	}
 }

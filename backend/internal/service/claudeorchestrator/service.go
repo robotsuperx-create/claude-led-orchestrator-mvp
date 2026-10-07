@@ -46,11 +46,15 @@ type Service struct {
 	defaultWorktreePath string
 	workspaces          ports.RunWorkspaceProvisioner
 
-	mu      sync.RWMutex
-	states  map[string]ports.RunState
-	running map[string]bool
-	cancels map[string]context.CancelFunc
+	mu       sync.RWMutex
+	states   map[string]ports.RunState
+	running  map[string]bool
+	cancels  map[string]context.CancelFunc
+	finished []string
 }
+
+// maxRetainedRunStates bounds how many finished runs RunState remembers.
+const maxRetainedRunStates = 256
 
 // New constructs the orchestration application service.
 func New(deps Dependencies) *Service {
@@ -246,6 +250,16 @@ func (s *Service) release(runID string) {
 	defer s.mu.Unlock()
 	delete(s.running, runID)
 	delete(s.cancels, runID)
+	// Forget the oldest finished runs so a long-lived daemon's memory stays
+	// bounded. Their outcomes were already handed to ProjectMemory.
+	s.finished = append(s.finished, runID)
+	for len(s.finished) > maxRetainedRunStates {
+		oldest := s.finished[0]
+		s.finished = s.finished[1:]
+		if !s.running[oldest] {
+			delete(s.states, oldest)
+		}
+	}
 }
 
 func (s *Service) advance(ctx context.Context, runID string, state ports.RunState) bool {
