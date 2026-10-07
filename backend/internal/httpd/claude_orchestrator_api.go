@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/service/claudeorchestrator"
 )
 
 const (
@@ -48,6 +50,10 @@ type ClaudeOrchestratorAPI struct {
 	// MaxActiveRuns limits non-terminal runs; zero selects
 	// DefaultClaudeOrchestratorMaxActiveRuns.
 	MaxActiveRuns int
+	// Info describes the configured orchestrator for the desktop UI. It holds
+	// display names only: no paths beyond the repository's base name, no URLs,
+	// and no credentials.
+	Info ClaudeOrchestratorInfo
 
 	mu      sync.RWMutex
 	runs    map[string]ports.RunState
@@ -56,16 +62,48 @@ type ClaudeOrchestratorAPI struct {
 	cancel  map[string]context.CancelFunc
 }
 
-// claudeOrchestratorRunDetails holds the non-sensitive outcome of a run.
+// ClaudeOrchestratorInfo is the display-safe configuration summary.
+type ClaudeOrchestratorInfo struct {
+	Enabled        bool                `json:"enabled"`
+	Repository     string              `json:"repository"`
+	PlannerModel   string              `json:"plannerModel"`
+	WorkerProvider ports.ModelProvider `json:"workerProvider"`
+	WorkerModel    string              `json:"workerModel"`
+	Sandboxed      bool                `json:"sandboxed"`
+	MaxActiveRuns  int                 `json:"maxActiveRuns"`
+}
+
+// claudeOrchestratorRunDetails holds the non-sensitive record of a run.
 type claudeOrchestratorRunDetails struct {
+	Title          string
 	Branch         string
 	Commit         string
 	Recommendation ports.MergeOutcome
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// claudeOrchestratorMaxTitleRunes bounds the task excerpt kept for history.
+const claudeOrchestratorMaxTitleRunes = 160
+
+// ClaudeOrchestratorRunSummary is one row of run history.
+type ClaudeOrchestratorRunSummary struct {
+	ClaudeOrchestratorRunResponse
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// ClaudeOrchestratorRunList is the run history, newest first.
+type ClaudeOrchestratorRunList struct {
+	Runs []ClaudeOrchestratorRunSummary `json:"runs"`
 }
 
 // Register mounts the isolated local control routes. Callers opt into daemon
 // wiring by registering this API; it is intentionally not mounted by default.
 func (api *ClaudeOrchestratorAPI) Register(r chi.Router) {
+	r.Get("/internal/claude-orchestrator", api.info)
+	r.Get("/internal/claude-orchestrator/runs", api.list)
 	r.Post("/internal/claude-orchestrator/runs", api.start)
 	r.Get("/internal/claude-orchestrator/runs/{runId}", api.status)
 	r.Post("/internal/claude-orchestrator/runs/{runId}/cancel", api.cancelRun)
@@ -146,7 +184,7 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 		writeClaudeOrchestratorAPIError(w, r, http.StatusInternalServerError, "RUN_START_FAILED", "Unable to start Claude orchestrator run")
 		return
 	}
-	if !api.reserveRun(runID) {
+	if !api.reserveRun(runID, runTitle(body.Task)) {
 		writeClaudeOrchestratorAPIError(w, r, http.StatusTooManyRequests, "TOO_MANY_ACTIVE_RUNS", "Too many Claude orchestrator runs are active; wait for one to finish")
 		return
 	}
@@ -234,7 +272,7 @@ func (api *ClaudeOrchestratorAPI) response(runID string, state ports.RunState) C
 
 // reserveRun registers a new pending run unless the active-run limit is
 // reached, then forgets the oldest terminal runs beyond the retention bound.
-func (api *ClaudeOrchestratorAPI) reserveRun(runID string) bool {
+func (api *ClaudeOrchestratorAPI) reserveRun(runID, title string) bool {
 	limit := api.MaxActiveRuns
 	if limit <= 0 {
 		limit = DefaultClaudeOrchestratorMaxActiveRuns
@@ -254,6 +292,11 @@ func (api *ClaudeOrchestratorAPI) reserveRun(runID string) bool {
 		return false
 	}
 	api.runs[runID] = ports.RunStatePending
+	if api.details == nil {
+		api.details = make(map[string]claudeOrchestratorRunDetails)
+	}
+	now := time.Now().UTC()
+	api.details[runID] = claudeOrchestratorRunDetails{Title: title, CreatedAt: now, UpdatedAt: now}
 	api.order = append(api.order, runID)
 	if len(api.order) > claudeOrchestratorMaxRetainedRuns {
 		kept := api.order[:0]
@@ -281,10 +324,84 @@ func (api *ClaudeOrchestratorAPI) recordDetails(runID string, result ports.Orche
 	if api.details == nil {
 		api.details = make(map[string]claudeOrchestratorRunDetails)
 	}
-	api.details[runID] = claudeOrchestratorRunDetails{
-		Branch:         result.Workspace.Branch,
-		Commit:         result.Workspace.Commit,
-		Recommendation: result.MergeDecision.Decision,
+	details := api.details[runID]
+	details.Branch = result.Workspace.Branch
+	details.Commit = result.Workspace.Commit
+	details.Recommendation = result.MergeDecision.Decision
+	details.UpdatedAt = time.Now().UTC()
+	api.details[runID] = details
+}
+
+// runTitle keeps a short, secret-redacted excerpt of the task for history.
+func runTitle(task string) string {
+	title := strings.Join(strings.Fields(claudeorchestrator.RedactSecrets(task)), " ")
+	if runes := []rune(title); len(runes) > claudeOrchestratorMaxTitleRunes {
+		title = strings.TrimSpace(string(runes[:claudeOrchestratorMaxTitleRunes])) + "…"
+	}
+	return title
+}
+
+func (api *ClaudeOrchestratorAPI) info(w http.ResponseWriter, r *http.Request) {
+	if !localControlRequest(r) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+		return
+	}
+	info := api.Info
+	info.Enabled = api.Gate != nil && api.Service != nil
+	if info.MaxActiveRuns <= 0 {
+		info.MaxActiveRuns = api.MaxActiveRuns
+		if info.MaxActiveRuns <= 0 {
+			info.MaxActiveRuns = DefaultClaudeOrchestratorMaxActiveRuns
+		}
+	}
+	envelope.WriteJSON(w, http.StatusOK, info)
+}
+
+func (api *ClaudeOrchestratorAPI) list(w http.ResponseWriter, r *http.Request) {
+	if !localControlRequest(r) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+		return
+	}
+	api.refreshFromService()
+	api.mu.RLock()
+	runs := make([]ClaudeOrchestratorRunSummary, 0, len(api.order))
+	for i := len(api.order) - 1; i >= 0; i-- {
+		runID := api.order[i]
+		state, ok := api.runs[runID]
+		if !ok {
+			continue
+		}
+		details := api.details[runID]
+		runs = append(runs, ClaudeOrchestratorRunSummary{
+			ClaudeOrchestratorRunResponse: ClaudeOrchestratorRunResponse{
+				RunID: runID, State: state,
+				Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
+			},
+			Title: details.Title, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
+		})
+	}
+	api.mu.RUnlock()
+	envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorRunList{Runs: runs})
+}
+
+// refreshFromService pulls the live stage of every active run so history
+// shows planning/executing/... rather than the state recorded at start.
+func (api *ClaudeOrchestratorAPI) refreshFromService() {
+	if api.Service == nil {
+		return
+	}
+	api.mu.RLock()
+	active := make([]string, 0)
+	for runID, state := range api.runs {
+		if !terminalClaudeOrchestratorRunState(state) {
+			active = append(active, runID)
+		}
+	}
+	api.mu.RUnlock()
+	for _, runID := range active {
+		if current, found := api.Service.RunState(runID); found && validClaudeOrchestratorRunState(current) {
+			api.setRunState(runID, current)
+		}
 	}
 }
 
@@ -322,10 +439,15 @@ func (api *ClaudeOrchestratorAPI) setRunState(runID string, state ports.RunState
 	if api.runs == nil {
 		api.runs = make(map[string]ports.RunState)
 	}
-	if current, ok := api.runs[runID]; ok && terminalClaudeOrchestratorRunState(current) {
+	current, ok := api.runs[runID]
+	if ok && terminalClaudeOrchestratorRunState(current) {
 		return
 	}
 	api.runs[runID] = state
+	if details, known := api.details[runID]; known && current != state {
+		details.UpdatedAt = time.Now().UTC()
+		api.details[runID] = details
+	}
 }
 
 func (api *ClaudeOrchestratorAPI) registerCancel(runID string, cancel context.CancelFunc) {

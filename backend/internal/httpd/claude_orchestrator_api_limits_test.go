@@ -97,7 +97,7 @@ func TestClaudeOrchestratorAPI_ForgetsOldestTerminalRuns(t *testing.T) {
 	api := &ClaudeOrchestratorAPI{}
 	for i := 0; i < claudeOrchestratorMaxRetainedRuns+10; i++ {
 		id := fmt.Sprintf("run-%d", i)
-		if !api.reserveRun(id) {
+		if !api.reserveRun(id, "") {
 			t.Fatalf("reserveRun(%s) refused", id)
 		}
 		api.setRunState(id, ports.RunStateCompleted)
@@ -110,5 +110,64 @@ func TestClaudeOrchestratorAPI_ForgetsOldestTerminalRuns(t *testing.T) {
 	}
 	if _, ok := api.getRunState(fmt.Sprintf("run-%d", claudeOrchestratorMaxRetainedRuns+9)); !ok {
 		t.Fatal("the newest run was forgotten")
+	}
+}
+
+func TestClaudeOrchestratorAPI_ListsRunHistoryNewestFirstWithRedactedTitles(t *testing.T) {
+	fake := newClaudeOrchestratorAPIFake()
+	fake.result = ports.OrchestrationResult{State: ports.RunStateCompleted, MergeDecision: ports.MergeDecision{Decision: ports.MergeOutcomeMerge}}
+	api := &ClaudeOrchestratorAPI{Service: fake, Gate: ports.ClaudeOrchestratorRunPolicy{FeatureEnabled: true}}
+	router := newClaudeOrchestratorRouter(api)
+	for _, task := range []string{"first task", "deploy with api_key=sk-live-should-not-appear please"} {
+		rec := serveClaudeOrchestratorRequest(router, http.MethodPost, "/internal/claude-orchestrator/runs", fmt.Sprintf(`{"task":%q,"explicitOptIn":true}`, task), "127.0.0.1", "")
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("start %q = %d", task, rec.Code)
+		}
+		<-fake.finished
+	}
+
+	rec := serveClaudeOrchestratorRequest(router, http.MethodGet, "/internal/claude-orchestrator/runs", "", "127.0.0.1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "sk-live-should-not-appear") {
+		t.Fatalf("history leaked a secret: %s", rec.Body.String())
+	}
+	var list ClaudeOrchestratorRunList
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Runs) != 2 || !strings.HasPrefix(list.Runs[0].Title, "deploy with api_key=") || list.Runs[1].Title != "first task" {
+		t.Fatalf("history = %+v, want newest first with titles", list.Runs)
+	}
+	if list.Runs[0].CreatedAt.IsZero() || list.Runs[0].RunID == "" {
+		t.Fatalf("history row missing identity or time: %+v", list.Runs[0])
+	}
+
+	if remote := serveClaudeOrchestratorRequest(router, http.MethodGet, "/internal/claude-orchestrator/runs", "", "example.com", ""); remote.Code != http.StatusForbidden {
+		t.Fatalf("non-local list status = %d, want 403", remote.Code)
+	}
+	if browser := serveClaudeOrchestratorRequest(router, http.MethodGet, "/internal/claude-orchestrator/runs", "", "127.0.0.1", "http://evil.example"); browser.Code != http.StatusForbidden {
+		t.Fatalf("browser-origin list status = %d, want 403", browser.Code)
+	}
+}
+
+func TestClaudeOrchestratorAPI_InfoIsDisplaySafe(t *testing.T) {
+	api := &ClaudeOrchestratorAPI{
+		Service: newClaudeOrchestratorAPIFake(), Gate: ports.ClaudeOrchestratorRunPolicy{FeatureEnabled: true},
+		Info: ClaudeOrchestratorInfo{Repository: "my-repo", PlannerModel: "claude-opus-5-5", WorkerProvider: ports.ModelProviderDeepSeek, WorkerModel: "deepseek-chat"},
+	}
+	rec := serveClaudeOrchestratorRequest(newClaudeOrchestratorRouter(api), http.MethodGet, "/internal/claude-orchestrator", "", "127.0.0.1", "")
+	var info ClaudeOrchestratorInfo
+	if err := json.Unmarshal(rec.Body.Bytes(), &info); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("info = %d %s, %v", rec.Code, rec.Body.String(), err)
+	}
+	if !info.Enabled || info.Repository != "my-repo" || info.WorkerProvider != ports.ModelProviderDeepSeek || info.MaxActiveRuns != DefaultClaudeOrchestratorMaxActiveRuns {
+		t.Fatalf("info = %+v", info)
+	}
+	for _, forbidden := range []string{"apiKey", "baseUrl", "http", "/"} {
+		if strings.Contains(strings.ToLower(rec.Body.String()), strings.ToLower(forbidden)) {
+			t.Fatalf("info exposes %q: %s", forbidden, rec.Body.String())
+		}
 	}
 }
