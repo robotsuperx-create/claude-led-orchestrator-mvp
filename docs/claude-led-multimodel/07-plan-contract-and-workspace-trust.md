@@ -11,7 +11,7 @@
 
 - لأنواع العقد وسوم JSON صريحة بأسماء snake_case مطابقة للـprompts. اسم المفتاح في الـprompt والوسم يجب أن يتطابقا، ويغطي `plan_wire_contract_test.go` ذلك بردّ JSON نصي من خادم `httptest`.
 - `PlannedSubtask.Metadata` موسوم بـ`json:"-"`: لا يُقرأ من النموذج ولا يُرسل إليه.
-- **الخادم وحده يختار مساحة العمل.** بعد التحقق من الخطة يستبدل `Service` كامل metadata كل مهمة فرعية بمسار موثوق. هذا المسار هو `OrchestrationRequest.WorktreePath` (حقل `worktreePath` الاختياري في الـAPI المحلي) إن وُجد، وإلا `AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH`، وإلا جذر المشروع.
+- **الخادم وحده يختار مساحة العمل.** بعد التحقق من الخطة يستبدل `Service` كامل metadata كل مهمة فرعية بمسار موثوق. هذا المسار هو `OrchestrationRequest.WorktreePath` (حقل `worktreePath` الاختياري في الـAPI المحلي) إن وُجد، وإلا `AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH`، وإلا worktree جديد لكل تشغيل (انظر `08-runbook.md`).
 - **بوابة تحقق واحدة.** `verifyWorktree` يؤكد عبر `WorktreeManager.Status` أن المسار worktree مسجّل داخل `AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT`، ويرفضه إن أعاد المدير مساراً مختلفاً. يستخدمه العامل والمدقّق معاً قبل أي تنفيذ أو تركيب.
 - **المدقّق مغلق افتراضياً.** `NewValidatorWithSandbox` يتطلب `ValidatorWorkspace`. والمدقّق الذي يبنيه الـdaemon يعمل دائماً داخل الـworktree الذي جرى التحقق منه، سواء في الـsandbox أو عبر `NewValidatorInWorkspace` على المضيف، لا في مجلد عمل الـdaemon.
 
@@ -19,7 +19,10 @@
 
 صارت رسائل المراجعة المرسلة إلى المزوّد تستخدم مفاتيح snake_case (`task`، `passed`، `final_execution`...) بدل أسماء حقول Go (`Task`، `Passed`...). لا يعتمد أي مستهلك داخلي على الشكل القديم.
 
-## ما لم يتغير بعد
+## ما تغيّر بعد ذلك
 
-- محوّل DeepSeek ما زال يُنشأ دون أن يُستخدم، والعامل ما زال يشغّل أوامر ثابتة فقط ولا يستدعي نموذجاً لكتابة كود.
-- ما زال الـdaemon لا ينشئ worktree منفصلاً لكل تشغيل. المسار الافتراضي هو جذر المشروع نفسه، وهو worktree مسجّل.
+الثغرتان المذكورتان سابقاً هنا أُغلقتا في نفس الـPR:
+- العامل صار يكتب الكود فعلاً عبر النموذج الذي تحدده الخطة (DeepSeek افتراضياً).
+- كل تشغيل يحصل على worktree وفرع خاص به تحت `~/.ao`.
+
+التفاصيل في `08-runbook.md`.
