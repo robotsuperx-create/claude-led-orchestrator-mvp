@@ -21,16 +21,32 @@ type CommandRunner interface {
 
 // Manager manages linked worktrees for one project at a time.
 type Manager struct {
-	runner CommandRunner
+	runner      CommandRunner
+	managedRoot string
 }
 
 // NewManager constructs a manager. A nil runner selects the direct Git
-// executable runner; it never invokes a shell.
+// executable runner; it never invokes a shell. Worktree paths must be strictly
+// inside the project root.
 func NewManager(runner CommandRunner) *Manager {
+	return NewManagerWithManagedRoot(runner, "")
+}
+
+// NewManagerWithManagedRoot additionally accepts worktrees strictly inside
+// managedRoot, an AO-owned directory such as ~/.ao/worktrees/claude-orchestrator.
+// Status and Remove still require Git to list the path as a worktree of the
+// project, so the managed root never widens which repository is touched.
+func NewManagerWithManagedRoot(runner CommandRunner, managedRoot string) *Manager {
 	if runner == nil {
 		runner = execRunner{}
 	}
-	return &Manager{runner: runner}
+	managed := strings.TrimSpace(managedRoot)
+	if managed != "" {
+		if abs, err := filepath.Abs(managed); err == nil {
+			managed = filepath.Clean(abs)
+		}
+	}
+	return &Manager{runner: runner, managedRoot: managed}
 }
 
 type execRunner struct{}
@@ -56,7 +72,7 @@ func (m *Manager) Create(ctx context.Context, request ports.WorktreeCreateReques
 	if err := m.requireRepositoryRoot(ctx, root); err != nil {
 		return ports.WorktreeCreateResult{}, err
 	}
-	path, err := worktreePath(root, request.Path, false)
+	path, err := m.worktreePath(root, request.Path, false)
 	if err != nil {
 		return ports.WorktreeCreateResult{}, err
 	}
@@ -84,7 +100,7 @@ func (m *Manager) Remove(ctx context.Context, request ports.WorktreeRemoveReques
 	if err := m.requireRepositoryRoot(ctx, root); err != nil {
 		return ports.WorktreeRemoveResult{}, err
 	}
-	path, err := worktreePath(root, request.Path, true)
+	path, err := m.worktreePath(root, request.Path, true)
 	if err != nil {
 		return ports.WorktreeRemoveResult{}, err
 	}
@@ -111,7 +127,7 @@ func (m *Manager) Status(ctx context.Context, request ports.WorktreeStatusReques
 	if err := m.requireRepositoryRoot(ctx, root); err != nil {
 		return ports.WorktreeStatusResult{}, err
 	}
-	path, err := worktreePath(root, request.Path, true)
+	path, err := m.worktreePath(root, request.Path, true)
 	if err != nil {
 		return ports.WorktreeStatusResult{}, err
 	}
@@ -157,9 +173,9 @@ func canonicalProjectRoot(path string) (string, error) {
 }
 
 // worktreePath checks lexical containment first, then canonical containment so
-// an existing symlink cannot escape the project root. For creation, the target
+// an existing symlink cannot escape the allowed roots. For creation, the target
 // itself must not exist and its parent must already exist.
-func worktreePath(root, requested string, mustExist bool) (string, error) {
+func (m *Manager) worktreePath(root, requested string, mustExist bool) (string, error) {
 	if strings.TrimSpace(requested) == "" {
 		return "", errors.New("worktree: path is required")
 	}
@@ -168,11 +184,8 @@ func worktreePath(root, requested string, mustExist bool) (string, error) {
 		candidate = filepath.Join(root, candidate)
 	}
 	candidate = filepath.Clean(candidate)
-	if err := ensureWithinRoot(root, candidate); err != nil {
+	if err := m.ensureAllowed(root, candidate); err != nil {
 		return "", err
-	}
-	if hasGitDirComponent(root, candidate) {
-		return "", errors.New("worktree: path cannot be inside the project Git directory")
 	}
 
 	if mustExist {
@@ -187,7 +200,7 @@ func worktreePath(root, requested string, mustExist bool) (string, error) {
 		if !info.IsDir() {
 			return "", errors.New("worktree: path must be a directory")
 		}
-		if err := ensureWithinRoot(root, resolved); err != nil {
+		if err := m.ensureAllowed(root, resolved); err != nil {
 			return "", err
 		}
 		return filepath.Clean(resolved), nil
@@ -197,17 +210,42 @@ func worktreePath(root, requested string, mustExist bool) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("worktree: resolve destination parent (it must exist): %w", err)
 	}
-	if err := ensureWithinRoot(root, parent); err != nil {
-		return "", err
-	}
 	resolved := filepath.Join(parent, filepath.Base(candidate))
-	if err := ensureWithinRoot(root, resolved); err != nil {
+	if err := m.ensureAllowed(root, resolved); err != nil {
 		return "", err
-	}
-	if hasGitDirComponent(root, resolved) {
-		return "", errors.New("worktree: path cannot be inside the project Git directory")
 	}
 	return resolved, nil
+}
+
+// ensureAllowed accepts a path strictly inside the project root (outside its
+// .git directory) or strictly inside the configured managed root.
+func (m *Manager) ensureAllowed(root, path string) error {
+	projectErr := ensureWithinRoot(root, path)
+	if projectErr == nil {
+		if hasGitDirComponent(root, path) {
+			return errors.New("worktree: path cannot be inside the project Git directory")
+		}
+		return nil
+	}
+	if m.managedRoot == "" {
+		return projectErr
+	}
+	for _, managed := range m.managedRootForms() {
+		if ensureWithinRoot(managed, path) == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("worktree: path must be strictly inside project root %s or managed root %s", root, m.managedRoot)
+}
+
+// managedRootForms returns the configured managed root and, when it exists,
+// its symlink-resolved form, so lexical and canonical checks both match.
+func (m *Manager) managedRootForms() []string {
+	forms := []string{m.managedRoot}
+	if resolved, err := filepath.EvalSymlinks(m.managedRoot); err == nil && filepath.Clean(resolved) != m.managedRoot {
+		forms = append(forms, filepath.Clean(resolved))
+	}
+	return forms
 }
 
 func ensureWithinRoot(root, path string) error {

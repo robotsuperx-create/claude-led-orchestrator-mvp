@@ -115,7 +115,7 @@ func TestProviderAdapterMapReviewRequest(t *testing.T) {
 	if request.Model != "review-model" || request.MaxTokens == nil || *request.MaxTokens != 900 {
 		t.Fatalf("mapped model/token limit = %q/%v, want review-model/900", request.Model, request.MaxTokens)
 	}
-	if !strings.Contains(request.Messages[1].Content, `"Task":"review this"`) || !strings.Contains(request.Messages[1].Content, `"Passed":false`) {
+	if !strings.Contains(request.Messages[1].Content, `"task":"review this"`) || !strings.Contains(request.Messages[1].Content, `"passed":false`) {
 		t.Fatalf("review user message missing request fields: %s", request.Messages[1].Content)
 	}
 }

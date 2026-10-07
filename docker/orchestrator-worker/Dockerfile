@@ -16,22 +16,32 @@ RUN apt-get update && \
       git \
       nodejs \
       npm \
-      openssh-client \
       procps \
       jq && \
     npm install --global "pnpm@${PNPM_VERSION}" && \
     npm cache clean --force && \
     rm -rf /var/lib/apt/lists/*
 
+# The image user is only a non-root fallback: on Linux the orchestrator runs
+# the container as the host user so the bind-mounted worktree stays writable.
 RUN groupadd --gid 10001 ao-worker && \
-    useradd --uid 10001 --gid ao-worker --home-dir /workspace/.ao/home \
-      --create-home --shell /bin/bash ao-worker && \
-    mkdir -p /workspace /workspace/.ao/home /tmp/ao-worker && \
-    chown -R ao-worker:ao-worker /workspace /tmp/ao-worker
+    useradd --uid 10001 --gid ao-worker --no-create-home --home-dir /tmp \
+      --shell /usr/sbin/nologin ao-worker && \
+    mkdir -p /workspace
 
-ENV HOME=/workspace/.ao/home \
+# The container root filesystem is read-only and /workspace is the user's
+# worktree, so every home directory and cache points at the /tmp tmpfs.
+# GOTOOLCHAIN=local: the network is disabled, so Go must never try to download
+# a different toolchain. Projects must vendor dependencies or use an image
+# that pre-populates the module cache.
+ENV HOME=/tmp \
+    XDG_CACHE_HOME=/tmp/.cache \
+    GOPATH=/tmp/go \
+    GOCACHE=/tmp/.cache/go-build \
+    GOTOOLCHAIN=local \
+    GOFLAGS=-buildvcs=false \
     GO111MODULE=on \
-    GOTOOLCHAIN=auto \
+    npm_config_cache=/tmp/.npm \
     npm_config_update_notifier=false \
     npm_config_fund=false
 

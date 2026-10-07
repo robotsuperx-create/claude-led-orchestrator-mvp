@@ -10,6 +10,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
+// Errors returned by Service.Run for invalid or conflicting requests.
 var (
 	ErrRunIDRequired       = errors.New("orchestration run ID is required")
 	ErrTaskRequired        = errors.New("orchestration task is required")
@@ -24,6 +25,13 @@ type Dependencies struct {
 	Worker    ports.WorkerRuntime
 	Validator ports.Validator
 	Memory    ports.ProjectMemory
+	// DefaultWorktreePath is the trusted operator-configured workspace used
+	// when a request does not select one. Worker and validator still verify
+	// it against the project root before running anything.
+	DefaultWorktreePath string
+	// Workspaces, when set, gives each run that has no explicit or default
+	// worktree its own new worktree and branch, and commits the result there.
+	Workspaces ports.RunWorkspaceProvisioner
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -35,11 +43,18 @@ type Service struct {
 	validator ports.Validator
 	memory    ports.ProjectMemory
 
-	mu      sync.RWMutex
-	states  map[string]ports.RunState
-	running map[string]bool
-	cancels map[string]context.CancelFunc
+	defaultWorktreePath string
+	workspaces          ports.RunWorkspaceProvisioner
+
+	mu       sync.RWMutex
+	states   map[string]ports.RunState
+	running  map[string]bool
+	cancels  map[string]context.CancelFunc
+	finished []string
 }
+
+// maxRetainedRunStates bounds how many finished runs RunState remembers.
+const maxRetainedRunStates = 256
 
 // New constructs the orchestration application service.
 func New(deps Dependencies) *Service {
@@ -48,9 +63,13 @@ func New(deps Dependencies) *Service {
 		worker:    deps.Worker,
 		validator: deps.Validator,
 		memory:    deps.Memory,
-		states:    make(map[string]ports.RunState),
-		running:   make(map[string]bool),
-		cancels:   make(map[string]context.CancelFunc),
+
+		defaultWorktreePath: strings.TrimSpace(deps.DefaultWorktreePath),
+		workspaces:          deps.Workspaces,
+
+		states:  make(map[string]ports.RunState),
+		running: make(map[string]bool),
+		cancels: make(map[string]context.CancelFunc),
 	}
 }
 
@@ -98,7 +117,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 	if s == nil {
 		result.State = ports.RunStateFailed
-		return result, errors.New("Claude orchestrator service is unavailable")
+		return result, errors.New("the Claude orchestrator service is unavailable")
 	}
 	if strings.TrimSpace(request.RunID) == "" {
 		result.State = ports.RunStateFailed
@@ -118,17 +137,17 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	defer s.release(request.RunID)
 	defer cancel()
 
-	if !s.advance(request.RunID, ports.RunStatePending, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStatePending) {
 		return canceledResult(result)
 	}
 	if strings.TrimSpace(request.Task) == "" {
 		return s.fail(runCtx, result, ErrTaskRequired)
 	}
 	if s.model == nil || s.worker == nil || s.validator == nil || s.memory == nil {
-		return s.fail(runCtx, result, errors.New("Claude orchestrator dependencies are incomplete"))
+		return s.fail(runCtx, result, errors.New("the Claude orchestrator dependencies are incomplete"))
 	}
 
-	if !s.advance(request.RunID, ports.RunStatePlanning, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStatePlanning) {
 		return canceledResult(result)
 	}
 	memoryContext, err := s.memory.ReadContext(runCtx, ports.MemoryContextRequest{Task: request.Task})
@@ -147,14 +166,20 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
+	result.Workspace, err = s.workspaceFor(runCtx, request)
+	if err != nil {
+		result.Plan = plan
+		return s.fail(runCtx, result, fmt.Errorf("prepare run workspace: %w", err))
+	}
+	plan = bindTrustedWorkspace(plan, result.Workspace.Path)
 	result.Plan = plan
 
-	if !s.advance(request.RunID, ports.RunStateExecuting, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateExecuting) {
 		return canceledResult(result)
 	}
 	result.Results = s.executePlan(runCtx, request, plan)
 
-	if !s.advance(request.RunID, ports.RunStateValidating, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateValidating) {
 		return canceledResult(result)
 	}
 	result.Validation, err = s.validator.Validate(runCtx, ports.ValidationRequest{
@@ -166,7 +191,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		return s.fail(runCtx, result, fmt.Errorf("validate delegated work: %w", err))
 	}
 
-	if !s.advance(request.RunID, ports.RunStateReviewing, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateReviewing) {
 		return canceledResult(result)
 	}
 	result.Review, err = s.model.Review(runCtx, ports.ReviewRequest{
@@ -181,12 +206,20 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 
 	result.MergeDecision = decideMerge(result.Results, result.Validation, result.Review)
+	if s.workspaces != nil && result.Workspace.Branch != "" {
+		// Record the run's changes on its own branch, whatever the
+		// recommendation, so held work can be inspected and resumed.
+		result.Workspace, err = s.workspaces.Finalize(runCtx, result.Workspace, result)
+		if err != nil {
+			return s.fail(runCtx, result, fmt.Errorf("commit run workspace: %w", err))
+		}
+	}
 	if result.MergeDecision.Decision == ports.MergeOutcomeMerge {
 		result.State = ports.RunStateCompleted
 	} else {
 		result.State = ports.RunStateHeld
 	}
-	if !s.finish(request.RunID, result.State, runCtx) {
+	if !s.finish(runCtx, request.RunID, result.State) {
 		return canceledResult(result)
 	}
 	if err := s.record(runCtx, result); err != nil {
@@ -217,9 +250,19 @@ func (s *Service) release(runID string) {
 	defer s.mu.Unlock()
 	delete(s.running, runID)
 	delete(s.cancels, runID)
+	// Forget the oldest finished runs so a long-lived daemon's memory stays
+	// bounded. Their outcomes were already handed to ProjectMemory.
+	s.finished = append(s.finished, runID)
+	for len(s.finished) > maxRetainedRunStates {
+		oldest := s.finished[0]
+		s.finished = s.finished[1:]
+		if !s.running[oldest] {
+			delete(s.states, oldest)
+		}
+	}
 }
 
-func (s *Service) advance(runID string, state ports.RunState, ctx context.Context) bool {
+func (s *Service) advance(ctx context.Context, runID string, state ports.RunState) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current := s.states[runID]
@@ -235,7 +278,7 @@ func (s *Service) advance(runID string, state ports.RunState, ctx context.Contex
 }
 
 // finish atomically arbitrates cancellation versus the run's terminal result.
-func (s *Service) finish(runID string, state ports.RunState, ctx context.Context) bool {
+func (s *Service) finish(ctx context.Context, runID string, state ports.RunState) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current := s.states[runID]
@@ -287,7 +330,7 @@ func (s *Service) fail(ctx context.Context, result ports.OrchestrationResult, ca
 		Decision: ports.MergeOutcomeHold,
 		Reasons:  []string{cause.Error()},
 	}
-	if !s.finish(result.RunID, ports.RunStateFailed, ctx) {
+	if !s.finish(ctx, result.RunID, ports.RunStateFailed) {
 		return canceledResult(result)
 	}
 	if recordErr := s.record(ctx, result); recordErr != nil {
@@ -371,6 +414,37 @@ func validatePlan(plan ports.ExecutionPlan) error {
 		seen[task.ID] = struct{}{}
 	}
 	return nil
+}
+
+// workspaceFor selects the trusted workspace for a run: the caller's explicit
+// worktree, otherwise the operator-configured default, otherwise a new
+// per-run worktree when a provisioner is configured.
+func (s *Service) workspaceFor(ctx context.Context, request ports.OrchestrationRequest) (ports.RunWorkspace, error) {
+	if path := strings.TrimSpace(request.WorktreePath); path != "" {
+		return ports.RunWorkspace{Path: path}, nil
+	}
+	if s.defaultWorktreePath != "" {
+		return ports.RunWorkspace{Path: s.defaultWorktreePath}, nil
+	}
+	if s.workspaces != nil {
+		return s.workspaces.Prepare(ctx, request.RunID)
+	}
+	return ports.RunWorkspace{}, nil
+}
+
+// bindTrustedWorkspace replaces all subtask metadata with server-owned values.
+// A model plan must never choose where commands run or what gets mounted, so
+// any metadata an implementation decoded from model output is discarded.
+func bindTrustedWorkspace(plan ports.ExecutionPlan, worktreePath string) ports.ExecutionPlan {
+	bound := ports.ExecutionPlan{Summary: plan.Summary, Subtasks: make([]ports.PlannedSubtask, len(plan.Subtasks))}
+	for i, task := range plan.Subtasks {
+		task.Metadata = nil
+		if worktreePath != "" {
+			task.Metadata = map[string]string{ports.SubtaskMetadataKeyWorktreePath: worktreePath}
+		}
+		bound.Subtasks[i] = task
+	}
+	return bound
 }
 
 func workerFailure(execution ports.WorkerExecution) string {

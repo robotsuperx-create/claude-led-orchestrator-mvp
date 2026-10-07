@@ -21,6 +21,7 @@ import {
 	type TrayOpenSessionTarget,
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
+import type { ClaudeOrchestratorInfo, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorStartInput } from "./shared/claude-orchestrator";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
 import type { RemoteHealth } from "./main/remote-request";
@@ -345,6 +346,14 @@ const api = {
 	clipboard: {
 		writeText: (text: string) => ipcRenderer.invoke("clipboard:writeText", text) as Promise<void>,
 		readText: () => ipcRenderer.invoke("clipboard:readText") as Promise<string>,
+	},
+	claudeOrchestrator: {
+		info: () => ipcRenderer.invoke("claudeOrchestrator:info") as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorInfo>>,
+		list: () => ipcRenderer.invoke("claudeOrchestrator:list") as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun[]>>,
+		// Only the two allowlisted fields cross the bridge.
+		start: (input: ClaudeOrchestratorStartInput) => ipcRenderer.invoke("claudeOrchestrator:start", { task: input.task, maxRetries: input.maxRetries }) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		status: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:status", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		cancel: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:cancel", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 	},
 	daemon: {
 		getStatus: () => ipcRenderer.invoke("daemon:getStatus") as Promise<DaemonStatus>,

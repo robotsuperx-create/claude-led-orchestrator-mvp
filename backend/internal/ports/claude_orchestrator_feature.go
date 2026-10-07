@@ -22,6 +22,7 @@ type ClaudeOrchestratorRunGate interface {
 // gate rejection.
 type ClaudeOrchestratorRunRejectionReason string
 
+// Reasons a run gate rejects a run.
 const (
 	ClaudeOrchestratorRunFeatureDisabled ClaudeOrchestratorRunRejectionReason = "feature_disabled"
 	ClaudeOrchestratorRunOptInRequired   ClaudeOrchestratorRunRejectionReason = "explicit_opt_in_required"

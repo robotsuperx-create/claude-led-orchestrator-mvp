@@ -3,8 +3,10 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -65,8 +67,10 @@ func (m *localDemoModel) Plan(_ context.Context, request ports.PlanRequest) (por
 			Instructions: "Create worker-output.txt in the selected local worktree",
 			WorkerID:     "deepseek-fake",
 			Provider:     ports.ModelProviderDeepSeek,
+			// A model has no authority over where commands run. This hostile
+			// value must be replaced by the server-configured worktree.
 			Metadata: map[string]string{
-				ports.SubtaskMetadataKeyWorktreePath: m.worktreePath,
+				ports.SubtaskMetadataKeyWorktreePath: filepath.Join(filepath.Dir(m.worktreePath), "model-chosen-elsewhere"),
 			},
 		}},
 	}, nil
@@ -197,8 +201,13 @@ func (v *localDemoValidator) Validate(_ context.Context, request ports.Validatio
 		return ports.ValidationReport{Issues: []string{"expected one completed worker result"}}, nil
 	}
 	output, err := os.ReadFile(filepath.Join(v.worktreePath, "worker-output.txt"))
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
+		// A missing artifact is a validation finding, not an infrastructure
+		// error, so it is reported as a failed report.
 		return ports.ValidationReport{Issues: []string{"worker output file is missing"}}, nil
+	}
+	if err != nil {
+		return ports.ValidationReport{}, fmt.Errorf("read worker output: %w", err)
 	}
 	if strings.TrimSpace(string(output)) != localDemoWorkerOutput {
 		return ports.ValidationReport{Issues: []string{"worker output did not match"}}, nil
@@ -259,6 +268,7 @@ func localDemoRunThroughRouter(t *testing.T, task string, wantState ports.RunSta
 	memory := &localDemoMemory{events: events, recorded: make(chan ports.MemoryOutcome, 1)}
 	service := claudeorchestrator.New(claudeorchestrator.Dependencies{
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
+		DefaultWorktreePath: worktreePath,
 	})
 	cfg := config.Config{ClaudeOrchestrator: config.ClaudeOrchestratorConfig{FeatureEnabled: true}}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -298,8 +308,8 @@ func localDemoRunThroughRouter(t *testing.T, task string, wantState ports.RunSta
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if finalPayload["runId"] != runID || finalPayload["state"] != string(wantState) {
-		t.Fatalf("terminal status = %#v, want runId %q and state %q", finalPayload, runID, wantState)
+	if finalPayload["runId"] != runID || finalPayload["state"] != string(wantState) || finalPayload["recommendation"] != string(wantMerge) {
+		t.Fatalf("terminal status = %#v, want runId %q, state %q and recommendation %q", finalPayload, runID, wantState, wantMerge)
 	}
 
 	select {
@@ -349,8 +359,16 @@ func localDemoDecodeResponse(t *testing.T, response *http.Response, wantStatus i
 	if err := json.Unmarshal(body, &payload); err != nil {
 		t.Fatalf("decode HTTP response %q: %v", body, err)
 	}
-	if len(payload) != 2 || payload["runId"] == nil || payload["state"] == nil {
-		t.Fatalf("response fields = %#v, want only runId and state", payload)
+	// Only identity, state, and where the result lives may be returned; no
+	// prompt, model, worker, or error text.
+	allowed := map[string]bool{"runId": true, "state": true, "branch": true, "commit": true, "recommendation": true}
+	for key := range payload {
+		if !allowed[key] {
+			t.Fatalf("response fields = %#v, unexpected field %q", payload, key)
+		}
+	}
+	if payload["runId"] == nil || payload["state"] == nil {
+		t.Fatalf("response fields = %#v, want runId and state", payload)
 	}
 	return payload
 }

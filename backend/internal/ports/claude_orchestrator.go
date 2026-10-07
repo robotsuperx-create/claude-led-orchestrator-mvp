@@ -6,6 +6,7 @@ import "context"
 // states only; the ports package does not persist or expose them over HTTP.
 type RunState string
 
+// Run lifecycle states. Completed, held, failed, and canceled are terminal.
 const (
 	RunStatePending    RunState = "pending"
 	RunStatePlanning   RunState = "planning"
@@ -22,6 +23,7 @@ const (
 // call. Provider adapters and credentials are owned outside this contract.
 type ModelProvider string
 
+// Model providers the orchestrator can route planning, review, and work to.
 const (
 	ModelProviderClaude   ModelProvider = "claude"
 	ModelProviderDeepSeek ModelProvider = "deepseek"
@@ -35,6 +37,11 @@ type OrchestrationRequest struct {
 	RunID      string
 	Task       string
 	MaxRetries int
+	// WorktreePath optionally selects an existing linked worktree for this run.
+	// It comes from the trusted caller, never from a model plan, and is still
+	// verified against the configured project root before any command runs.
+	// When empty, the service's configured default workspace is used.
+	WorktreePath string
 }
 
 // ExecutiveOrchestrator coordinates planning, delegated work, validation,
@@ -63,34 +70,39 @@ type PlanRequest struct {
 const SubtaskMetadataKeyWorktreePath = "worktree_path"
 
 // PlannedSubtask is one bounded task delegated to a named worker and provider.
+//
+// The JSON tags are the wire contract with the executive model. Metadata is
+// deliberately excluded from JSON: it carries server-trusted values such as
+// the worktree path, so it is never accepted from, or echoed to, a model.
 type PlannedSubtask struct {
-	ID           string
-	Title        string
-	Instructions string
-	WorkerID     string
-	Provider     ModelProvider
-	Metadata     map[string]string
+	ID           string            `json:"id"`
+	Title        string            `json:"title"`
+	Instructions string            `json:"instructions"`
+	WorkerID     string            `json:"worker_id"`
+	Provider     ModelProvider     `json:"provider,omitempty"`
+	Metadata     map[string]string `json:"-"`
 }
 
 // ExecutionPlan is the executive's typed decomposition of a task.
 type ExecutionPlan struct {
-	Summary  string
-	Subtasks []PlannedSubtask
+	Summary  string           `json:"summary"`
+	Subtasks []PlannedSubtask `json:"subtasks"`
 }
 
 // ReviewRequest supplies the collected implementation and validation results
 // to the executive reviewer.
 type ReviewRequest struct {
-	Provider   ModelProvider
-	Task       string
-	Plan       ExecutionPlan
-	Results    []CollectedTaskResult
-	Validation ValidationReport
+	Provider   ModelProvider         `json:"provider,omitempty"`
+	Task       string                `json:"task"`
+	Plan       ExecutionPlan         `json:"plan"`
+	Results    []CollectedTaskResult `json:"results"`
+	Validation ValidationReport      `json:"validation"`
 }
 
 // ReviewOutcome is the reviewer's recommendation for the collected work.
 type ReviewOutcome string
 
+// Executive review outcomes.
 const (
 	ReviewOutcomeApprove        ReviewOutcome = "approve"
 	ReviewOutcomeRequestChanges ReviewOutcome = "request_changes"
@@ -98,9 +110,9 @@ const (
 
 // ReviewDecision is the typed result of the executive review.
 type ReviewDecision struct {
-	Decision ReviewOutcome
-	Summary  string
-	Issues   []string
+	Decision ReviewOutcome `json:"decision"`
+	Summary  string        `json:"summary"`
+	Issues   []string      `json:"issues"`
 }
 
 // ModelGateway isolates executive planning and review from provider SDKs and
@@ -120,6 +132,7 @@ type WorkerRequest struct {
 // WorkerOutcome is the typed disposition of one delegated attempt.
 type WorkerOutcome string
 
+// Worker attempt outcomes.
 const (
 	WorkerOutcomeCompleted WorkerOutcome = "completed"
 	WorkerOutcomeFailed    WorkerOutcome = "failed"
@@ -129,10 +142,10 @@ const (
 // WorkerExecution contains the worker's textual output and any failure detail.
 // It intentionally has no untyped payload or runtime-specific process handle.
 type WorkerExecution struct {
-	Status  WorkerOutcome
-	Summary string
-	Output  string
-	Error   string
+	Status  WorkerOutcome `json:"status"`
+	Summary string        `json:"summary,omitempty"`
+	Output  string        `json:"output,omitempty"`
+	Error   string        `json:"error,omitempty"`
 }
 
 // WorkerRuntime executes a single delegated attempt using the target in its
@@ -143,15 +156,15 @@ type WorkerRuntime interface {
 
 // CollectedAttempt pairs a numbered attempt with its typed execution result.
 type CollectedAttempt struct {
-	Attempt   int
-	Execution WorkerExecution
+	Attempt   int             `json:"attempt"`
+	Execution WorkerExecution `json:"execution"`
 }
 
 // CollectedTaskResult records the attempts and final disposition for a subtask.
 type CollectedTaskResult struct {
-	Task           PlannedSubtask
-	Attempts       []CollectedAttempt
-	FinalExecution WorkerExecution
+	Task           PlannedSubtask     `json:"task"`
+	Attempts       []CollectedAttempt `json:"attempts"`
+	FinalExecution WorkerExecution    `json:"final_execution"`
 }
 
 // ValidationRequest is the complete, typed input needed to validate a run.
@@ -163,8 +176,8 @@ type ValidationRequest struct {
 
 // ValidationReport contains the outcome and human-readable validation issues.
 type ValidationReport struct {
-	Passed bool
-	Issues []string
+	Passed bool     `json:"passed"`
+	Issues []string `json:"issues"`
 }
 
 // Validator checks collected work without prescribing a command runner or
@@ -177,6 +190,7 @@ type Validator interface {
 // authorization and workspace/git operations.
 type MergeOutcome string
 
+// Merge recommendations. They are advisory; the service never merges.
 const (
 	MergeOutcomeMerge MergeOutcome = "merge"
 	MergeOutcomeHold  MergeOutcome = "hold"
@@ -228,4 +242,25 @@ type OrchestrationResult struct {
 	Validation    ValidationReport
 	Review        ReviewDecision
 	MergeDecision MergeDecision
+	// Workspace identifies where the run's changes live. It is empty when the
+	// service ran without a trusted workspace.
+	Workspace RunWorkspace
+}
+
+// RunWorkspace is the server-owned worktree a run executed in, its branch,
+// and the commit recording the run's changes (empty when nothing changed).
+type RunWorkspace struct {
+	Path   string
+	Branch string
+	// BaseCommit is the branch's commit when the run started.
+	BaseCommit string
+	// Commit is the run's final commit, or empty when the run changed nothing.
+	Commit string
+}
+
+// RunWorkspaceProvisioner gives each run an isolated worktree and records
+// the result on the run's branch. Both steps use fixed Git argv only.
+type RunWorkspaceProvisioner interface {
+	Prepare(ctx context.Context, runID string) (RunWorkspace, error)
+	Finalize(ctx context.Context, workspace RunWorkspace, result OrchestrationResult) (RunWorkspace, error)
 }

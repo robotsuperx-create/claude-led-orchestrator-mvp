@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ const (
 	maxTimeout         = 24 * time.Hour
 )
 
+// Errors returned by the sandbox runner.
 var (
 	ErrInvalidRequest = errors.New("invalid sandbox request")
 	ErrUnavailable    = errors.New("sandbox runner is unavailable")
@@ -87,15 +89,20 @@ func BuildDockerCommand(request ports.SandboxRunRequest) ([]string, error) {
 		"--memory", strconv.FormatInt(request.ResourceLimits.MemoryBytes, 10),
 		"--cpus", strconv.FormatFloat(float64(request.ResourceLimits.NanoCPUs)/1e9, 'f', 9, 64),
 		"--pids-limit", strconv.FormatInt(request.ResourceLimits.PIDs, 10),
-		"--tmpfs", "/tmp:rw,nosuid,nodev,size=64m",
+		// Build caches (Go, npm) live here; the root filesystem is read-only.
+		"--tmpfs", "/tmp:rw,nosuid,nodev,size=" + sandboxTmpfsSize,
 		"--mount", "type=bind,src=" + projectRoot + ",dst=" + workspaceMountPath,
 		"--workdir", request.WorkDir,
+	}
+	if user := hostUserArgument(); user != "" {
+		// Run as the host user so files in the bind-mounted worktree stay
+		// writable and owned by that user rather than a fixed image UID.
+		args = append(args, "--user", user)
 	}
 	for _, name := range sortedEnvironmentNames(request.Env) {
 		args = append(args, "--env", name+"="+request.Env[name])
 	}
-	args = append(args, "--entrypoint", request.Argv[0])
-	args = append(args, request.RootFS)
+	args = append(args, "--entrypoint", request.Argv[0], request.RootFS)
 	args = append(args, request.Argv[1:]...)
 	return args, nil
 }
@@ -211,12 +218,12 @@ func canonicalProjectRoot(projectRoot string) (string, error) {
 }
 
 func validEnvironmentName(name string) bool {
-	if name == "" || !((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z') || name[0] == '_') {
+	if name == "" || (name[0] < 'A' || name[0] > 'Z') && (name[0] < 'a' || name[0] > 'z') && name[0] != '_' {
 		return false
 	}
 	for i := 1; i < len(name); i++ {
 		c := name[i]
-		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+		if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
 			return false
 		}
 	}
@@ -266,4 +273,21 @@ func hasControlOrWhitespace(value string) bool {
 
 func invalid(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalidRequest, fmt.Sprintf(format, args...))
+}
+
+// sandboxTmpfsSize bounds the writable /tmp, which also holds build caches.
+// tmpfs pages count against the container memory limit.
+const sandboxTmpfsSize = "1g"
+
+// hostUserArgument returns "uid:gid" on Linux, where bind mounts keep host
+// ownership. Docker Desktop (macOS, Windows) maps ownership itself.
+func hostUserArgument() string {
+	if runtime.GOOS != "linux" {
+		return ""
+	}
+	uid, gid := os.Getuid(), os.Getgid()
+	if uid < 0 || gid < 0 {
+		return ""
+	}
+	return strconv.Itoa(uid) + ":" + strconv.Itoa(gid)
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/modelgateway"
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
@@ -108,6 +110,10 @@ type GitLabConfig struct {
 	HostTokens map[string]string
 }
 
+// DefaultClaudeOrchestratorProviderTimeout bounds one model request when a
+// provider's *_TIMEOUT is unset. Planning and code generation are long calls.
+const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
+
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
@@ -150,7 +156,24 @@ type ClaudeOrchestratorCommandConfig struct {
 
 // ClaudeOrchestratorWorkerConfig configures the worker's fixed command allowlist.
 type ClaudeOrchestratorWorkerConfig struct {
-	ProjectRoot        string
+	ProjectRoot string
+	// WorktreePath optionally pins every run to one existing linked worktree
+	// of ProjectRoot. When empty (the default), each run gets its own new
+	// worktree and branch under the AO data directory. A model plan can never
+	// choose it.
+	WorktreePath string
+	// DefaultProvider writes code for subtasks whose plan names no provider.
+	DefaultProvider ports.ModelProvider
+	// Mode selects who writes the code: ClaudeOrchestratorWorkerModeModel (a
+	// model API call proposes file edits) or ClaudeOrchestratorWorkerModeAgents
+	// (each subtask runs in a real AO agent session).
+	Mode string
+	// AgentHarnesses maps a plan's provider to the AO agent harness used in
+	// agents mode.
+	AgentHarnesses map[ports.ModelProvider]domain.AgentHarness
+	// AgentProjectID optionally names the AO project for agent sessions. When
+	// empty, the registered project whose path is ProjectRoot is used.
+	AgentProjectID     string
 	Commands           []ClaudeOrchestratorCommandConfig
 	Timeout            time.Duration
 	SandboxEnabled     bool
@@ -159,6 +182,12 @@ type ClaudeOrchestratorWorkerConfig struct {
 	SandboxNanoCPUs    int64
 	SandboxPIDs        int64
 }
+
+// Worker modes.
+const (
+	ClaudeOrchestratorWorkerModeModel  = "model"
+	ClaudeOrchestratorWorkerModeAgents = "agents"
+)
 
 // ClaudeOrchestratorValidatorConfig configures the independent validation pass.
 type ClaudeOrchestratorValidatorConfig struct {
@@ -278,7 +307,13 @@ func (c Config) Addr() string {
 // AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED experimental orchestrator off|on (default off)
 // When on, explicit AO_CLAUDE_ORCHESTRATOR_CLAUDE_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_{BASE_URL,MODEL,API_KEY},
-// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, *_WORKER_COMMANDS (JSON argv),
+// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, optional *_WORKER_WORKTREE_PATH
+// (default: a new worktree per run), optional *_WORKER_DEFAULT_PROVIDER
+// (claude|deepseek, default deepseek), optional *_WORKER_MODE (model|agents,
+// default model; agents hands each subtask to a real AO agent session using
+// *_AGENT_HARNESS_{CLAUDE,DEEPSEEK} and optional *_AGENT_PROJECT_ID, and makes
+// the DeepSeek API settings optional), optional per-provider *_TIMEOUT and
+// *_MAX_TOKENS, *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
 // read only by this daemon process and are never returned by HTTP APIs.
@@ -498,18 +533,74 @@ func parseToggleEnv(name, raw string) (bool, error) {
 }
 
 func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
-	loadProvider := func(provider ports.ModelProvider, prefix string) modelgateway.ProviderConfig {
-		return modelgateway.ProviderConfig{
+	loadProvider := func(provider ports.ModelProvider, prefix string) (modelgateway.ProviderConfig, error) {
+		providerConfig := modelgateway.ProviderConfig{
 			Provider:     provider,
 			BaseURL:      strings.TrimSpace(os.Getenv(prefix + "_BASE_URL")),
 			APIKey:       os.Getenv(prefix + "_API_KEY"),
 			DefaultModel: strings.TrimSpace(os.Getenv(prefix + "_MODEL")),
+			// Writing code takes far longer than the generic 30s client default.
+			Timeout: DefaultClaudeOrchestratorProviderTimeout,
 		}
+		timeout, err := parseOptionalPositiveDuration(prefix + "_TIMEOUT")
+		if err != nil {
+			return providerConfig, err
+		}
+		if timeout > 0 {
+			providerConfig.Timeout = timeout
+		}
+		maxTokens, err := parseOptionalPositiveInt64(prefix + "_MAX_TOKENS")
+		if err != nil {
+			return providerConfig, err
+		}
+		if maxTokens > math.MaxInt32 {
+			return providerConfig, fmt.Errorf("%s_MAX_TOKENS is too large", prefix)
+		}
+		providerConfig.MaxTokens = int(maxTokens)
+		return providerConfig, nil
 	}
-	cfg.ClaudeProvider = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE")
-	cfg.DeepSeekProvider = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK")
-	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
 	var err error
+	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
+		return err
+	}
+	if cfg.DeepSeekProvider, err = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK"); err != nil {
+		return err
+	}
+	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
+	cfg.Worker.WorktreePath = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
+	cfg.Worker.DefaultProvider = ports.ModelProvider(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER")))
+	if cfg.Worker.DefaultProvider == "" {
+		cfg.Worker.DefaultProvider = ports.ModelProviderDeepSeek
+	}
+	if cfg.Worker.DefaultProvider != ports.ModelProviderClaude && cfg.Worker.DefaultProvider != ports.ModelProviderDeepSeek {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek)
+	}
+	cfg.Worker.Mode = strings.ToLower(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE")))
+	if cfg.Worker.Mode == "" {
+		cfg.Worker.Mode = ClaudeOrchestratorWorkerModeModel
+	}
+	if cfg.Worker.Mode != ClaudeOrchestratorWorkerModeModel && cfg.Worker.Mode != ClaudeOrchestratorWorkerModeAgents {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE must be %q or %q", ClaudeOrchestratorWorkerModeModel, ClaudeOrchestratorWorkerModeAgents)
+	}
+	cfg.Worker.AgentHarnesses = map[ports.ModelProvider]domain.AgentHarness{
+		ports.ModelProviderClaude:   domain.HarnessClaudeCode,
+		ports.ModelProviderDeepSeek: domain.HarnessDeepSeek,
+	}
+	for provider, name := range map[ports.ModelProvider]string{
+		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_CLAUDE",
+		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_DEEPSEEK",
+	} {
+		raw := strings.TrimSpace(os.Getenv(name))
+		if raw == "" {
+			continue
+		}
+		harness := domain.AgentHarness(raw)
+		if !harness.IsKnown() {
+			return fmt.Errorf("%s must name a known AO agent harness", name)
+		}
+		cfg.Worker.AgentHarnesses[provider] = harness
+	}
+	cfg.Worker.AgentProjectID = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_AGENT_PROJECT_ID"))
 	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
 		if err != nil {

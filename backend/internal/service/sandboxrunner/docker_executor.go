@@ -12,8 +12,9 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
+// Errors returned by the Docker executor.
 var (
-	ErrDockerOptInRequired = errors.New("Docker executor requires explicit opt-in")
+	ErrDockerOptInRequired = errors.New("docker executor requires explicit opt-in")
 	ErrInvalidDockerConfig = errors.New("invalid Docker executor configuration")
 	ErrDockerImageDenied   = errors.New("sandbox image is not allowlisted")
 )
@@ -91,7 +92,7 @@ func (e *DockerExecutor) Run(ctx context.Context, request ports.SandboxRunReques
 	if err != nil {
 		return ports.SandboxRunResult{}, fmt.Errorf("create isolated Docker client config: %w", err)
 	}
-	defer os.RemoveAll(configDir)
+	defer func() { _ = os.RemoveAll(configDir) }()
 
 	cmd := exec.CommandContext(runCtx, args[0], args[1:]...)
 	cmd.Dir = configDir
@@ -123,14 +124,17 @@ func validImageReference(image string) bool {
 	if image == "" || strings.TrimSpace(image) != image || strings.HasPrefix(image, "-") {
 		return false
 	}
-	for i, r := range image {
-		if r > 127 {
+	// Index bytes rather than ranging over runes: any byte above 127 is a
+	// non-ASCII reference and is rejected outright.
+	for i := 0; i < len(image); i++ {
+		c := image[i]
+		if c > 127 {
 			return false
 		}
-		if i == 0 && !isASCIIAlphaNumeric(byte(r)) {
+		if i == 0 && !isASCIIAlphaNumeric(c) {
 			return false
 		}
-		if !isASCIIAlphaNumeric(byte(r)) && !strings.ContainsRune("._:/@+-", r) {
+		if !isASCIIAlphaNumeric(c) && !strings.ContainsRune("._:/@+-", rune(c)) {
 			return false
 		}
 	}

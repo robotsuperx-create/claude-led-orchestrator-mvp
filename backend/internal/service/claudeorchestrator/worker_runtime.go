@@ -14,7 +14,8 @@ import (
 var (
 	_ ports.WorkerRuntime = (*WorkerRuntime)(nil)
 
-	ErrWorkerRuntimeUnavailable = errors.New("Claude orchestrator worker runtime is unavailable")
+	// ErrWorkerRuntimeUnavailable reports a nil or unconfigured worker runtime.
+	ErrWorkerRuntimeUnavailable = errors.New("claude orchestrator worker runtime is unavailable")
 )
 
 // WorkerRuntimeConfig contains trusted, operator-supplied commands. These argv
@@ -28,6 +29,14 @@ type WorkerRuntimeConfig struct {
 	Sandbox       ports.SandboxRunner
 	SandboxImage  string
 	SandboxLimits ports.SandboxResourceLimits
+	// Author, when supplied, asks a model to write the code for each subtask
+	// before the fixed commands run. Its proposals are validated and applied
+	// only inside the verified worktree. Timeout must leave room for it.
+	Author ports.CodeAuthor
+	// Agents, when supplied, hands each subtask to a real AO agent session
+	// instead of Author. The agent's committed work is fast-forwarded into the
+	// verified worktree before the fixed commands and validator run.
+	Agents ports.AgentImplementer
 }
 
 // WorkerRuntime runs a fixed command allowlist in an already-existing task
@@ -43,6 +52,8 @@ type WorkerRuntime struct {
 	sandbox       ports.SandboxRunner
 	sandboxImage  string
 	sandboxLimits ports.SandboxResourceLimits
+	author        ports.CodeAuthor
+	agents        ports.AgentImplementer
 }
 
 // NewWorkerRuntime constructs a runtime around existing worktree, validation,
@@ -86,6 +97,8 @@ func NewWorkerRuntime(worktrees ports.WorktreeManager, validator ports.Validator
 		sandbox:       config.Sandbox,
 		sandboxImage:  strings.TrimSpace(config.SandboxImage),
 		sandboxLimits: config.SandboxLimits,
+		author:        config.Author,
+		agents:        config.Agents,
 	}, nil
 }
 
@@ -102,35 +115,58 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 	if request.Attempt < 1 {
 		return ports.WorkerExecution{}, errors.New("worker attempt must be positive")
 	}
-	worktreePath := strings.TrimSpace(request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath])
-	if worktreePath == "" {
-		return ports.WorkerExecution{}, fmt.Errorf("subtask %q has no existing worktree path in metadata", request.Task.ID)
-	}
-	if !filepath.IsAbs(worktreePath) {
-		return ports.WorkerExecution{}, fmt.Errorf("subtask %q worktree path must be absolute", request.Task.ID)
-	}
-	worktreePath = filepath.Clean(worktreePath)
-
 	runCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	status, err := r.worktrees.Status(runCtx, ports.WorktreeStatusRequest{
-		ProjectRoot: r.projectRoot,
-		Path:        worktreePath,
-	})
+	worktreePath, err := verifyWorktree(runCtx, r.worktrees, r.projectRoot,
+		request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath], fmt.Sprintf("subtask %q", request.Task.ID))
 	if err != nil {
-		return ports.WorkerExecution{}, fmt.Errorf("inspect subtask %q worktree: %w", request.Task.ID, err)
-	}
-	if returnedPath := strings.TrimSpace(status.Path); returnedPath != "" {
-		resolvedStatusPath, resolveErr := filepath.Abs(returnedPath)
-		if resolveErr != nil || filepath.Clean(resolvedStatusPath) != worktreePath {
-			return ports.WorkerExecution{}, fmt.Errorf("worktree manager returned a different path for subtask %q", request.Task.ID)
-		}
+		return ports.WorkerExecution{}, err
 	}
 	if err := runCtx.Err(); err != nil {
 		return ports.WorkerExecution{}, err
 	}
 
 	var output strings.Builder
+	authored := ""
+	if r.agents != nil {
+		summary, err := r.agents.Implement(runCtx, ports.AgentImplementRequest{
+			WorktreePath:    worktreePath,
+			Task:            request.Task,
+			Attempt:         request.Attempt,
+			PreviousFailure: request.PreviousFailure,
+		})
+		if errors.Is(err, ports.ErrAgentAttemptFailed) {
+			return ports.WorkerExecution{
+				Status:  ports.WorkerOutcomeFailed,
+				Summary: "the agent did not produce an applicable change",
+				Error:   boundedRedacted(err.Error()),
+			}, nil
+		}
+		if err != nil {
+			return ports.WorkerExecution{}, err
+		}
+		authored = summary
+		output.WriteString("[agent]\n")
+		output.WriteString(summary)
+	} else if r.author != nil {
+		summary, err := r.authorCode(runCtx, worktreePath, request)
+		var attemptErr *authorAttemptError
+		if errors.As(err, &attemptErr) {
+			// A model or proposal failure is a failed attempt, not an
+			// infrastructure error, so the service retries with this reason.
+			return ports.WorkerExecution{
+				Status:  ports.WorkerOutcomeFailed,
+				Summary: "code author did not produce an applicable change",
+				Error:   boundedRedacted(attemptErr.Error()),
+			}, nil
+		}
+		if err != nil {
+			return ports.WorkerExecution{}, err
+		}
+		authored = summary
+		output.WriteString("[author]\n")
+		output.WriteString(summary)
+	}
 	for _, command := range r.commands {
 		if err := runCtx.Err(); err != nil {
 			return ports.WorkerExecution{}, err
@@ -152,9 +188,13 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 		}
 	}
 
+	summary := fmt.Sprintf("completed %d allowlisted worker command(s)", len(r.commands))
+	if authored != "" {
+		summary = authored + "; " + summary
+	}
 	execution := ports.WorkerExecution{
 		Status:  ports.WorkerOutcomeCompleted,
-		Summary: fmt.Sprintf("completed %d allowlisted worker command(s)", len(r.commands)),
+		Summary: boundedRedacted(summary),
 		Output:  boundedRedacted(output.String()),
 	}
 	collected := ports.CollectedTaskResult{
@@ -252,9 +292,7 @@ func validateWorkerCommands(commands []ValidationCommand) ([]ValidationCommand, 
 
 func isGitMergeOrWorktreeRemove(argv []string) bool {
 	command := strings.ToLower(filepath.Base(strings.ReplaceAll(argv[0], `\`, "/")))
-	if strings.HasSuffix(command, ".exe") {
-		command = strings.TrimSuffix(command, ".exe")
-	}
+	command = strings.TrimSuffix(command, ".exe")
 	if command != "git" {
 		return false
 	}
@@ -291,3 +329,96 @@ func appendWorkerOutput(builder *strings.Builder, name string, output CommandOut
 
 // The standard process runner satisfies the worktree-scoped execution contract.
 var _ WorktreeCommandRunner = ExecCommandRunner{}
+
+// authorAttemptError marks a failure the coding model can act on in a retry,
+// as opposed to an infrastructure fault.
+type authorAttemptError struct {
+	stage string
+	err   error
+}
+
+func (e *authorAttemptError) Error() string { return e.stage + ": " + e.err.Error() }
+func (e *authorAttemptError) Unwrap() error { return e.err }
+
+// authorCode runs the two-step authoring exchange for one attempt: the model
+// picks files to read, then proposes whole-file edits, which are applied in
+// the verified worktree. Failures the model can fix are *authorAttemptError.
+func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, request ports.WorkerRequest) (string, error) {
+	files, err := r.repositoryFiles(ctx, worktreePath)
+	if err != nil {
+		return "", err
+	}
+	authorRequest := ports.CodeAuthorRequest{
+		Provider:        request.Task.Provider,
+		Title:           request.Task.Title,
+		Instructions:    request.Task.Instructions,
+		Attempt:         request.Attempt,
+		PreviousFailure: request.PreviousFailure,
+		RepositoryFiles: files,
+	}
+	selection, err := r.author.SelectFiles(ctx, authorRequest)
+	if err != nil {
+		return "", &authorAttemptError{stage: "select files to read", err: err}
+	}
+	authorRequest.Files, err = readSnapshots(worktreePath, selection.Paths, files)
+	if err != nil {
+		return "", err
+	}
+	proposal, err := r.author.ProposeEdits(ctx, authorRequest)
+	if err != nil {
+		return "", &authorAttemptError{stage: "propose edits", err: err}
+	}
+	applied, err := applyEdits(worktreePath, proposal.Edits)
+	if err != nil {
+		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+	}
+	var parts []string
+	if text := strings.TrimSpace(proposal.Summary); text != "" {
+		parts = append(parts, text)
+	}
+	switch {
+	case len(applied.Written) == 0 && len(applied.Deleted) == 0:
+		parts = append(parts, "no files changed")
+	default:
+		if len(applied.Written) > 0 {
+			parts = append(parts, "wrote "+strings.Join(applied.Written, ", "))
+		}
+		if len(applied.Deleted) > 0 {
+			parts = append(parts, "deleted "+strings.Join(applied.Deleted, ", "))
+		}
+	}
+	return strings.Join(parts, "; "), nil
+}
+
+// repositoryFiles lists tracked and untracked, non-ignored files with a fixed
+// Git argv on the host. Protected paths are omitted, and the list is bounded.
+func (r *WorkerRuntime) repositoryFiles(ctx context.Context, worktreePath string) ([]string, error) {
+	output, err := r.runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
+	if err != nil {
+		return nil, fmt.Errorf("list repository files: %s", boundedRedacted(err.Error()))
+	}
+	if output.ExitCode != 0 {
+		return nil, fmt.Errorf("list repository files: git exited with code %d", output.ExitCode)
+	}
+	entries := strings.Split(output.Stdout, "\x00")
+	if output.StdoutTruncated && len(entries) > 0 {
+		entries = entries[:len(entries)-1] // the last entry may be cut short
+	}
+	files := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if len(files) >= maxRepositoryFilesListed {
+			break
+		}
+		clean, err := cleanRepoPath(entry)
+		if err != nil {
+			continue
+		}
+		if _, dup := seen[clean]; dup {
+			continue
+		}
+		seen[clean] = struct{}{}
+		files = append(files, clean)
+	}
+	return files, nil
+}

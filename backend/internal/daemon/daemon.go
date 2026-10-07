@@ -239,7 +239,8 @@ func Run() error {
 		orchestratorWorktrees ports.WorktreeManager
 	)
 	if cfg.ClaudeOrchestrator.FeatureEnabled {
-		orchestratorWorktrees = worktreesvc.NewManager(nil)
+		// Run worktrees live under the data dir (~/.ao), like session worktrees.
+		orchestratorWorktrees = worktreesvc.NewManagerWithManagedRoot(nil, claudeOrchestratorManagedRoot(cfg))
 	}
 	claudeOrchestrator, err = newClaudeOrchestratorWiring(cfg, claudeOrchestratorBuildDeps{Worktrees: orchestratorWorktrees})
 	if err != nil {
@@ -612,6 +613,9 @@ func Run() error {
 		Delivery: reportSemanticDelivery{chat: chatSvc, sessions: reportSessions, store: store},
 	})
 	chatSvc.SetReportCoordinator(reportCoordinator)
+	if err := claudeOrchestrator.bindAgentSessions(cfg.ClaudeOrchestrator, sessionSvc, reportSvc, projectSvc); err != nil {
+		return fmt.Errorf("wire Claude orchestrator agent sessions: %w", err)
+	}
 	reportDeliveryDone := reportCoordinator.Start(ctx)
 	defer func() {
 		stop()

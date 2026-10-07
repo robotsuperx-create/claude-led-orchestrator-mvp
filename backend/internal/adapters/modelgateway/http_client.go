@@ -20,6 +20,7 @@ const (
 	defaultMaxResponseBytes = 4 << 20
 )
 
+// Errors returned by Client. Provider response bodies are never included.
 var (
 	ErrRequestTooLarge  = errors.New("model gateway request body exceeds configured limit")
 	ErrResponseTooLarge = errors.New("model gateway response body exceeds configured limit")
@@ -200,7 +201,7 @@ func (c *Client) CreateChatCompletion(ctx context.Context, request ChatRequest) 
 		}
 		return empty, ErrRequestFailed
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, c.maxResponseBytes+1))
 	if err != nil {

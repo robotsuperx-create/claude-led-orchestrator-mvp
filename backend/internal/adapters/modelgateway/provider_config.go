@@ -20,6 +20,7 @@ const (
 	DefaultProviderMaxTokens = 4096
 )
 
+// Errors returned by the provider registry and adapters.
 var (
 	ErrUnsupportedProvider   = errors.New("unsupported model provider")
 	ErrProviderNotConfigured = errors.New("model provider is not configured")
@@ -288,7 +289,7 @@ func (a *ProviderAdapter) Plan(ctx context.Context, request ports.PlanRequest) (
 	if err != nil {
 		return result, err
 	}
-	if err := json.Unmarshal([]byte(content), &result); err != nil {
+	if err := decodeModelJSON(content, &result); err != nil {
 		return ports.ExecutionPlan{}, errors.New("model gateway returned an invalid execution plan")
 	}
 	return result, nil
@@ -309,7 +310,7 @@ func (a *ProviderAdapter) Review(ctx context.Context, request ports.ReviewReques
 	if err != nil {
 		return result, err
 	}
-	if err := json.Unmarshal([]byte(content), &result); err != nil {
+	if err := decodeModelJSON(content, &result); err != nil {
 		return ports.ReviewDecision{}, errors.New("model gateway returned an invalid review decision")
 	}
 	if result.Decision != ports.ReviewOutcomeApprove && result.Decision != ports.ReviewOutcomeRequestChanges {

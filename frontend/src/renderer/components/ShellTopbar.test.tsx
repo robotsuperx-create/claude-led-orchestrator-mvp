@@ -246,6 +246,20 @@ describe("ShellTopbar route identity", () => {
 		expect(identity).toHaveTextContent("Automations");
 		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
 	});
+
+	it("identifies the Orchestrator route instead of presenting it as the board", () => {
+		locationMock.pathname = "/orchestrator";
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<TooltipProvider>
+					<ShellTopbar />
+				</TooltipProvider>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByTestId("orchestrator-topbar-label")).toHaveTextContent("Orchestrator");
+		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
+	});
 });
 
 describe("ShellTopbar status pill", () => {

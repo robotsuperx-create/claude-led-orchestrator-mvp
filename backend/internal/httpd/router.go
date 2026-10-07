@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -83,7 +84,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountMobile(r, deps.Mobile)
 	mountMobileDevices(r, &controllers.MobileDevicesController{Registry: deps.DeviceRoster, Presence: deps.DeviceLive})
-	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, cfg.ClaudeOrchestrator.FeatureEnabled)
+	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, cfg.ClaudeOrchestrator)
 	api.Register(r)
 
 	return r
@@ -251,13 +252,33 @@ func mountMobileDevices(r chi.Router, c *controllers.MobileDevicesController) {
 // /api/v1 OpenAPI contract. The immutable daemon config supplies the only
 // feature-flag value; ClaudeOrchestratorAPI additionally requires localControlRequest
 // and explicit per-run opt-in. The separate LAN listener blocks /internal paths.
-func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, featureEnabled bool) {
-	if !featureEnabled || service == nil {
+func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, cfg config.ClaudeOrchestratorConfig) {
+	if !cfg.FeatureEnabled || service == nil {
 		return
+	}
+	workerModel := cfg.DeepSeekProvider.DefaultModel
+	if cfg.Worker.DefaultProvider == ports.ModelProviderClaude {
+		workerModel = cfg.ClaudeProvider.DefaultModel
+	}
+	workerMode := config.ClaudeOrchestratorWorkerModeModel
+	if cfg.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents {
+		// The agent harness, not an API model, writes the code.
+		workerMode = config.ClaudeOrchestratorWorkerModeAgents
+		workerModel = string(cfg.Worker.AgentHarnesses[cfg.Worker.DefaultProvider])
 	}
 	api := &ClaudeOrchestratorAPI{
 		Service: service,
-		Gate:    ports.ClaudeOrchestratorRunPolicy{FeatureEnabled: featureEnabled},
+		Gate:    ports.ClaudeOrchestratorRunPolicy{FeatureEnabled: cfg.FeatureEnabled},
+		Info: ClaudeOrchestratorInfo{
+			Enabled:        true,
+			Repository:     filepath.Base(filepath.Clean(cfg.Worker.ProjectRoot)),
+			PlannerModel:   cfg.ClaudeProvider.DefaultModel,
+			WorkerProvider: cfg.Worker.DefaultProvider,
+			WorkerModel:    workerModel,
+			WorkerMode:     workerMode,
+			Sandboxed:      cfg.Worker.SandboxEnabled,
+			MaxActiveRuns:  DefaultClaudeOrchestratorMaxActiveRuns,
+		},
 	}
 	api.Register(r)
 }

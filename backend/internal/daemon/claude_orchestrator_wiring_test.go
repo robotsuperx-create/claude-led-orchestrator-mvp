@@ -17,7 +17,7 @@ func TestClaudeOrchestratorWiringDefaultOffCreatesNoProvidersOrRouteService(t *t
 	if err != nil {
 		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
 	}
-	if wiring == nil || wiring.service != nil || wiring.providers != nil || wiring.deepSeekWorker != nil {
+	if wiring == nil || wiring.service != nil || wiring.providers != nil {
 		t.Fatalf("disabled wiring created a service or provider clients: %+v", wiring)
 	}
 	result, err := wiring.RunGated(context.Background(), ports.ClaudeOrchestratorRunRequest{ExplicitOptIn: true}, ports.OrchestrationRequest{
@@ -67,7 +67,7 @@ func TestClaudeOrchestratorWiringEnabledWithInjectedFakes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
 	}
-	if wiring.service == nil || wiring.providers != nil || wiring.deepSeekWorker != nil {
+	if wiring.service == nil || wiring.providers != nil {
 		t.Fatalf("fake composition has unexpected service/provider state: %+v", wiring)
 	}
 	got, err := wiring.RunGated(context.Background(), ports.ClaudeOrchestratorRunRequest{ExplicitOptIn: true}, ports.OrchestrationRequest{

@@ -123,6 +123,13 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					writeText: async () => undefined,
 					readText: async () => "",
 				},
+				claudeOrchestrator: {
+					info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0 } }),
+					list: async () => ({ ok: false, error: "disabled" }),
+					start: async () => ({ ok: false, error: "disabled" }),
+					status: async () => ({ ok: false, error: "disabled" }),
+					cancel: async () => ({ ok: false, error: "disabled" }),
+				},
 				daemon: {
 					getStatus: async () => status,
 					start: async () => status,
@@ -702,6 +709,13 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				},
 				menu: { action: async () => undefined, notifyShellFocus: () => undefined },
 				clipboard: { writeText: async () => undefined, readText: async () => "" },
+				claudeOrchestrator: {
+					info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0 } }),
+					list: async () => ({ ok: false, error: "disabled" }),
+					start: async () => ({ ok: false, error: "disabled" }),
+					status: async () => ({ ok: false, error: "disabled" }),
+					cancel: async () => ({ ok: false, error: "disabled" }),
+				},
 				daemon: {
 					getStatus: async () => status,
 					start: async () => status,
