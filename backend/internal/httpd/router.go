@@ -260,6 +260,12 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 	if cfg.Worker.DefaultProvider == ports.ModelProviderClaude {
 		workerModel = cfg.ClaudeProvider.DefaultModel
 	}
+	workerMode := config.ClaudeOrchestratorWorkerModeModel
+	if cfg.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents {
+		// The agent harness, not an API model, writes the code.
+		workerMode = config.ClaudeOrchestratorWorkerModeAgents
+		workerModel = string(cfg.Worker.AgentHarnesses[cfg.Worker.DefaultProvider])
+	}
 	api := &ClaudeOrchestratorAPI{
 		Service: service,
 		Gate:    ports.ClaudeOrchestratorRunPolicy{FeatureEnabled: cfg.FeatureEnabled},
@@ -269,6 +275,7 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 			PlannerModel:   cfg.ClaudeProvider.DefaultModel,
 			WorkerProvider: cfg.Worker.DefaultProvider,
 			WorkerModel:    workerModel,
+			WorkerMode:     workerMode,
 			Sandboxed:      cfg.Worker.SandboxEnabled,
 			MaxActiveRuns:  DefaultClaudeOrchestratorMaxActiveRuns,
 		},

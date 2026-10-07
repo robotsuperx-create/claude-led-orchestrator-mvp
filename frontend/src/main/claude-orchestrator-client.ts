@@ -16,7 +16,7 @@ const BASE_PATH = "/internal/claude-orchestrator";
 const REQUEST_TIMEOUT_MS = 5_000;
 
 const DISABLED_INFO: ClaudeOrchestratorInfo = {
-	enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", sandboxed: false, maxActiveRuns: 0,
+	enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0,
 };
 
 /**

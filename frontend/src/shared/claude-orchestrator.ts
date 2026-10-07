@@ -21,12 +21,16 @@ export type ClaudeOrchestratorStage = (typeof CLAUDE_ORCHESTRATOR_ACTIVE_STAGES)
 
 export type ClaudeOrchestratorRecommendation = "merge" | "hold";
 
+export type ClaudeOrchestratorWorkerMode = "model" | "agents";
+
 export type ClaudeOrchestratorInfo = {
 	enabled: boolean;
 	repository: string;
 	plannerModel: string;
 	workerProvider: string;
 	workerModel: string;
+	/** "agents" when AO agent sessions write the code; workerModel is then the harness. */
+	workerMode: ClaudeOrchestratorWorkerMode;
 	sandboxed: boolean;
 	maxActiveRuns: number;
 };
@@ -141,6 +145,7 @@ export function parseClaudeOrchestratorInfo(value: unknown): ClaudeOrchestratorI
 		plannerModel: text("plannerModel"),
 		workerProvider: text("workerProvider"),
 		workerModel: text("workerModel"),
+		workerMode: candidate.workerMode === "agents" ? "agents" : "model",
 		sandboxed: candidate.sandboxed === true,
 		maxActiveRuns,
 	};

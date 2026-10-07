@@ -14,6 +14,12 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
+// Identity used for commits the orchestrator makes on run and agent branches.
+const (
+	defaultCommitAuthorName  = "AO Claude Orchestrator"
+	defaultCommitAuthorEmail = "claude-orchestrator@ao.invalid"
+)
+
 // DefaultRunBranchPrefix namespaces the branches created for runs.
 const DefaultRunBranchPrefix = "ao/claude-orchestrator/"
 
@@ -74,11 +80,11 @@ func NewRunWorkspaces(worktrees ports.WorktreeManager, git WorktreeCommandRunner
 	}
 	name := strings.TrimSpace(config.CommitAuthorName)
 	if name == "" {
-		name = "AO Claude Orchestrator"
+		name = defaultCommitAuthorName
 	}
 	email := strings.TrimSpace(config.CommitAuthorEmail)
 	if email == "" {
-		email = "claude-orchestrator@ao.invalid"
+		email = defaultCommitAuthorEmail
 	}
 	if strings.ContainsAny(name+email, "\x00\r\n") {
 		return nil, errors.New("commit author must be a single line")
@@ -131,7 +137,11 @@ func (w *RunWorkspaces) Prepare(ctx context.Context, runID string) (ports.RunWor
 	if err != nil {
 		return ports.RunWorkspace{}, fmt.Errorf("create run worktree: %w", err)
 	}
-	return ports.RunWorkspace{Path: created.Path, Branch: created.Branch}, nil
+	base, err := w.gitIn(ctx, created.Path, "rev-parse", "HEAD")
+	if err != nil {
+		return ports.RunWorkspace{}, err
+	}
+	return ports.RunWorkspace{Path: created.Path, Branch: created.Branch, BaseCommit: strings.TrimSpace(base)}, nil
 }
 
 // Finalize commits every change in the run worktree to the run branch. Hooks
@@ -145,6 +155,15 @@ func (w *RunWorkspaces) Finalize(ctx context.Context, workspace ports.RunWorkspa
 		return workspace, err
 	}
 	if strings.TrimSpace(status) == "" {
+		// Agent workers commit as they go, so a clean worktree can still
+		// carry the run's work.
+		head, err := w.gitIn(ctx, workspace.Path, "rev-parse", "HEAD")
+		if err != nil {
+			return workspace, err
+		}
+		if head = strings.TrimSpace(head); workspace.BaseCommit != "" && head != workspace.BaseCommit {
+			workspace.Commit = head
+		}
 		return workspace, nil
 	}
 	if _, err := w.gitIn(ctx, workspace.Path, "add", "--all"); err != nil {

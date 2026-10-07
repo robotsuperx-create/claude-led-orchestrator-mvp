@@ -33,6 +33,10 @@ type WorkerRuntimeConfig struct {
 	// before the fixed commands run. Its proposals are validated and applied
 	// only inside the verified worktree. Timeout must leave room for it.
 	Author ports.CodeAuthor
+	// Agents, when supplied, hands each subtask to a real AO agent session
+	// instead of Author. The agent's committed work is fast-forwarded into the
+	// verified worktree before the fixed commands and validator run.
+	Agents ports.AgentImplementer
 }
 
 // WorkerRuntime runs a fixed command allowlist in an already-existing task
@@ -49,6 +53,7 @@ type WorkerRuntime struct {
 	sandboxImage  string
 	sandboxLimits ports.SandboxResourceLimits
 	author        ports.CodeAuthor
+	agents        ports.AgentImplementer
 }
 
 // NewWorkerRuntime constructs a runtime around existing worktree, validation,
@@ -93,6 +98,7 @@ func NewWorkerRuntime(worktrees ports.WorktreeManager, validator ports.Validator
 		sandboxImage:  strings.TrimSpace(config.SandboxImage),
 		sandboxLimits: config.SandboxLimits,
 		author:        config.Author,
+		agents:        config.Agents,
 	}, nil
 }
 
@@ -122,7 +128,27 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 
 	var output strings.Builder
 	authored := ""
-	if r.author != nil {
+	if r.agents != nil {
+		summary, err := r.agents.Implement(runCtx, ports.AgentImplementRequest{
+			WorktreePath:    worktreePath,
+			Task:            request.Task,
+			Attempt:         request.Attempt,
+			PreviousFailure: request.PreviousFailure,
+		})
+		if errors.Is(err, ports.ErrAgentAttemptFailed) {
+			return ports.WorkerExecution{
+				Status:  ports.WorkerOutcomeFailed,
+				Summary: "the agent did not produce an applicable change",
+				Error:   boundedRedacted(err.Error()),
+			}, nil
+		}
+		if err != nil {
+			return ports.WorkerExecution{}, err
+		}
+		authored = summary
+		output.WriteString("[agent]\n")
+		output.WriteString(summary)
+	} else if r.author != nil {
 		summary, err := r.authorCode(runCtx, worktreePath, request)
 		var attemptErr *authorAttemptError
 		if errors.As(err, &attemptErr) {

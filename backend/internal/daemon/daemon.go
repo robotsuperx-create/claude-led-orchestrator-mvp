@@ -613,6 +613,9 @@ func Run() error {
 		Delivery: reportSemanticDelivery{chat: chatSvc, sessions: reportSessions, store: store},
 	})
 	chatSvc.SetReportCoordinator(reportCoordinator)
+	if err := claudeOrchestrator.bindAgentSessions(cfg.ClaudeOrchestrator, sessionSvc, reportSvc, projectSvc); err != nil {
+		return fmt.Errorf("wire Claude orchestrator agent sessions: %w", err)
+	}
 	reportDeliveryDone := reportCoordinator.Start(ctx)
 	defer func() {
 		stop()

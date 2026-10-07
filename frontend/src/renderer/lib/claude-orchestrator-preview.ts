@@ -55,7 +55,7 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 	};
 	const find = (runId: string) => runs.find((run) => run.runId === runId);
 	return {
-		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", sandboxed: true, maxActiveRuns: 2 } }),
+		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2 } }),
 		list: async () => ({ ok: true, value: runs.map(snapshot) }),
 		start: async (input) => {
 			const runId = `claude-run-${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;

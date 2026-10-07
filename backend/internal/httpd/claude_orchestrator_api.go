@@ -69,8 +69,11 @@ type ClaudeOrchestratorInfo struct {
 	PlannerModel   string              `json:"plannerModel"`
 	WorkerProvider ports.ModelProvider `json:"workerProvider"`
 	WorkerModel    string              `json:"workerModel"`
-	Sandboxed      bool                `json:"sandboxed"`
-	MaxActiveRuns  int                 `json:"maxActiveRuns"`
+	// WorkerMode is "model" when an API model writes the code and "agents"
+	// when AO agent sessions do; WorkerModel then names the agent harness.
+	WorkerMode    string `json:"workerMode"`
+	Sandboxed     bool   `json:"sandboxed"`
+	MaxActiveRuns int    `json:"maxActiveRuns"`
 }
 
 // claudeOrchestratorRunDetails holds the non-sensitive record of a run.

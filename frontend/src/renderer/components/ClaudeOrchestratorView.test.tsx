@@ -10,7 +10,7 @@ const RUN_B = "claude-run-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const RUN_NEW = "claude-run-cccccccccccccccccccccccccccccccc";
 
 const enabledInfo: ClaudeOrchestratorInfo = {
-	enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", sandboxed: true, maxActiveRuns: 2,
+	enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2,
 };
 
 const mocks = vi.hoisted(() => ({
@@ -88,6 +88,16 @@ describe("ClaudeOrchestratorView", () => {
 		const row = await screen.findByRole("button", { name: "Hide details for Add input validation" });
 		expect(row).toHaveAttribute("aria-expanded", "true");
 		expect(await screen.findByRole("list", { name: "Run progress" })).toBeInTheDocument();
+	});
+
+	it("says AO agents write the code in agents mode", async () => {
+		mocks.info.mockResolvedValue(ok({ ...enabledInfo, workerMode: "agents", workerModel: "deepseek-harness" }));
+		renderView();
+		expect(await screen.findByTestId("claude-orchestrator-configuration")).toHaveTextContent("Agents write code with deepseek-harness");
+		await userEvent.click(await screen.findByRole("button", { name: "Start a run" }));
+		const dialog = await screen.findByRole("dialog");
+		expect(within(dialog).getByText(/AO agents \(deepseek-harness by default\) write the code/)).toBeInTheDocument();
+		expect(within(dialog).getByText(/start AO agent sessions/)).toBeInTheDocument();
 	});
 
 	it("shows a refused start next to the action without closing the dialog", async () => {

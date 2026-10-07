@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/modelgateway"
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
@@ -162,7 +163,17 @@ type ClaudeOrchestratorWorkerConfig struct {
 	// choose it.
 	WorktreePath string
 	// DefaultProvider writes code for subtasks whose plan names no provider.
-	DefaultProvider    ports.ModelProvider
+	DefaultProvider ports.ModelProvider
+	// Mode selects who writes the code: ClaudeOrchestratorWorkerModeModel (a
+	// model API call proposes file edits) or ClaudeOrchestratorWorkerModeAgents
+	// (each subtask runs in a real AO agent session).
+	Mode string
+	// AgentHarnesses maps a plan's provider to the AO agent harness used in
+	// agents mode.
+	AgentHarnesses map[ports.ModelProvider]domain.AgentHarness
+	// AgentProjectID optionally names the AO project for agent sessions. When
+	// empty, the registered project whose path is ProjectRoot is used.
+	AgentProjectID     string
 	Commands           []ClaudeOrchestratorCommandConfig
 	Timeout            time.Duration
 	SandboxEnabled     bool
@@ -171,6 +182,12 @@ type ClaudeOrchestratorWorkerConfig struct {
 	SandboxNanoCPUs    int64
 	SandboxPIDs        int64
 }
+
+// Worker modes.
+const (
+	ClaudeOrchestratorWorkerModeModel  = "model"
+	ClaudeOrchestratorWorkerModeAgents = "agents"
+)
 
 // ClaudeOrchestratorValidatorConfig configures the independent validation pass.
 type ClaudeOrchestratorValidatorConfig struct {
@@ -292,7 +309,10 @@ func (c Config) Addr() string {
 // AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, optional *_WORKER_WORKTREE_PATH
 // (default: a new worktree per run), optional *_WORKER_DEFAULT_PROVIDER
-// (claude|deepseek, default deepseek), optional per-provider *_TIMEOUT and
+// (claude|deepseek, default deepseek), optional *_WORKER_MODE (model|agents,
+// default model; agents hands each subtask to a real AO agent session using
+// *_AGENT_HARNESS_{CLAUDE,DEEPSEEK} and optional *_AGENT_PROJECT_ID, and makes
+// the DeepSeek API settings optional), optional per-provider *_TIMEOUT and
 // *_MAX_TOKENS, *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
@@ -555,6 +575,32 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 	if cfg.Worker.DefaultProvider != ports.ModelProviderClaude && cfg.Worker.DefaultProvider != ports.ModelProviderDeepSeek {
 		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek)
 	}
+	cfg.Worker.Mode = strings.ToLower(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE")))
+	if cfg.Worker.Mode == "" {
+		cfg.Worker.Mode = ClaudeOrchestratorWorkerModeModel
+	}
+	if cfg.Worker.Mode != ClaudeOrchestratorWorkerModeModel && cfg.Worker.Mode != ClaudeOrchestratorWorkerModeAgents {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE must be %q or %q", ClaudeOrchestratorWorkerModeModel, ClaudeOrchestratorWorkerModeAgents)
+	}
+	cfg.Worker.AgentHarnesses = map[ports.ModelProvider]domain.AgentHarness{
+		ports.ModelProviderClaude:   domain.HarnessClaudeCode,
+		ports.ModelProviderDeepSeek: domain.HarnessDeepSeek,
+	}
+	for provider, name := range map[ports.ModelProvider]string{
+		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_CLAUDE",
+		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_DEEPSEEK",
+	} {
+		raw := strings.TrimSpace(os.Getenv(name))
+		if raw == "" {
+			continue
+		}
+		harness := domain.AgentHarness(raw)
+		if !harness.IsKnown() {
+			return fmt.Errorf("%s must name a known AO agent harness", name)
+		}
+		cfg.Worker.AgentHarnesses[provider] = harness
+	}
+	cfg.Worker.AgentProjectID = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_AGENT_PROJECT_ID"))
 	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
 		if err != nil {

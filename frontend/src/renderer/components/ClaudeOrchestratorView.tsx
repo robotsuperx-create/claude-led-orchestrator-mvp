@@ -173,7 +173,10 @@ function ConfigurationLine({ info }: { info: ClaudeOrchestratorInfo }) {
 			<span aria-hidden="true">·</span>
 			<span>{t("orchestrator.config.planner")} <span className="font-mono text-[11px]">{info.plannerModel}</span></span>
 			<span aria-hidden="true">·</span>
-			<span>{t("orchestrator.config.worker", { provider: providerName(info.workerProvider) })} <span className="font-mono text-[11px]">{info.workerModel}</span></span>
+			<span>
+				{info.workerMode === "agents" ? t("orchestrator.config.workerAgent") : t("orchestrator.config.worker", { provider: providerName(info.workerProvider) })}{" "}
+				<span className="font-mono text-[11px]">{info.workerModel}</span>
+			</span>
 			<span aria-hidden="true">·</span>
 			<span>{t(info.sandboxed ? "orchestrator.config.sandboxOn" : "orchestrator.config.sandboxOff")}</span>
 		</p>
@@ -440,7 +443,7 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 				</DialogClose>
 				<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">{t("orchestrator.form.title")}</DialogTitle>
 				<DialogDescription className="px-4 pr-12 pt-1 text-[13px] leading-5 text-muted-foreground">
-					{t("orchestrator.form.description", { repository: info.repository, planner: info.plannerModel, worker: info.workerModel })}
+					{t(info.workerMode === "agents" ? "orchestrator.form.descriptionAgents" : "orchestrator.form.description", { repository: info.repository, planner: info.plannerModel, worker: info.workerModel })}
 				</DialogDescription>
 				<form className="flex min-h-0 flex-1 flex-col" noValidate onSubmit={submit}>
 					<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-1 pt-4">
@@ -474,7 +477,7 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 						</div>
 						<label htmlFor={CONSENT_FIELD_ID} className="flex items-start gap-2.5 text-[13px] leading-5">
 							<Checkbox id={CONSENT_FIELD_ID} className="mt-0.5" checked={consent} disabled={busy} onCheckedChange={(checked) => setConsent(checked === true)} />
-							<span>{t("orchestrator.form.consent", { provider: providerName(info.workerProvider) })}</span>
+							<span>{info.workerMode === "agents" ? t("orchestrator.form.consentAgents") : t("orchestrator.form.consent", { provider: providerName(info.workerProvider) })}</span>
 						</label>
 						{!info.sandboxed ? <p className={onboardingFieldHintClass}>{t("orchestrator.form.unsandboxed")}</p> : null}
 						{startError ? <p role="alert" className={onboardingFieldErrorClass}>{t(`orchestrator.error.${startError}`)}</p> : null}

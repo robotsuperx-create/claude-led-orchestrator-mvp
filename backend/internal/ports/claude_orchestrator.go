@@ -252,6 +252,9 @@ type OrchestrationResult struct {
 type RunWorkspace struct {
 	Path   string
 	Branch string
+	// BaseCommit is the branch's commit when the run started.
+	BaseCommit string
+	// Commit is the run's final commit, or empty when the run changed nothing.
 	Commit string
 }
 

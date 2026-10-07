@@ -137,3 +137,24 @@ func TestRunWorkspacesRejectUnsafeRunIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestRunWorkspacesFinalizeReportsCommitsMadeDuringTheRun(t *testing.T) {
+	project := newGitProject(t)
+	workspaces, _ := newTestRunWorkspaces(t, project)
+	workspace, err := workspaces.Prepare(context.Background(), "run-agent")
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if workspace.BaseCommit != runGit(t, project, "rev-parse", "HEAD") {
+		t.Fatalf("BaseCommit = %q, want the project HEAD", workspace.BaseCommit)
+	}
+	// An agent's work arrives already committed.
+	mustWrite(t, filepath.Join(workspace.Path, "agent.txt"), "done\n")
+	runGit(t, workspace.Path, "add", "--all")
+	runGit(t, workspace.Path, "-c", "user.name=T", "-c", "user.email=t@example.invalid", "commit", "--quiet", "-m", "agent")
+	head := runGit(t, workspace.Path, "rev-parse", "HEAD")
+	finalized, err := workspaces.Finalize(context.Background(), workspace, ports.OrchestrationResult{RunID: "run-agent"})
+	if err != nil || finalized.Commit != head {
+		t.Fatalf("Finalize = %+v, %v; want commit %s", finalized, err, head)
+	}
+}
