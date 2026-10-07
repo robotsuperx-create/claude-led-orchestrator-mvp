@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/modelgateway"
@@ -23,15 +24,21 @@ type claudeOrchestratorBuildDeps struct {
 	Worktrees ports.WorktreeManager
 	Runner    claudeorchestrator.CommandRunner
 	Sandbox   ports.SandboxRunner
+	Author    ports.CodeAuthor
+}
+
+// claudeOrchestratorManagedRoot is where per-run worktrees are created. It is
+// under the daemon data dir so all AO state stays beneath ~/.ao.
+func claudeOrchestratorManagedRoot(cfg config.Config) string {
+	return filepath.Join(cfg.DataDir, "worktrees", "claude-orchestrator")
 }
 
 // claudeOrchestratorWiring is the daemon composition boundary. In the default
 // off state it deliberately owns no service or network client.
 type claudeOrchestratorWiring struct {
-	service        *claudeorchestrator.Service
-	gate           ports.ClaudeOrchestratorRunGate
-	providers      *modelgateway.Registry
-	deepSeekWorker *modelgateway.ProviderAdapter
+	service   *claudeorchestrator.Service
+	gate      ports.ClaudeOrchestratorRunGate
+	providers *modelgateway.Registry
 }
 
 // validateClaudeOrchestratorConfig validates presence without constructing
@@ -95,6 +102,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	}
 
 	model := injected.Model
+	author := injected.Author
 	if model == nil {
 		registry, err := modelgateway.NewRegistry(cfg.ClaudeOrchestrator.ClaudeProvider, cfg.ClaudeOrchestrator.DeepSeekProvider)
 		if err != nil {
@@ -104,13 +112,19 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		if err != nil {
 			return nil, errors.New("configure Claude orchestrator Claude provider")
 		}
-		deepSeek, err := registry.Provider(ports.ModelProviderDeepSeek)
-		if err != nil {
+		if _, err := registry.Provider(ports.ModelProviderDeepSeek); err != nil {
 			return nil, errors.New("configure Claude orchestrator DeepSeek provider")
 		}
 		wiring.providers = registry
-		wiring.deepSeekWorker = deepSeek
 		model = claude
+		if author == nil {
+			// Claude plans and reviews; each subtask's code is written by the
+			// provider its plan names, defaulting to the configured worker.
+			author, err = modelgateway.NewAuthorRouter(registry, cfg.ClaudeOrchestrator.Worker.DefaultProvider)
+			if err != nil {
+				return nil, fmt.Errorf("configure Claude orchestrator code author: %w", err)
+			}
+		}
 	}
 
 	runner := injected.Runner
@@ -183,6 +197,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 				NanoCPUs:    cfg.ClaudeOrchestrator.Worker.SandboxNanoCPUs,
 				PIDs:        cfg.ClaudeOrchestrator.Worker.SandboxPIDs,
 			},
+			Author: author,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("configure Claude orchestrator worker: %w", err)
@@ -192,9 +207,25 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	if memory == nil {
 		memory = ephemeralClaudeOrchestratorMemory{}
 	}
+	var workspaces ports.RunWorkspaceProvisioner
+	if cfg.ClaudeOrchestrator.Worker.WorktreePath == "" && injected.Worktrees != nil {
+		gitRunner, ok := runner.(claudeorchestrator.WorktreeCommandRunner)
+		if !ok {
+			return nil, errors.New("the Claude orchestrator run workspaces require a worktree-capable command runner")
+		}
+		provisioner, err := claudeorchestrator.NewRunWorkspaces(injected.Worktrees, gitRunner, claudeorchestrator.RunWorkspacesConfig{
+			ProjectRoot: cfg.ClaudeOrchestrator.Worker.ProjectRoot,
+			ManagedRoot: claudeOrchestratorManagedRoot(cfg),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure Claude orchestrator run workspaces: %w", err)
+		}
+		workspaces = provisioner
+	}
 	wiring.service = claudeorchestrator.New(claudeorchestrator.Dependencies{
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
 		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
+		Workspaces:          workspaces,
 	})
 	return wiring, nil
 }

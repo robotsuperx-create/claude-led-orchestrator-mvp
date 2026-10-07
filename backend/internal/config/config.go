@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -108,6 +109,10 @@ type GitLabConfig struct {
 	HostTokens map[string]string
 }
 
+// DefaultClaudeOrchestratorProviderTimeout bounds one model request when a
+// provider's *_TIMEOUT is unset. Planning and code generation are long calls.
+const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
+
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
@@ -151,11 +156,13 @@ type ClaudeOrchestratorCommandConfig struct {
 // ClaudeOrchestratorWorkerConfig configures the worker's fixed command allowlist.
 type ClaudeOrchestratorWorkerConfig struct {
 	ProjectRoot string
-	// WorktreePath is the default workspace for runs whose request does not
-	// select one. It must be a registered worktree of ProjectRoot (the main
-	// checkout qualifies) and defaults to ProjectRoot when unset. A model plan
-	// can never choose it.
-	WorktreePath       string
+	// WorktreePath optionally pins every run to one existing linked worktree
+	// of ProjectRoot. When empty (the default), each run gets its own new
+	// worktree and branch under the AO data directory. A model plan can never
+	// choose it.
+	WorktreePath string
+	// DefaultProvider writes code for subtasks whose plan names no provider.
+	DefaultProvider    ports.ModelProvider
 	Commands           []ClaudeOrchestratorCommandConfig
 	Timeout            time.Duration
 	SandboxEnabled     bool
@@ -284,7 +291,9 @@ func (c Config) Addr() string {
 // When on, explicit AO_CLAUDE_ORCHESTRATOR_CLAUDE_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, optional *_WORKER_WORKTREE_PATH
-// (default: the project root), *_WORKER_COMMANDS (JSON argv),
+// (default: a new worktree per run), optional *_WORKER_DEFAULT_PROVIDER
+// (claude|deepseek, default deepseek), optional per-provider *_TIMEOUT and
+// *_MAX_TOKENS, *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
 // read only by this daemon process and are never returned by HTTP APIs.
@@ -504,22 +513,48 @@ func parseToggleEnv(name, raw string) (bool, error) {
 }
 
 func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
-	loadProvider := func(provider ports.ModelProvider, prefix string) modelgateway.ProviderConfig {
-		return modelgateway.ProviderConfig{
+	loadProvider := func(provider ports.ModelProvider, prefix string) (modelgateway.ProviderConfig, error) {
+		providerConfig := modelgateway.ProviderConfig{
 			Provider:     provider,
 			BaseURL:      strings.TrimSpace(os.Getenv(prefix + "_BASE_URL")),
 			APIKey:       os.Getenv(prefix + "_API_KEY"),
 			DefaultModel: strings.TrimSpace(os.Getenv(prefix + "_MODEL")),
+			// Writing code takes far longer than the generic 30s client default.
+			Timeout: DefaultClaudeOrchestratorProviderTimeout,
 		}
-	}
-	cfg.ClaudeProvider = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE")
-	cfg.DeepSeekProvider = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK")
-	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
-	cfg.Worker.WorktreePath = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
-	if cfg.Worker.WorktreePath == "" {
-		cfg.Worker.WorktreePath = cfg.Worker.ProjectRoot
+		timeout, err := parseOptionalPositiveDuration(prefix + "_TIMEOUT")
+		if err != nil {
+			return providerConfig, err
+		}
+		if timeout > 0 {
+			providerConfig.Timeout = timeout
+		}
+		maxTokens, err := parseOptionalPositiveInt64(prefix + "_MAX_TOKENS")
+		if err != nil {
+			return providerConfig, err
+		}
+		if maxTokens > math.MaxInt32 {
+			return providerConfig, fmt.Errorf("%s_MAX_TOKENS is too large", prefix)
+		}
+		providerConfig.MaxTokens = int(maxTokens)
+		return providerConfig, nil
 	}
 	var err error
+	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
+		return err
+	}
+	if cfg.DeepSeekProvider, err = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK"); err != nil {
+		return err
+	}
+	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
+	cfg.Worker.WorktreePath = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
+	cfg.Worker.DefaultProvider = ports.ModelProvider(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER")))
+	if cfg.Worker.DefaultProvider == "" {
+		cfg.Worker.DefaultProvider = ports.ModelProviderDeepSeek
+	}
+	if cfg.Worker.DefaultProvider != ports.ModelProviderClaude && cfg.Worker.DefaultProvider != ports.ModelProviderDeepSeek {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek)
+	}
 	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
 		if err != nil {

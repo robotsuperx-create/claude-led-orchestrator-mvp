@@ -29,6 +29,10 @@ type WorkerRuntimeConfig struct {
 	Sandbox       ports.SandboxRunner
 	SandboxImage  string
 	SandboxLimits ports.SandboxResourceLimits
+	// Author, when supplied, asks a model to write the code for each subtask
+	// before the fixed commands run. Its proposals are validated and applied
+	// only inside the verified worktree. Timeout must leave room for it.
+	Author ports.CodeAuthor
 }
 
 // WorkerRuntime runs a fixed command allowlist in an already-existing task
@@ -44,6 +48,7 @@ type WorkerRuntime struct {
 	sandbox       ports.SandboxRunner
 	sandboxImage  string
 	sandboxLimits ports.SandboxResourceLimits
+	author        ports.CodeAuthor
 }
 
 // NewWorkerRuntime constructs a runtime around existing worktree, validation,
@@ -87,6 +92,7 @@ func NewWorkerRuntime(worktrees ports.WorktreeManager, validator ports.Validator
 		sandbox:       config.Sandbox,
 		sandboxImage:  strings.TrimSpace(config.SandboxImage),
 		sandboxLimits: config.SandboxLimits,
+		author:        config.Author,
 	}, nil
 }
 
@@ -115,6 +121,26 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 	}
 
 	var output strings.Builder
+	authored := ""
+	if r.author != nil {
+		summary, err := r.authorCode(runCtx, worktreePath, request)
+		var attemptErr *authorAttemptError
+		if errors.As(err, &attemptErr) {
+			// A model or proposal failure is a failed attempt, not an
+			// infrastructure error, so the service retries with this reason.
+			return ports.WorkerExecution{
+				Status:  ports.WorkerOutcomeFailed,
+				Summary: "code author did not produce an applicable change",
+				Error:   boundedRedacted(attemptErr.Error()),
+			}, nil
+		}
+		if err != nil {
+			return ports.WorkerExecution{}, err
+		}
+		authored = summary
+		output.WriteString("[author]\n")
+		output.WriteString(summary)
+	}
 	for _, command := range r.commands {
 		if err := runCtx.Err(); err != nil {
 			return ports.WorkerExecution{}, err
@@ -136,9 +162,13 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 		}
 	}
 
+	summary := fmt.Sprintf("completed %d allowlisted worker command(s)", len(r.commands))
+	if authored != "" {
+		summary = authored + "; " + summary
+	}
 	execution := ports.WorkerExecution{
 		Status:  ports.WorkerOutcomeCompleted,
-		Summary: fmt.Sprintf("completed %d allowlisted worker command(s)", len(r.commands)),
+		Summary: boundedRedacted(summary),
 		Output:  boundedRedacted(output.String()),
 	}
 	collected := ports.CollectedTaskResult{
@@ -273,3 +303,96 @@ func appendWorkerOutput(builder *strings.Builder, name string, output CommandOut
 
 // The standard process runner satisfies the worktree-scoped execution contract.
 var _ WorktreeCommandRunner = ExecCommandRunner{}
+
+// authorAttemptError marks a failure the coding model can act on in a retry,
+// as opposed to an infrastructure fault.
+type authorAttemptError struct {
+	stage string
+	err   error
+}
+
+func (e *authorAttemptError) Error() string { return e.stage + ": " + e.err.Error() }
+func (e *authorAttemptError) Unwrap() error { return e.err }
+
+// authorCode runs the two-step authoring exchange for one attempt: the model
+// picks files to read, then proposes whole-file edits, which are applied in
+// the verified worktree. Failures the model can fix are *authorAttemptError.
+func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, request ports.WorkerRequest) (string, error) {
+	files, err := r.repositoryFiles(ctx, worktreePath)
+	if err != nil {
+		return "", err
+	}
+	authorRequest := ports.CodeAuthorRequest{
+		Provider:        request.Task.Provider,
+		Title:           request.Task.Title,
+		Instructions:    request.Task.Instructions,
+		Attempt:         request.Attempt,
+		PreviousFailure: request.PreviousFailure,
+		RepositoryFiles: files,
+	}
+	selection, err := r.author.SelectFiles(ctx, authorRequest)
+	if err != nil {
+		return "", &authorAttemptError{stage: "select files to read", err: err}
+	}
+	authorRequest.Files, err = readSnapshots(worktreePath, selection.Paths, files)
+	if err != nil {
+		return "", err
+	}
+	proposal, err := r.author.ProposeEdits(ctx, authorRequest)
+	if err != nil {
+		return "", &authorAttemptError{stage: "propose edits", err: err}
+	}
+	applied, err := applyEdits(worktreePath, proposal.Edits)
+	if err != nil {
+		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+	}
+	var parts []string
+	if text := strings.TrimSpace(proposal.Summary); text != "" {
+		parts = append(parts, text)
+	}
+	switch {
+	case len(applied.Written) == 0 && len(applied.Deleted) == 0:
+		parts = append(parts, "no files changed")
+	default:
+		if len(applied.Written) > 0 {
+			parts = append(parts, "wrote "+strings.Join(applied.Written, ", "))
+		}
+		if len(applied.Deleted) > 0 {
+			parts = append(parts, "deleted "+strings.Join(applied.Deleted, ", "))
+		}
+	}
+	return strings.Join(parts, "; "), nil
+}
+
+// repositoryFiles lists tracked and untracked, non-ignored files with a fixed
+// Git argv on the host. Protected paths are omitted, and the list is bounded.
+func (r *WorkerRuntime) repositoryFiles(ctx context.Context, worktreePath string) ([]string, error) {
+	output, err := r.runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
+	if err != nil {
+		return nil, fmt.Errorf("list repository files: %s", boundedRedacted(err.Error()))
+	}
+	if output.ExitCode != 0 {
+		return nil, fmt.Errorf("list repository files: git exited with code %d", output.ExitCode)
+	}
+	entries := strings.Split(output.Stdout, "\x00")
+	if output.StdoutTruncated && len(entries) > 0 {
+		entries = entries[:len(entries)-1] // the last entry may be cut short
+	}
+	files := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if len(files) >= maxRepositoryFilesListed {
+			break
+		}
+		clean, err := cleanRepoPath(entry)
+		if err != nil {
+			continue
+		}
+		if _, dup := seen[clean]; dup {
+			continue
+		}
+		seen[clean] = struct{}{}
+		files = append(files, clean)
+	}
+	return files, nil
+}

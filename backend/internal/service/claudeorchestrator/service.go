@@ -29,6 +29,9 @@ type Dependencies struct {
 	// when a request does not select one. Worker and validator still verify
 	// it against the project root before running anything.
 	DefaultWorktreePath string
+	// Workspaces, when set, gives each run that has no explicit or default
+	// worktree its own new worktree and branch, and commits the result there.
+	Workspaces ports.RunWorkspaceProvisioner
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -41,6 +44,7 @@ type Service struct {
 	memory    ports.ProjectMemory
 
 	defaultWorktreePath string
+	workspaces          ports.RunWorkspaceProvisioner
 
 	mu      sync.RWMutex
 	states  map[string]ports.RunState
@@ -57,6 +61,7 @@ func New(deps Dependencies) *Service {
 		memory:    deps.Memory,
 
 		defaultWorktreePath: strings.TrimSpace(deps.DefaultWorktreePath),
+		workspaces:          deps.Workspaces,
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
@@ -157,7 +162,12 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
-	plan = bindTrustedWorkspace(plan, s.worktreeFor(request))
+	result.Workspace, err = s.workspaceFor(runCtx, request)
+	if err != nil {
+		result.Plan = plan
+		return s.fail(runCtx, result, fmt.Errorf("prepare run workspace: %w", err))
+	}
+	plan = bindTrustedWorkspace(plan, result.Workspace.Path)
 	result.Plan = plan
 
 	if !s.advance(runCtx, request.RunID, ports.RunStateExecuting) {
@@ -192,6 +202,14 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 
 	result.MergeDecision = decideMerge(result.Results, result.Validation, result.Review)
+	if s.workspaces != nil && result.Workspace.Branch != "" {
+		// Record the run's changes on its own branch, whatever the
+		// recommendation, so held work can be inspected and resumed.
+		result.Workspace, err = s.workspaces.Finalize(runCtx, result.Workspace, result)
+		if err != nil {
+			return s.fail(runCtx, result, fmt.Errorf("commit run workspace: %w", err))
+		}
+	}
 	if result.MergeDecision.Decision == ports.MergeOutcomeMerge {
 		result.State = ports.RunStateCompleted
 	} else {
@@ -384,13 +402,20 @@ func validatePlan(plan ports.ExecutionPlan) error {
 	return nil
 }
 
-// worktreeFor selects the trusted workspace for a run: the caller's explicit
-// choice, otherwise the operator-configured default.
-func (s *Service) worktreeFor(request ports.OrchestrationRequest) string {
+// workspaceFor selects the trusted workspace for a run: the caller's explicit
+// worktree, otherwise the operator-configured default, otherwise a new
+// per-run worktree when a provisioner is configured.
+func (s *Service) workspaceFor(ctx context.Context, request ports.OrchestrationRequest) (ports.RunWorkspace, error) {
 	if path := strings.TrimSpace(request.WorktreePath); path != "" {
-		return path
+		return ports.RunWorkspace{Path: path}, nil
 	}
-	return s.defaultWorktreePath
+	if s.defaultWorktreePath != "" {
+		return ports.RunWorkspace{Path: s.defaultWorktreePath}, nil
+	}
+	if s.workspaces != nil {
+		return s.workspaces.Prepare(ctx, request.RunID)
+	}
+	return ports.RunWorkspace{}, nil
 }
 
 // bindTrustedWorkspace replaces all subtask metadata with server-owned values.

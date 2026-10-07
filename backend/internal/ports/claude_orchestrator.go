@@ -242,4 +242,22 @@ type OrchestrationResult struct {
 	Validation    ValidationReport
 	Review        ReviewDecision
 	MergeDecision MergeDecision
+	// Workspace identifies where the run's changes live. It is empty when the
+	// service ran without a trusted workspace.
+	Workspace RunWorkspace
+}
+
+// RunWorkspace is the server-owned worktree a run executed in, its branch,
+// and the commit recording the run's changes (empty when nothing changed).
+type RunWorkspace struct {
+	Path   string
+	Branch string
+	Commit string
+}
+
+// RunWorkspaceProvisioner gives each run an isolated worktree and records
+// the result on the run's branch. Both steps use fixed Git argv only.
+type RunWorkspaceProvisioner interface {
+	Prepare(ctx context.Context, runID string) (RunWorkspace, error)
+	Finalize(ctx context.Context, workspace RunWorkspace, result OrchestrationResult) (RunWorkspace, error)
 }
