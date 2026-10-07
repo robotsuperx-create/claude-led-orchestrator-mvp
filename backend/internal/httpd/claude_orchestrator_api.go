@@ -129,7 +129,7 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath}
 	ctx, cancel := context.WithCancel(context.Background())
 	api.registerCancel(runID, cancel)
-	go api.execute(service, request, ctx, cancel)
+	go api.execute(ctx, service, request, cancel)
 
 	envelope.WriteJSON(w, http.StatusAccepted, ClaudeOrchestratorRunResponse{RunID: runID, State: ports.RunStatePending})
 }
@@ -197,7 +197,7 @@ func (api *ClaudeOrchestratorAPI) status(w http.ResponseWriter, r *http.Request)
 	envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorRunResponse{RunID: runID, State: state})
 }
 
-func (api *ClaudeOrchestratorAPI) execute(service ClaudeOrchestratorRunService, request ports.OrchestrationRequest, ctx context.Context, cancel context.CancelFunc) {
+func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrchestratorRunService, request ports.OrchestrationRequest, cancel context.CancelFunc) {
 	state := ports.RunStateFailed
 	defer func() {
 		defer cancel()

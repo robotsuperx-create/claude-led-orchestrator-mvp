@@ -14,7 +14,8 @@ import (
 var (
 	_ ports.WorkerRuntime = (*WorkerRuntime)(nil)
 
-	ErrWorkerRuntimeUnavailable = errors.New("Claude orchestrator worker runtime is unavailable")
+	// ErrWorkerRuntimeUnavailable reports a nil or unconfigured worker runtime.
+	ErrWorkerRuntimeUnavailable = errors.New("claude orchestrator worker runtime is unavailable")
 )
 
 // WorkerRuntimeConfig contains trusted, operator-supplied commands. These argv
@@ -235,9 +236,7 @@ func validateWorkerCommands(commands []ValidationCommand) ([]ValidationCommand, 
 
 func isGitMergeOrWorktreeRemove(argv []string) bool {
 	command := strings.ToLower(filepath.Base(strings.ReplaceAll(argv[0], `\`, "/")))
-	if strings.HasSuffix(command, ".exe") {
-		command = strings.TrimSuffix(command, ".exe")
-	}
+	command = strings.TrimSuffix(command, ".exe")
 	if command != "git" {
 		return false
 	}

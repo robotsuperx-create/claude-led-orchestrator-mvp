@@ -3,8 +3,10 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -199,8 +201,13 @@ func (v *localDemoValidator) Validate(_ context.Context, request ports.Validatio
 		return ports.ValidationReport{Issues: []string{"expected one completed worker result"}}, nil
 	}
 	output, err := os.ReadFile(filepath.Join(v.worktreePath, "worker-output.txt"))
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
+		// A missing artifact is a validation finding, not an infrastructure
+		// error, so it is reported as a failed report.
 		return ports.ValidationReport{Issues: []string{"worker output file is missing"}}, nil
+	}
+	if err != nil {
+		return ports.ValidationReport{}, fmt.Errorf("read worker output: %w", err)
 	}
 	if strings.TrimSpace(string(output)) != localDemoWorkerOutput {
 		return ports.ValidationReport{Issues: []string{"worker output did not match"}}, nil

@@ -20,6 +20,7 @@ const (
 	DefaultProviderMaxTokens = 4096
 )
 
+// Errors returned by the provider registry and adapters.
 var (
 	ErrUnsupportedProvider   = errors.New("unsupported model provider")
 	ErrProviderNotConfigured = errors.New("model provider is not configured")

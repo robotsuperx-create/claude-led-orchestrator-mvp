@@ -78,7 +78,7 @@ func validateClaudeOrchestratorConfig(cfg config.ClaudeOrchestratorConfig) error
 		missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT")
 	}
 	if len(missing) != 0 {
-		return fmt.Errorf("Claude orchestrator is enabled but required configuration is missing: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("claude orchestrator is enabled but required configuration is missing: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -165,11 +165,11 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	worker := injected.Worker
 	if worker == nil {
 		if injected.Worktrees == nil {
-			return nil, errors.New("Claude orchestrator is enabled but its worker worktree manager is unavailable")
+			return nil, errors.New("worker worktree manager is unavailable while the Claude orchestrator is enabled")
 		}
 		worktreeRunner, ok := runner.(claudeorchestrator.WorktreeCommandRunner)
 		if !ok {
-			return nil, errors.New("Claude orchestrator worker requires a worktree-capable command runner")
+			return nil, errors.New("the Claude orchestrator worker requires a worktree-capable command runner")
 		}
 		var err error
 		worker, err = claudeorchestrator.NewWorkerRuntime(injected.Worktrees, validator, worktreeRunner, claudeorchestrator.WorkerRuntimeConfig{

@@ -10,6 +10,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
+// Errors returned by Service.Run for invalid or conflicting requests.
 var (
 	ErrRunIDRequired       = errors.New("orchestration run ID is required")
 	ErrTaskRequired        = errors.New("orchestration task is required")
@@ -107,7 +108,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 	if s == nil {
 		result.State = ports.RunStateFailed
-		return result, errors.New("Claude orchestrator service is unavailable")
+		return result, errors.New("the Claude orchestrator service is unavailable")
 	}
 	if strings.TrimSpace(request.RunID) == "" {
 		result.State = ports.RunStateFailed
@@ -127,17 +128,17 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	defer s.release(request.RunID)
 	defer cancel()
 
-	if !s.advance(request.RunID, ports.RunStatePending, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStatePending) {
 		return canceledResult(result)
 	}
 	if strings.TrimSpace(request.Task) == "" {
 		return s.fail(runCtx, result, ErrTaskRequired)
 	}
 	if s.model == nil || s.worker == nil || s.validator == nil || s.memory == nil {
-		return s.fail(runCtx, result, errors.New("Claude orchestrator dependencies are incomplete"))
+		return s.fail(runCtx, result, errors.New("the Claude orchestrator dependencies are incomplete"))
 	}
 
-	if !s.advance(request.RunID, ports.RunStatePlanning, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStatePlanning) {
 		return canceledResult(result)
 	}
 	memoryContext, err := s.memory.ReadContext(runCtx, ports.MemoryContextRequest{Task: request.Task})
@@ -159,12 +160,12 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	plan = bindTrustedWorkspace(plan, s.worktreeFor(request))
 	result.Plan = plan
 
-	if !s.advance(request.RunID, ports.RunStateExecuting, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateExecuting) {
 		return canceledResult(result)
 	}
 	result.Results = s.executePlan(runCtx, request, plan)
 
-	if !s.advance(request.RunID, ports.RunStateValidating, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateValidating) {
 		return canceledResult(result)
 	}
 	result.Validation, err = s.validator.Validate(runCtx, ports.ValidationRequest{
@@ -176,7 +177,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		return s.fail(runCtx, result, fmt.Errorf("validate delegated work: %w", err))
 	}
 
-	if !s.advance(request.RunID, ports.RunStateReviewing, runCtx) {
+	if !s.advance(runCtx, request.RunID, ports.RunStateReviewing) {
 		return canceledResult(result)
 	}
 	result.Review, err = s.model.Review(runCtx, ports.ReviewRequest{
@@ -196,7 +197,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	} else {
 		result.State = ports.RunStateHeld
 	}
-	if !s.finish(request.RunID, result.State, runCtx) {
+	if !s.finish(runCtx, request.RunID, result.State) {
 		return canceledResult(result)
 	}
 	if err := s.record(runCtx, result); err != nil {
@@ -229,7 +230,7 @@ func (s *Service) release(runID string) {
 	delete(s.cancels, runID)
 }
 
-func (s *Service) advance(runID string, state ports.RunState, ctx context.Context) bool {
+func (s *Service) advance(ctx context.Context, runID string, state ports.RunState) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current := s.states[runID]
@@ -245,7 +246,7 @@ func (s *Service) advance(runID string, state ports.RunState, ctx context.Contex
 }
 
 // finish atomically arbitrates cancellation versus the run's terminal result.
-func (s *Service) finish(runID string, state ports.RunState, ctx context.Context) bool {
+func (s *Service) finish(ctx context.Context, runID string, state ports.RunState) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current := s.states[runID]
@@ -297,7 +298,7 @@ func (s *Service) fail(ctx context.Context, result ports.OrchestrationResult, ca
 		Decision: ports.MergeOutcomeHold,
 		Reasons:  []string{cause.Error()},
 	}
-	if !s.finish(result.RunID, ports.RunStateFailed, ctx) {
+	if !s.finish(ctx, result.RunID, ports.RunStateFailed) {
 		return canceledResult(result)
 	}
 	if recordErr := s.record(ctx, result); recordErr != nil {

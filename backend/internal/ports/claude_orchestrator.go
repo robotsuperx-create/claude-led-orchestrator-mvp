@@ -6,6 +6,7 @@ import "context"
 // states only; the ports package does not persist or expose them over HTTP.
 type RunState string
 
+// Run lifecycle states. Completed, held, failed, and canceled are terminal.
 const (
 	RunStatePending    RunState = "pending"
 	RunStatePlanning   RunState = "planning"
@@ -22,6 +23,7 @@ const (
 // call. Provider adapters and credentials are owned outside this contract.
 type ModelProvider string
 
+// Model providers the orchestrator can route planning, review, and work to.
 const (
 	ModelProviderClaude   ModelProvider = "claude"
 	ModelProviderDeepSeek ModelProvider = "deepseek"
@@ -100,6 +102,7 @@ type ReviewRequest struct {
 // ReviewOutcome is the reviewer's recommendation for the collected work.
 type ReviewOutcome string
 
+// Executive review outcomes.
 const (
 	ReviewOutcomeApprove        ReviewOutcome = "approve"
 	ReviewOutcomeRequestChanges ReviewOutcome = "request_changes"
@@ -129,6 +132,7 @@ type WorkerRequest struct {
 // WorkerOutcome is the typed disposition of one delegated attempt.
 type WorkerOutcome string
 
+// Worker attempt outcomes.
 const (
 	WorkerOutcomeCompleted WorkerOutcome = "completed"
 	WorkerOutcomeFailed    WorkerOutcome = "failed"
@@ -186,6 +190,7 @@ type Validator interface {
 // authorization and workspace/git operations.
 type MergeOutcome string
 
+// Merge recommendations. They are advisory; the service never merges.
 const (
 	MergeOutcomeMerge MergeOutcome = "merge"
 	MergeOutcomeHold  MergeOutcome = "hold"

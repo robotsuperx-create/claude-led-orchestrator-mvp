@@ -13,12 +13,14 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
+// MaxValidationOutputBytes bounds each captured stdout/stderr stream.
 const MaxValidationOutputBytes = 64 * 1024
 
 var (
 	_ ports.Validator = (*Validator)(nil)
 
-	ErrValidatorUnavailable = errors.New("Claude orchestrator validator is unavailable")
+	// ErrValidatorUnavailable reports a nil or unconfigured validator.
+	ErrValidatorUnavailable = errors.New("claude orchestrator validator is unavailable")
 )
 
 // ValidationCommand is a fixed command definition. Argv is passed directly to

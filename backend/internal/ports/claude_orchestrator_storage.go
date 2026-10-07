@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Errors returned by orchestrator run stores.
 var (
 	ErrOrchestratorRunNotFound         = errors.New("orchestrator run not found")
 	ErrOrchestratorRunConflict         = errors.New("orchestrator run already exists")
@@ -29,6 +30,7 @@ type OrchestratorRunRecord struct {
 // prompts, provider output, credentials, or free-form diagnostic messages.
 type OrchestratorEventKind string
 
+// Kinds of orchestrator run events.
 const (
 	OrchestratorEventRunCreated      OrchestratorEventKind = "run_created"
 	OrchestratorEventStateChanged    OrchestratorEventKind = "state_changed"
@@ -61,6 +63,7 @@ type OrchestratorIdempotencyRecord struct {
 // caller-provided message.
 type OrchestratorCancelReason string
 
+// Reasons an orchestrator run was canceled.
 const (
 	OrchestratorCancelUserRequest OrchestratorCancelReason = "user_request"
 	OrchestratorCancelTimeout     OrchestratorCancelReason = "timeout"

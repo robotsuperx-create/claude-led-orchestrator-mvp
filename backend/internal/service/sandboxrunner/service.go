@@ -25,6 +25,7 @@ const (
 	maxTimeout         = 24 * time.Hour
 )
 
+// Errors returned by the sandbox runner.
 var (
 	ErrInvalidRequest = errors.New("invalid sandbox request")
 	ErrUnavailable    = errors.New("sandbox runner is unavailable")
@@ -94,8 +95,7 @@ func BuildDockerCommand(request ports.SandboxRunRequest) ([]string, error) {
 	for _, name := range sortedEnvironmentNames(request.Env) {
 		args = append(args, "--env", name+"="+request.Env[name])
 	}
-	args = append(args, "--entrypoint", request.Argv[0])
-	args = append(args, request.RootFS)
+	args = append(args, "--entrypoint", request.Argv[0], request.RootFS)
 	args = append(args, request.Argv[1:]...)
 	return args, nil
 }
@@ -211,12 +211,12 @@ func canonicalProjectRoot(projectRoot string) (string, error) {
 }
 
 func validEnvironmentName(name string) bool {
-	if name == "" || !((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z') || name[0] == '_') {
+	if name == "" || (name[0] < 'A' || name[0] > 'Z') && (name[0] < 'a' || name[0] > 'z') && name[0] != '_' {
 		return false
 	}
 	for i := 1; i < len(name); i++ {
 		c := name[i]
-		if !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+		if (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '_' {
 			return false
 		}
 	}

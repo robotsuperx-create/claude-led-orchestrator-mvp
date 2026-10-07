@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// Errors returned by project orchestrator run stores.
 var (
 	ErrProjectOrchestratorRunInvalid               = errors.New("invalid orchestrator run metadata")
 	ErrProjectOrchestratorRunNotFound              = errors.New("orchestrator run not found")
@@ -18,6 +19,7 @@ var (
 // intentionally not a place to persist summaries, prompts, errors, or outputs.
 type ProjectOrchestratorSummaryCode string
 
+// Summary codes recorded for a project orchestrator run.
 const (
 	ProjectOrchestratorSummaryNone      ProjectOrchestratorSummaryCode = "none"
 	ProjectOrchestratorSummarySucceeded ProjectOrchestratorSummaryCode = "succeeded"
@@ -30,6 +32,7 @@ const (
 // store history. These values are metadata, not user-provided descriptions.
 type ProjectOrchestratorEventCode string
 
+// Event codes recorded for a project orchestrator run.
 const (
 	ProjectOrchestratorEventCreated   ProjectOrchestratorEventCode = "created"
 	ProjectOrchestratorEventClaimed   ProjectOrchestratorEventCode = "claimed"

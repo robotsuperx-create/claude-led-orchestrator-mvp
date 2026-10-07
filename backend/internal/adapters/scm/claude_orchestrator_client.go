@@ -247,7 +247,7 @@ func validateRepository(repo ports.SCMRepo) error {
 	return nil
 }
 
-func (c *ClaudeOrchestratorClient) doJSON(ctx context.Context, method string, segments []string, input any, output any, query ...url.Values) error {
+func (c *ClaudeOrchestratorClient) doJSON(ctx context.Context, method string, segments []string, input, output any, query ...url.Values) error {
 	if ctx == nil {
 		return errors.New("claude orchestrator SCM: context must not be nil")
 	}
@@ -294,7 +294,7 @@ func (c *ClaudeOrchestratorClient) doJSON(ctx context.Context, method string, se
 		}
 		return fmt.Errorf("claude orchestrator SCM: HTTP request failed: %s", c.redact(err.Error()))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, c.maxResponseBytes+1))
 	if err != nil {
