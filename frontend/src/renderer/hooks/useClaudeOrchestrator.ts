@@ -3,6 +3,7 @@ import {
 	isTerminalClaudeOrchestratorState,
 	type ClaudeOrchestratorErrorCode,
 	type ClaudeOrchestratorInfo,
+	type ClaudeOrchestratorPlan,
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
 	type ClaudeOrchestratorStartInput,
@@ -13,6 +14,7 @@ import type { ClaudeOrchestratorBridge } from "../lib/claude-orchestrator-previe
 export const claudeOrchestratorQueryKeys = {
 	info: ["claude-orchestrator", "info"] as const,
 	runs: ["claude-orchestrator", "runs"] as const,
+	plan: (runId: string) => ["claude-orchestrator", "plan", runId] as const,
 };
 
 /** A failed bridge call; `code` is the only detail the renderer ever sees. */
@@ -62,7 +64,7 @@ export function useClaudeOrchestratorRuns(enabled: boolean) {
 export function useStartClaudeOrchestratorRun() {
 	const client = useQueryClient();
 	return useMutation<ClaudeOrchestratorRun, ClaudeOrchestratorError, ClaudeOrchestratorStartInput>({
-		mutationFn: (input) => unwrap((bridge) => bridge.start({ task: input.task, maxRetries: input.maxRetries })),
+		mutationFn: (input) => unwrap((bridge) => bridge.start({ task: input.task, maxRetries: input.maxRetries, ...(input.approvePlan ? { approvePlan: true } : {}) })),
 		onSuccess: (run) => {
 			// Show the new run immediately; the next poll fills in its title.
 			client.setQueryData<ClaudeOrchestratorRun[]>(claudeOrchestratorQueryKeys.runs, (current = []) =>
@@ -76,6 +78,26 @@ export function useCancelClaudeOrchestratorRun() {
 	const client = useQueryClient();
 	return useMutation<ClaudeOrchestratorRun, ClaudeOrchestratorError, string>({
 		mutationFn: (runId) => unwrap((bridge) => bridge.cancel(runId)),
+		onSettled: () => void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs }),
+	});
+}
+
+/** Claude's plan for a run; fetched once the run is waiting for approval. */
+export function useClaudeOrchestratorPlan(runId: string, enabled: boolean) {
+	return useQuery<ClaudeOrchestratorPlan>({
+		queryKey: claudeOrchestratorQueryKeys.plan(runId),
+		queryFn: () => unwrap((bridge) => bridge.plan(runId)),
+		enabled,
+		retry: false,
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+}
+
+/** Approves or rejects a run's plan. */
+export function useDecideClaudeOrchestratorPlan() {
+	const client = useQueryClient();
+	return useMutation<ClaudeOrchestratorRun, ClaudeOrchestratorError, { runId: string; approve: boolean }>({
+		mutationFn: ({ runId, approve }) => unwrap((bridge) => (approve ? bridge.approve(runId) : bridge.reject(runId))),
 		onSettled: () => void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs }),
 	});
 }

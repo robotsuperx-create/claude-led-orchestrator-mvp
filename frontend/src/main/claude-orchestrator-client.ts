@@ -1,11 +1,13 @@
 import {
 	isClaudeOrchestratorRunId,
 	parseClaudeOrchestratorInfo,
+	parseClaudeOrchestratorPlan,
 	parseClaudeOrchestratorRun,
 	parseClaudeOrchestratorRunList,
 	validClaudeOrchestratorStartInput,
 	type ClaudeOrchestratorErrorCode,
 	type ClaudeOrchestratorInfo,
+	type ClaudeOrchestratorPlan,
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
 } from "../shared/claude-orchestrator";
@@ -51,6 +53,7 @@ export class ClaudeOrchestratorClient {
 		// The wire body is built field by field; renderer input is never spread.
 		const response = await this.request("POST", `${BASE_PATH}/runs`, {
 			task: input.task, maxRetries: input.maxRetries, explicitOptIn: true,
+			...(input.approvePlan === true ? { approvePlan: true } : {}),
 		});
 		if (!response.ok) return response.error === "not_found" ? { ok: false, error: "disabled" } : response;
 		const run = parseClaudeOrchestratorRun(response.body);
@@ -68,6 +71,30 @@ export class ClaudeOrchestratorClient {
 	async cancel(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
 		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
 		const response = await this.request("POST", `${BASE_PATH}/runs/${runId}/cancel`);
+		if (!response.ok) return response;
+		const run = parseClaudeOrchestratorRun(response.body);
+		return run && run.runId === runId ? { ok: true, value: run } : { ok: false, error: "failed" };
+	}
+
+	async plan(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorPlan>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const response = await this.request("GET", `${BASE_PATH}/runs/${runId}/plan`);
+		if (!response.ok) return response.error === "not_found" ? { ok: false, error: "plan_not_ready" } : response;
+		const plan = parseClaudeOrchestratorPlan(response.body);
+		return plan && plan.runId === runId ? { ok: true, value: plan } : { ok: false, error: "failed" };
+	}
+
+	approve(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
+		return this.decide(runId, "approve");
+	}
+
+	reject(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
+		return this.decide(runId, "reject");
+	}
+
+	private async decide(runId: unknown, decision: "approve" | "reject"): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const response = await this.request("POST", `${BASE_PATH}/runs/${runId}/${decision}`);
 		if (!response.ok) return response;
 		const run = parseClaudeOrchestratorRun(response.body);
 		return run && run.runId === runId ? { ok: true, value: run } : { ok: false, error: "failed" };

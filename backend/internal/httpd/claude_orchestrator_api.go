@@ -119,6 +119,9 @@ func (api *ClaudeOrchestratorAPI) Register(r chi.Router) {
 	r.Post("/internal/claude-orchestrator/runs", api.start)
 	r.Get("/internal/claude-orchestrator/runs/{runId}", api.status)
 	r.Post("/internal/claude-orchestrator/runs/{runId}/cancel", api.cancelRun)
+	r.Get("/internal/claude-orchestrator/runs/{runId}/plan", api.plan)
+	r.Post("/internal/claude-orchestrator/runs/{runId}/approve", api.decidePlan(true))
+	r.Post("/internal/claude-orchestrator/runs/{runId}/reject", api.decidePlan(false))
 }
 
 type claudeOrchestratorRunRequest struct {
@@ -128,6 +131,8 @@ type claudeOrchestratorRunRequest struct {
 	// WorktreePath optionally selects an existing worktree of the configured
 	// project. The worker and validator verify it before running anything.
 	WorktreePath string `json:"worktreePath,omitempty"`
+	// ApprovePlan pauses the run after planning until it is approved.
+	ApprovePlan bool `json:"approvePlan,omitempty"`
 }
 
 // ClaudeOrchestratorRunResponse is intentionally limited to opaque run
@@ -204,7 +209,10 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 	}
 	api.persist()
 	service := api.Service
-	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath}
+	request := ports.OrchestrationRequest{
+		RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath,
+		RequirePlanApproval: body.ApprovePlan,
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	api.registerCancel(runID, cancel)
 	go api.execute(ctx, service, request, cancel)
@@ -619,7 +627,7 @@ func newClaudeOrchestratorRunID() (string, error) {
 func validClaudeOrchestratorRunState(state ports.RunState) bool {
 	switch state {
 	case ports.RunStatePending, ports.RunStatePlanning, ports.RunStateExecuting,
-		ports.RunStateValidating, ports.RunStateReviewing, ports.RunStateCompleted,
+		ports.RunStateValidating, ports.RunStateReviewing, ports.RunStateAwaitingApproval, ports.RunStateCompleted,
 		ports.RunStateHeld, ports.RunStateFailed, ports.RunStateCanceled:
 		return true
 	default:
@@ -638,4 +646,125 @@ func terminalClaudeOrchestratorRunState(state ports.RunState) bool {
 
 func writeClaudeOrchestratorAPIError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
 	envelope.WriteAPIError(w, r, status, "request_error", code, message, nil)
+}
+
+// Display bounds for a plan shown to a person. The plan is Claude's own
+// output; it is secret-redacted and bounded, and carries no paths or metadata.
+const (
+	claudeOrchestratorMaxPlanSubtasks     = 50
+	claudeOrchestratorMaxPlanSummaryRunes = 1000
+	claudeOrchestratorMaxPlanTitleRunes   = 200
+	claudeOrchestratorMaxPlanInstrRunes   = 4000
+	claudeOrchestratorMaxPlanIdentRunes   = 80
+	claudeOrchestratorMaxPlanDependencies = 20
+)
+
+// ClaudeOrchestratorPlan is the plan a person reviews before approving a run.
+type ClaudeOrchestratorPlan struct {
+	RunID    string                          `json:"runId"`
+	Summary  string                          `json:"summary"`
+	Subtasks []ClaudeOrchestratorPlanSubtask `json:"subtasks"`
+}
+
+// ClaudeOrchestratorPlanSubtask is one planned step.
+type ClaudeOrchestratorPlanSubtask struct {
+	ID           string              `json:"id"`
+	Title        string              `json:"title"`
+	Instructions string              `json:"instructions"`
+	Provider     ports.ModelProvider `json:"provider,omitempty"`
+	DependsOn    []string            `json:"dependsOn,omitempty"`
+}
+
+func (api *ClaudeOrchestratorAPI) planApprover() (ports.OrchestrationPlanApprover, bool) {
+	if api.Service == nil {
+		return nil, false
+	}
+	approver, ok := api.Service.(ports.OrchestrationPlanApprover)
+	return approver, ok
+}
+
+func (api *ClaudeOrchestratorAPI) plan(w http.ResponseWriter, r *http.Request) {
+	if !localControlRequest(r) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+		return
+	}
+	runID := chi.URLParam(r, "runId")
+	approver, ok := api.planApprover()
+	if _, known := api.getRunState(runID); !known || !ok {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "RUN_NOT_FOUND", "Run was not found")
+		return
+	}
+	plan, found := approver.PlanFor(runID)
+	if !found {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "PLAN_NOT_READY", "The run has no plan yet")
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, displayPlan(runID, plan))
+}
+
+func displayPlan(runID string, plan ports.ExecutionPlan) ClaudeOrchestratorPlan {
+	shown := ClaudeOrchestratorPlan{RunID: runID, Summary: boundedPlanText(plan.Summary, claudeOrchestratorMaxPlanSummaryRunes)}
+	subtasks := plan.Subtasks
+	if len(subtasks) > claudeOrchestratorMaxPlanSubtasks {
+		subtasks = subtasks[:claudeOrchestratorMaxPlanSubtasks]
+	}
+	shown.Subtasks = make([]ClaudeOrchestratorPlanSubtask, 0, len(subtasks))
+	for _, task := range subtasks {
+		step := ClaudeOrchestratorPlanSubtask{
+			ID:           boundedPlanText(task.ID, claudeOrchestratorMaxPlanIdentRunes),
+			Title:        boundedPlanText(task.Title, claudeOrchestratorMaxPlanTitleRunes),
+			Instructions: boundedPlanText(task.Instructions, claudeOrchestratorMaxPlanInstrRunes),
+			Provider:     ports.ModelProvider(boundedPlanText(string(task.Provider), claudeOrchestratorMaxPlanIdentRunes)),
+		}
+		for i, dependency := range task.DependsOn {
+			if i == claudeOrchestratorMaxPlanDependencies {
+				break
+			}
+			step.DependsOn = append(step.DependsOn, boundedPlanText(dependency, claudeOrchestratorMaxPlanIdentRunes))
+		}
+		shown.Subtasks = append(shown.Subtasks, step)
+	}
+	return shown
+}
+
+func boundedPlanText(value string, maxRunes int) string {
+	value = strings.TrimSpace(claudeorchestrator.RedactSecrets(strings.ToValidUTF8(value, "")))
+	if runes := []rune(value); len(runes) > maxRunes {
+		value = strings.TrimSpace(string(runes[:maxRunes])) + "…"
+	}
+	return value
+}
+
+func (api *ClaudeOrchestratorAPI) decidePlan(approved bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !localControlRequest(r) {
+			writeClaudeOrchestratorAPIError(w, r, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+			return
+		}
+		runID := chi.URLParam(r, "runId")
+		approver, ok := api.planApprover()
+		if _, known := api.getRunState(runID); !known || !ok {
+			writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "RUN_NOT_FOUND", "Run was not found")
+			return
+		}
+		decide := approver.Reject
+		if approved {
+			decide = approver.Approve
+		}
+		decided := decide(runID)
+		if !decided {
+			writeClaudeOrchestratorAPIError(w, r, http.StatusConflict, "RUN_NOT_AWAITING_APPROVAL", "Run is not waiting for plan approval")
+			return
+		}
+		state := ports.RunStatePlanning
+		if !approved {
+			state = ports.RunStateCanceled
+			api.cancelLocal(runID)
+		} else if current, found := api.Service.RunState(runID); found && validClaudeOrchestratorRunState(current) {
+			state = current
+		}
+		api.setRunState(runID, state)
+		api.persist()
+		envelope.WriteJSON(w, http.StatusOK, api.response(runID, state))
+	}
 }

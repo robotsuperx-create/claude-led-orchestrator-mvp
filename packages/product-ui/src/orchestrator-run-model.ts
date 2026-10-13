@@ -17,6 +17,7 @@ export const ORCHESTRATOR_RUN_WIRE_STATES = [
 	"executing",
 	"validating",
 	"reviewing",
+	"awaiting_approval",
 	"completed",
 	"held",
 	"failed",
@@ -32,6 +33,8 @@ const runStatusByWireState: Record<OrchestratorRunWireState, OrchestratorRunStat
 	executing: "running",
 	validating: "running",
 	reviewing: "running",
+	// Paused until a person approves the plan; nothing has run yet.
+	awaiting_approval: "awaiting_consent",
 	completed: "succeeded",
 	held: "on_hold",
 	failed: "failed",

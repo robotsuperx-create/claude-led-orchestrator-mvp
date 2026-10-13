@@ -90,4 +90,37 @@ describe("ClaudeOrchestratorClient", () => {
 		const { client } = clientWith(() => jsonResponse(200, { runs: [{ runId: RUN_ID, state: "exploded" }] }));
 		expect(await client.list()).toEqual({ ok: false, error: "failed" });
 	});
+
+	it("requests plan approval only when asked and keeps the body allowlisted", async () => {
+		const { client, fetcher } = clientWith(() => jsonResponse(202, { runId: RUN_ID, state: "pending" }));
+		await client.start({ task: "Add a test", maxRetries: 0, approvePlan: true });
+		expect(JSON.parse(String(fetcher.mock.calls[0][1].body))).toEqual({ task: "Add a test", maxRetries: 0, explicitOptIn: true, approvePlan: true });
+		expect(await client.start({ task: "x", maxRetries: 0, approvePlan: "yes" })).toEqual({ ok: false, error: "invalid_task" });
+	});
+
+	it("reads a plan and drops anything outside the allowlist", async () => {
+		const { client, fetcher } = clientWith(() => jsonResponse(200, {
+			runId: RUN_ID, summary: "Two steps", secret: "nope",
+			subtasks: [{ id: "a", title: "First", instructions: "Do it", provider: "deepseek", dependsOn: ["b", 3], metadata: { worktree_path: "/etc" } }],
+		}));
+		const result = await client.plan(RUN_ID);
+		expect(fetcher.mock.calls[0][0]).toBe(`${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/plan`);
+		expect(result).toEqual({ ok: true, value: { runId: RUN_ID, summary: "Two steps", steps: [{ id: "a", title: "First", instructions: "Do it", provider: "deepseek", dependsOn: ["b"] }] } });
+	});
+
+	it("reports a plan that is not ready yet", async () => {
+		const { client } = clientWith(() => jsonResponse(404, { error: { code: "PLAN_NOT_READY" } }));
+		expect(await client.plan(RUN_ID)).toEqual({ ok: false, error: "plan_not_ready" });
+	});
+
+	it("approves and rejects through their own routes", async () => {
+		const { client, fetcher } = clientWith((url) => jsonResponse(200, { runId: RUN_ID, state: url.endsWith("/reject") ? "canceled" : "planning" }));
+		expect(await client.approve(RUN_ID)).toEqual({ ok: true, value: { runId: RUN_ID, state: "planning", title: "" } });
+		expect(await client.reject(RUN_ID)).toEqual({ ok: true, value: { runId: RUN_ID, state: "canceled", title: "" } });
+		expect(fetcher.mock.calls.map(([url, init]) => `${init.method} ${url}`)).toEqual([
+			`POST ${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/approve`,
+			`POST ${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/reject`,
+		]);
+		expect(await client.approve("../x")).toEqual({ ok: false, error: "not_found" });
+	});
 });

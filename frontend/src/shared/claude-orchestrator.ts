@@ -1,7 +1,8 @@
 // Shared contract for the Claude orchestrator bridge. The main process calls
 // the daemon's loopback-only /internal/claude-orchestrator routes and returns
 // these validated shapes to the renderer over IPC; nothing here carries a
-// credential, a local path, or model/worker output.
+// credential or a local path. The only model output is a run's plan, which a
+// person reviews before approving; it arrives secret-redacted and bounded.
 
 export const CLAUDE_ORCHESTRATOR_RUN_STATES = [
 	"pending",
@@ -9,6 +10,7 @@ export const CLAUDE_ORCHESTRATOR_RUN_STATES = [
 	"executing",
 	"validating",
 	"reviewing",
+	"awaiting_approval",
 	"completed",
 	"held",
 	"failed",
@@ -48,7 +50,18 @@ export type ClaudeOrchestratorRun = {
 	updatedAt?: string;
 };
 
-export type ClaudeOrchestratorStartInput = { task: string; maxRetries: number };
+export type ClaudeOrchestratorStartInput = { task: string; maxRetries: number; approvePlan?: boolean };
+
+export type ClaudeOrchestratorPlanStep = {
+	id: string;
+	title: string;
+	instructions: string;
+	provider?: string;
+	dependsOn: string[];
+};
+
+/** Claude's plan for a run, shown for approval before anything runs. */
+export type ClaudeOrchestratorPlan = { runId: string; summary: string; steps: ClaudeOrchestratorPlanStep[] };
 
 /** Why a bridge call did not succeed. Never carries daemon or provider text. */
 export type ClaudeOrchestratorErrorCode =
@@ -58,6 +71,7 @@ export type ClaudeOrchestratorErrorCode =
 	| "invalid_task"
 	| "not_found"
 	| "already_finished"
+	| "plan_not_ready"
 	| "failed";
 
 export type ClaudeOrchestratorResult<T> = { ok: true; value: T } | { ok: false; error: ClaudeOrchestratorErrorCode };
@@ -79,7 +93,8 @@ export function isTerminalClaudeOrchestratorState(state: ClaudeOrchestratorRunSt
 export function validClaudeOrchestratorStartInput(input: unknown): input is ClaudeOrchestratorStartInput {
 	if (!input || typeof input !== "object" || Array.isArray(input)) return false;
 	const candidate = input as Record<string, unknown>;
-	if (Object.keys(candidate).some((key) => key !== "task" && key !== "maxRetries")) return false;
+	if (Object.keys(candidate).some((key) => key !== "task" && key !== "maxRetries" && key !== "approvePlan")) return false;
+	if (candidate.approvePlan !== undefined && typeof candidate.approvePlan !== "boolean") return false;
 	if (typeof candidate.task !== "string" || candidate.task.trim() === "" || candidate.task.includes("\u0000")) return false;
 	if (new TextEncoder().encode(candidate.task).byteLength > CLAUDE_ORCHESTRATOR_MAX_TASK_BYTES) return false;
 	return typeof candidate.maxRetries === "number" && Number.isInteger(candidate.maxRetries)
@@ -152,4 +167,30 @@ export function parseClaudeOrchestratorInfo(value: unknown): ClaudeOrchestratorI
 		sandboxed: candidate.sandboxed === true,
 		maxActiveRuns,
 	};
+}
+
+const PLAN_MAX_STEPS = 50;
+
+/** Rebuilds a plan from allowlisted, length-bounded fields only. */
+export function parseClaudeOrchestratorPlan(value: unknown): ClaudeOrchestratorPlan | null {
+	const candidate = record(value);
+	if (!candidate || !isClaudeOrchestratorRunId(candidate.runId) || !Array.isArray(candidate.subtasks)) return null;
+	const steps: ClaudeOrchestratorPlanStep[] = [];
+	for (const raw of candidate.subtasks.slice(0, PLAN_MAX_STEPS)) {
+		const step = record(raw);
+		const id = step && boundedText(step.id, 200);
+		if (!step || !id) return null;
+		const dependsOn = Array.isArray(step.dependsOn)
+			? step.dependsOn.filter((dependency): dependency is string => typeof dependency === "string" && dependency.length <= 200).slice(0, 20)
+			: [];
+		const provider = boundedText(step.provider, 200);
+		steps.push({
+			id,
+			title: boundedText(step.title, 800) ?? "",
+			instructions: boundedText(step.instructions, 16_000) ?? "",
+			...(provider ? { provider } : {}),
+			dependsOn,
+		});
+	}
+	return { runId: candidate.runId, summary: boundedText(candidate.summary, 4000) ?? "", steps };
 }

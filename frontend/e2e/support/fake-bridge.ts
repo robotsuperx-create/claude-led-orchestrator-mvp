@@ -129,6 +129,9 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					start: async () => ({ ok: false, error: "disabled" }),
 					status: async () => ({ ok: false, error: "disabled" }),
 					cancel: async () => ({ ok: false, error: "disabled" }),
+					plan: async () => ({ ok: false, error: "disabled" }),
+					approve: async () => ({ ok: false, error: "disabled" }),
+					reject: async () => ({ ok: false, error: "disabled" }),
 				},
 				daemon: {
 					getStatus: async () => status,
@@ -715,6 +718,9 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					start: async () => ({ ok: false, error: "disabled" }),
 					status: async () => ({ ok: false, error: "disabled" }),
 					cancel: async () => ({ ok: false, error: "disabled" }),
+					plan: async () => ({ ok: false, error: "disabled" }),
+					approve: async () => ({ ok: false, error: "disabled" }),
+					reject: async () => ({ ok: false, error: "disabled" }),
 				},
 				daemon: {
 					getStatus: async () => status,

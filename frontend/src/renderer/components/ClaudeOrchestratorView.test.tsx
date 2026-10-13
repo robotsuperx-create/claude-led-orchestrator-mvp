@@ -19,12 +19,15 @@ const mocks = vi.hoisted(() => ({
 	start: vi.fn(),
 	status: vi.fn(),
 	cancel: vi.fn(),
+	plan: vi.fn(),
+	approve: vi.fn(),
+	reject: vi.fn(),
 	writeText: vi.fn(async () => undefined),
 }));
 
 vi.mock("../lib/bridge", () => ({
 	aoBridge: {
-		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel },
+		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel, plan: mocks.plan, approve: mocks.approve, reject: mocks.reject },
 		clipboard: { writeText: mocks.writeText },
 	},
 }));
@@ -77,12 +80,12 @@ describe("ClaudeOrchestratorView", () => {
 		expect(startButton).toBeDisabled();
 		await userEvent.type(within(dialog).getByLabelText("Task"), "Add input validation");
 		expect(startButton).toBeDisabled();
-		await userEvent.click(within(dialog).getByRole("checkbox"));
+		await userEvent.click(within(dialog).getByRole("checkbox", { name: /Send this task/ }));
 		expect(startButton).toBeEnabled();
 
 		mocks.list.mockResolvedValue(ok([{ ...started, state: "planning", title: "Add input validation" }]));
 		await userEvent.click(startButton);
-		expect(mocks.start).toHaveBeenCalledWith({ task: "Add input validation", maxRetries: 1 });
+		expect(mocks.start).toHaveBeenCalledWith({ task: "Add input validation", maxRetries: 1, approvePlan: true });
 		await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 		// The new run is listed and opened, showing its live progress.
 		const row = await screen.findByRole("button", { name: "Hide details for Add input validation" });
@@ -106,7 +109,7 @@ describe("ClaudeOrchestratorView", () => {
 		await userEvent.click(await screen.findByRole("button", { name: "Start a run" }));
 		const dialog = await screen.findByRole("dialog");
 		await userEvent.type(within(dialog).getByLabelText("Task"), "Task");
-		await userEvent.click(within(dialog).getByRole("checkbox"));
+		await userEvent.click(within(dialog).getByRole("checkbox", { name: /Send this task/ }));
 		await userEvent.click(within(dialog).getByRole("button", { name: "Start run" }));
 		expect(await within(dialog).findByRole("alert")).toHaveTextContent("Too many runs are active.");
 		expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -155,6 +158,41 @@ describe("ClaudeOrchestratorView", () => {
 		expect(within(row).getByText("Stopped when the app closed")).toBeInTheDocument();
 		await userEvent.click(within(row).getByRole("button", { name: "Show details for Refactor the parser" }));
 		expect(await screen.findByTestId("claude-orchestrator-outcome")).toHaveTextContent("The app closed while this run was active");
+	});
+
+	it("shows Claude's plan for approval and approves it", async () => {
+		mocks.list.mockResolvedValue(ok([{ runId: RUN_A, state: "awaiting_approval", title: "Add validation" }]));
+		mocks.plan.mockResolvedValue(ok({
+			runId: RUN_A,
+			summary: "Validate on both sides.",
+			steps: [
+				{ id: "schema", title: "Add a schema", instructions: "Shared rules.", provider: "claude", dependsOn: [] },
+				{ id: "form", title: "Validate the form", instructions: "Field errors.", provider: "deepseek", dependsOn: ["schema"] },
+			],
+		}));
+		mocks.approve.mockResolvedValue(ok({ runId: RUN_A, state: "planning", title: "" }));
+		renderView();
+		const row = await screen.findByTestId("claude-orchestrator-run");
+		expect(within(row).getByText("Waiting for your approval")).toBeInTheDocument();
+		await userEvent.click(within(row).getByRole("button", { name: "Show details for Add validation" }));
+		const plan = await screen.findByTestId("claude-orchestrator-plan");
+		expect(await within(plan).findByText("Validate the form")).toBeInTheDocument();
+		expect(within(plan).getByText("After Add a schema")).toBeInTheDocument();
+		expect(within(plan).getByText("Written by DeepSeek")).toBeInTheDocument();
+		await userEvent.click(within(plan).getByRole("button", { name: "Approve and run" }));
+		expect(mocks.approve).toHaveBeenCalledWith(RUN_A);
+		expect(mocks.reject).not.toHaveBeenCalled();
+	});
+
+	it("rejects a plan", async () => {
+		mocks.list.mockResolvedValue(ok([{ runId: RUN_A, state: "awaiting_approval", title: "Add validation" }]));
+		mocks.plan.mockResolvedValue(ok({ runId: RUN_A, summary: "", steps: [{ id: "a", title: "Only step", instructions: "", dependsOn: [] }] }));
+		mocks.reject.mockResolvedValue(ok({ runId: RUN_A, state: "canceled", title: "" }));
+		renderView();
+		await userEvent.click(await screen.findByRole("button", { name: "Show details for Add validation" }));
+		const plan = await screen.findByTestId("claude-orchestrator-plan");
+		await userEvent.click(await within(plan).findByRole("button", { name: "Reject plan" }));
+		expect(mocks.reject).toHaveBeenCalledWith(RUN_A);
 	});
 
 	it("cancels an active run after confirmation", async () => {

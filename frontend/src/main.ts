@@ -2016,6 +2016,9 @@ ipcMain.handle("claudeOrchestrator:list", (event) => isTrustedShellSender(event)
 ipcMain.handle("claudeOrchestrator:start", (event, input: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.start(input) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:status", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.status(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:cancel", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.cancel(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:plan", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.plan(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:approve", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.approve(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.reject(runId) : untrustedOrchestratorCaller);
 
 ipcMain.handle("daemon:getStatus", () => refreshDaemonStatus());
 ipcMain.handle("daemon:start", () => startDaemon());

@@ -46,12 +46,16 @@ type Service struct {
 	defaultWorktreePath string
 	workspaces          ports.RunWorkspaceProvisioner
 
-	mu       sync.RWMutex
-	states   map[string]ports.RunState
-	running  map[string]bool
-	cancels  map[string]context.CancelFunc
-	finished []string
+	mu        sync.RWMutex
+	states    map[string]ports.RunState
+	running   map[string]bool
+	cancels   map[string]context.CancelFunc
+	plans     map[string]ports.ExecutionPlan
+	approvals map[string]chan bool
+	finished  []string
 }
+
+var _ ports.OrchestrationPlanApprover = (*Service)(nil)
 
 // maxRetainedRunStates bounds how many finished runs RunState remembers.
 const maxRetainedRunStates = 256
@@ -70,6 +74,74 @@ func New(deps Dependencies) *Service {
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
 		cancels: make(map[string]context.CancelFunc),
+		plans:   make(map[string]ports.ExecutionPlan),
+
+		approvals: make(map[string]chan bool),
+	}
+}
+
+// PlanFor returns a copy of the run's plan once Claude has produced it.
+func (s *Service) PlanFor(runID string) (ports.ExecutionPlan, bool) {
+	if s == nil {
+		return ports.ExecutionPlan{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	plan, ok := s.plans[runID]
+	if !ok {
+		return ports.ExecutionPlan{}, false
+	}
+	copied := ports.ExecutionPlan{Summary: plan.Summary, Subtasks: make([]ports.PlannedSubtask, len(plan.Subtasks))}
+	for i, task := range plan.Subtasks {
+		task.Metadata = nil
+		task.DependsOn = append([]string(nil), task.DependsOn...)
+		copied.Subtasks[i] = task
+	}
+	return copied, true
+}
+
+// Approve lets a run that is awaiting approval continue.
+func (s *Service) Approve(runID string) bool { return s.decide(runID, true) }
+
+// Reject cancels a run that is awaiting approval.
+func (s *Service) Reject(runID string) bool { return s.decide(runID, false) }
+
+func (s *Service) decide(runID string, approved bool) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	decision, waiting := s.approvals[runID]
+	if !waiting || s.states[runID] != ports.RunStateAwaitingApproval {
+		return false
+	}
+	delete(s.approvals, runID)
+	decision <- approved
+	return true
+}
+
+// awaitApproval blocks until a person decides or the run is canceled.
+func (s *Service) awaitApproval(ctx context.Context, runID string) (bool, error) {
+	decision := make(chan bool, 1)
+	s.mu.Lock()
+	if s.states[runID] == ports.RunStateCanceled || ctx.Err() != nil {
+		s.mu.Unlock()
+		return false, context.Canceled
+	}
+	s.approvals[runID] = decision
+	s.states[runID] = ports.RunStateAwaitingApproval
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.approvals, runID)
+		s.mu.Unlock()
+	}()
+	select {
+	case approved := <-decision:
+		return approved, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
 	}
 }
 
@@ -166,6 +238,28 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
+	s.mu.Lock()
+	s.plans[request.RunID] = plan
+	s.mu.Unlock()
+	if request.RequirePlanApproval {
+		// Nothing has run and no worktree exists yet: the plan is the only
+		// thing produced so far, and a person decides whether it proceeds.
+		approved, waitErr := s.awaitApproval(runCtx, request.RunID)
+		if waitErr != nil {
+			result.Plan = plan
+			return canceledResult(result)
+		}
+		if !approved {
+			s.mu.Lock()
+			s.states[request.RunID] = ports.RunStateCanceled
+			s.mu.Unlock()
+			result.Plan = plan
+			return canceledResult(result)
+		}
+		if !s.advance(runCtx, request.RunID, ports.RunStatePlanning) {
+			return canceledResult(result)
+		}
+	}
 	result.Workspace, err = s.workspaceFor(runCtx, request)
 	if err != nil {
 		result.Plan = plan
@@ -258,6 +352,7 @@ func (s *Service) release(runID string) {
 		s.finished = s.finished[1:]
 		if !s.running[oldest] {
 			delete(s.states, oldest)
+			delete(s.plans, oldest)
 		}
 	}
 }

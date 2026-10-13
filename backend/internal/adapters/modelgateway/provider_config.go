@@ -224,10 +224,20 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 		return ChatRequest{}, errors.New("plan request could not be encoded")
 	}
 	return a.mapRequest(a.config.DefaultModel, []ChatMessage{
-		{Role: "system", Content: "Create a bounded execution plan. Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string}]}. Do not include markdown."},
+		{Role: "system", Content: planningSystemPrompt},
 		{Role: "user", Content: string(input)},
 	}, 0)
 }
+
+// planningSystemPrompt asks the executive for a bounded, dependency-aware plan.
+// Subtasks without dependencies on each other may run at the same time, so the
+// planner is asked to split work into independent pieces where it can.
+const planningSystemPrompt = "Create a bounded execution plan for a software change. " +
+	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string]}]}. " +
+	"Use short unique ids. provider is \"claude\" or \"deepseek\". " +
+	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. " +
+	"Prefer independent subtasks that touch different files, because independent subtasks may run in parallel. " +
+	"Never create a dependency cycle. Do not include markdown."
 
 // MapReviewRequest converts a ReviewRequest into the portable HTTP-client request.
 func (a *ProviderAdapter) MapReviewRequest(request ports.ReviewRequest) (ChatRequest, error) {

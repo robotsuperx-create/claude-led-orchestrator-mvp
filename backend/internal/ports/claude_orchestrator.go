@@ -13,10 +13,13 @@ const (
 	RunStateExecuting  RunState = "executing"
 	RunStateValidating RunState = "validating"
 	RunStateReviewing  RunState = "reviewing"
-	RunStateCompleted  RunState = "completed"
-	RunStateHeld       RunState = "held"
-	RunStateFailed     RunState = "failed"
-	RunStateCanceled   RunState = "canceled"
+	// RunStateAwaitingApproval pauses a run after planning until a person
+	// approves or rejects the plan. Nothing has run and no worktree exists yet.
+	RunStateAwaitingApproval RunState = "awaiting_approval"
+	RunStateCompleted        RunState = "completed"
+	RunStateHeld             RunState = "held"
+	RunStateFailed           RunState = "failed"
+	RunStateCanceled         RunState = "canceled"
 )
 
 // ModelProvider names a provider selected for an executive or delegated model
@@ -42,6 +45,19 @@ type OrchestrationRequest struct {
 	// verified against the configured project root before any command runs.
 	// When empty, the service's configured default workspace is used.
 	WorktreePath string
+	// RequirePlanApproval pauses the run after planning until Approve or
+	// Reject is called for it.
+	RequirePlanApproval bool
+}
+
+// OrchestrationPlanApprover lets a person see and decide on a run's plan.
+type OrchestrationPlanApprover interface {
+	// PlanFor returns the run's plan once Claude has produced it.
+	PlanFor(runID string) (ExecutionPlan, bool)
+	// Approve continues a run that is awaiting approval.
+	Approve(runID string) bool
+	// Reject cancels a run that is awaiting approval.
+	Reject(runID string) bool
 }
 
 // ExecutiveOrchestrator coordinates planning, delegated work, validation,
@@ -75,12 +91,15 @@ const SubtaskMetadataKeyWorktreePath = "worktree_path"
 // deliberately excluded from JSON: it carries server-trusted values such as
 // the worktree path, so it is never accepted from, or echoed to, a model.
 type PlannedSubtask struct {
-	ID           string            `json:"id"`
-	Title        string            `json:"title"`
-	Instructions string            `json:"instructions"`
-	WorkerID     string            `json:"worker_id"`
-	Provider     ModelProvider     `json:"provider,omitempty"`
-	Metadata     map[string]string `json:"-"`
+	ID           string        `json:"id"`
+	Title        string        `json:"title"`
+	Instructions string        `json:"instructions"`
+	WorkerID     string        `json:"worker_id"`
+	Provider     ModelProvider `json:"provider,omitempty"`
+	// DependsOn lists subtask IDs that must finish before this one starts.
+	// Subtasks with no unmet dependency may run in parallel.
+	DependsOn []string          `json:"depends_on,omitempty"`
+	Metadata  map[string]string `json:"-"`
 }
 
 // ExecutionPlan is the executive's typed decomposition of a task.

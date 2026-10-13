@@ -156,6 +156,9 @@ if (typeof window !== "undefined") {
 			start: async () => ({ ok: false, error: "disabled" }),
 			status: async () => ({ ok: false, error: "disabled" }),
 			cancel: async () => ({ ok: false, error: "disabled" }),
+			plan: async () => ({ ok: false, error: "disabled" }),
+			approve: async () => ({ ok: false, error: "disabled" }),
+			reject: async () => ({ ok: false, error: "disabled" }),
 		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),

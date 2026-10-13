@@ -1,5 +1,6 @@
 import type {
 	ClaudeOrchestratorInfo,
+	ClaudeOrchestratorPlan,
 	ClaudeOrchestratorResult,
 	ClaudeOrchestratorRun,
 	ClaudeOrchestratorRunState,
@@ -13,6 +14,9 @@ export type ClaudeOrchestratorBridge = {
 	start: (input: ClaudeOrchestratorStartInput) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	status: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	cancel: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
+	plan: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorPlan>>;
+	approve: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
+	reject: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 };
 
 const unavailable = async () => ({ ok: false as const, error: "daemon_unavailable" as const });
@@ -20,13 +24,25 @@ const unavailable = async () => ({ ok: false as const, error: "daemon_unavailabl
 /** Used outside Electron when no preview data is wanted (tests, plain web). */
 export const unavailableClaudeOrchestratorBridge: ClaudeOrchestratorBridge = {
 	info: unavailable, list: unavailable, start: unavailable, status: unavailable, cancel: unavailable,
+	plan: unavailable, approve: unavailable, reject: unavailable,
 };
 
 // Preview-only stage timing: each stage lasts this long after the run starts.
 const PREVIEW_STAGE_MS = 2_500;
 const PREVIEW_STAGES: ClaudeOrchestratorRunState[] = ["pending", "planning", "executing", "validating", "reviewing", "completed"];
 
-type PreviewRun = ClaudeOrchestratorRun & { startedAt: number; canceled?: boolean };
+type PreviewRun = ClaudeOrchestratorRun & { startedAt: number; canceled?: boolean; awaiting?: boolean };
+
+const previewPlan = (runId: string): ClaudeOrchestratorPlan => ({
+	runId,
+	summary: "Validate signup input on the client and the server, then cover both with tests.",
+	steps: [
+		{ id: "schema", title: "Add a shared signup schema", instructions: "Create a schema for email, password, and name that both the form and the API can use.", provider: "claude", dependsOn: [] },
+		{ id: "form", title: "Validate the signup form", instructions: "Show field errors next to each input and block submit until the form is valid.", provider: "deepseek", dependsOn: ["schema"] },
+		{ id: "api", title: "Validate the signup endpoint", instructions: "Reject invalid payloads with a 400 and field-level messages.", provider: "deepseek", dependsOn: ["schema"] },
+		{ id: "tests", title: "Cover both with tests", instructions: "Add unit tests for the schema and integration tests for the form and endpoint.", provider: "deepseek", dependsOn: ["form", "api"] },
+	],
+});
 
 /**
  * In-memory stand-in used only by the browser preview build (dev:web), which
@@ -40,7 +56,10 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 		{ runId: "claude-run-1b3d5f7a9c2e4a6c8e0b2d4f6a8c0e2a", state: "failed", title: "Upgrade the date library across the renderer", createdAt: new Date(base - 3 * 3_600_000).toISOString(), updatedAt: new Date(base - 3 * 3_600_000 + 4 * 60_000).toISOString(), startedAt: 0 },
 	];
 	const snapshot = (run: PreviewRun): ClaudeOrchestratorRun => {
-		if (run.startedAt > 0 && !run.canceled) {
+		if (run.awaiting && now() - run.startedAt >= PREVIEW_STAGE_MS) {
+			run.state = "awaiting_approval";
+		}
+		if (run.startedAt > 0 && !run.canceled && !run.awaiting) {
 			const index = Math.min(PREVIEW_STAGES.length - 1, Math.floor((now() - run.startedAt) / PREVIEW_STAGE_MS));
 			run.state = PREVIEW_STAGES[index];
 			run.updatedAt = new Date(run.startedAt + index * PREVIEW_STAGE_MS).toISOString();
@@ -50,7 +69,7 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 				run.recommendation = "merge";
 			}
 		}
-		const { startedAt: _startedAt, canceled: _canceled, ...visible } = run;
+		const { startedAt: _startedAt, canceled: _canceled, awaiting: _awaiting, ...visible } = run;
 		return { ...visible };
 	};
 	const find = (runId: string) => runs.find((run) => run.runId === runId);
@@ -60,7 +79,7 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 		start: async (input) => {
 			const runId = `claude-run-${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
 			const started = now();
-			const run: PreviewRun = { runId, state: "pending", title: input.task.trim().split(/\s+/).join(" ").slice(0, 160), createdAt: new Date(started).toISOString(), updatedAt: new Date(started).toISOString(), startedAt: started };
+			const run: PreviewRun = { runId, state: input.approvePlan ? "planning" : "pending", title: input.task.trim().split(/\s+/).join(" ").slice(0, 160), createdAt: new Date(started).toISOString(), updatedAt: new Date(started).toISOString(), startedAt: started, awaiting: input.approvePlan === true };
 			runs.unshift(run);
 			return { ok: true, value: snapshot(run) };
 		},
@@ -73,6 +92,30 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 			if (!run) return { ok: false, error: "not_found" };
 			snapshot(run);
 			if (["completed", "held", "failed", "canceled"].includes(run.state)) return { ok: false, error: "already_finished" };
+			run.canceled = true;
+			run.awaiting = false;
+			run.state = "canceled";
+			run.updatedAt = new Date(now()).toISOString();
+			return { ok: true, value: snapshot(run) };
+		},
+		plan: async (runId) => {
+			const run = find(runId);
+			if (!run) return { ok: false, error: "not_found" };
+			snapshot(run);
+			return run.state === "planning" || run.state === "pending" ? { ok: false, error: "plan_not_ready" } : { ok: true, value: previewPlan(runId) };
+		},
+		approve: async (runId) => {
+			const run = find(runId);
+			if (!run || run.state !== "awaiting_approval") return { ok: false, error: "already_finished" };
+			// Continue through the remaining stages from "planning".
+			run.awaiting = false;
+			run.startedAt = now() - PREVIEW_STAGE_MS;
+			return { ok: true, value: snapshot(run) };
+		},
+		reject: async (runId) => {
+			const run = find(runId);
+			if (!run || run.state !== "awaiting_approval") return { ok: false, error: "already_finished" };
+			run.awaiting = false;
 			run.canceled = true;
 			run.state = "canceled";
 			run.updatedAt = new Date(now()).toISOString();

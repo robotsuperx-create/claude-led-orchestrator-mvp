@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScrollArea } from "radix-ui";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronRight, Copy, LoaderCircle, Plus, RefreshCw, TriangleAlert, Orbit, X } from "lucide-react";
+import { Check, ChevronRight, Copy, Hand, LoaderCircle, Plus, RefreshCw, TriangleAlert, Orbit, X } from "lucide-react";
 import {
 	CLAUDE_ORCHESTRATOR_ACTIVE_STAGES,
 	CLAUDE_ORCHESTRATOR_MAX_RETRIES,
@@ -17,7 +17,9 @@ import {
 	claudeOrchestratorErrorCode,
 	useCancelClaudeOrchestratorRun,
 	useClaudeOrchestratorInfo,
+	useClaudeOrchestratorPlan,
 	useClaudeOrchestratorRuns,
+	useDecideClaudeOrchestratorPlan,
 	useStartClaudeOrchestratorRun,
 } from "../hooks/useClaudeOrchestrator";
 import { aoBridge } from "../lib/bridge";
@@ -41,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 const TASK_FIELD_ID = "claude-orchestrator-task";
 const RETRIES_FIELD_ID = "claude-orchestrator-retries";
 const CONSENT_FIELD_ID = "claude-orchestrator-consent";
+const APPROVE_PLAN_FIELD_ID = "claude-orchestrator-approve-plan";
 // Technical values rendered verbatim (not translatable copy).
 const RUNBOOK_PATH = "docs/claude-led-multimodel/08-runbook.md";
 const reviewCommand = (branch: string) => `git diff HEAD...${branch}`;
@@ -64,6 +67,9 @@ function stageKey(run: ClaudeOrchestratorRun) {
 function RunStatusGlyph({ run }: { run: ClaudeOrchestratorRun }) {
 	const { t } = useTranslation();
 	const label = t(stageKey(run));
+	if (run.state === "awaiting_approval") {
+		return <span role="img" aria-label={label} className="inline-block size-2 shrink-0 rounded-full bg-status-needs-you" />;
+	}
 	if (!isTerminalClaudeOrchestratorState(run.state)) {
 		const tone = run.state === "validating" ? "text-status-validating" : "text-status-working";
 		return <LoaderCircle role="img" aria-label={label} className={cn("size-icon-sm shrink-0 animate-spin motion-reduce:animate-none", tone)} />;
@@ -323,25 +329,92 @@ const stageLabelKey = {
 
 const retryLabelKeys = ["orchestrator.form.retry0", "orchestrator.form.retry1", "orchestrator.form.retry2", "orchestrator.form.retry3"] as const;
 
+type TimelineStage = ClaudeOrchestratorStage | "awaiting_approval";
+
+const timelineLabelKey = { ...stageLabelKey, awaiting_approval: "orchestrator.stage.approval" } as const satisfies Record<TimelineStage, string>;
+
 function StageTimeline({ run }: { run: ClaudeOrchestratorRun }) {
 	const { t } = useTranslation();
-	const currentIndex = CLAUDE_ORCHESTRATOR_ACTIVE_STAGES.indexOf(run.state as ClaudeOrchestratorStage);
+	const awaiting = run.state === "awaiting_approval";
+	const stages: TimelineStage[] = awaiting
+		? ["planning", "awaiting_approval", "executing", "validating", "reviewing"]
+		: [...CLAUDE_ORCHESTRATOR_ACTIVE_STAGES];
+	const currentIndex = stages.indexOf(run.state as TimelineStage);
 	return (
 		<ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs" aria-label={t("orchestrator.stage.label")}>
-			{CLAUDE_ORCHESTRATOR_ACTIVE_STAGES.map((stage, index) => {
+			{stages.map((stage, index) => {
 				const done = currentIndex > index;
 				const current = currentIndex === index;
+				const waitingOnYou = current && stage === "awaiting_approval";
 				return (
 					<li key={stage} className="flex items-center gap-2" aria-current={current ? "step" : undefined}>
 						{index > 0 ? <span aria-hidden="true" className={cn("h-px w-6", done || current ? "bg-status-working/60" : "bg-border")} /> : null}
 						<span className={cn("flex items-center gap-1.5", current ? "font-medium text-foreground" : done ? "text-foreground" : "text-muted-foreground")}>
-							{done ? <Check className="size-3.5 text-status-ready" aria-hidden="true" /> : current ? <LoaderCircle className="size-3.5 animate-spin text-status-working motion-reduce:animate-none" aria-hidden="true" /> : <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-muted-foreground/40" />}
-							{t(stageLabelKey[stage])}
+							{done ? <Check className="size-3.5 text-status-ready" aria-hidden="true" />
+								: waitingOnYou ? <Hand className="size-3.5 text-status-needs-you" aria-hidden="true" />
+								: current ? <LoaderCircle className="size-3.5 animate-spin text-status-working motion-reduce:animate-none" aria-hidden="true" />
+								: <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-muted-foreground/40" />}
+							{t(timelineLabelKey[stage])}
 						</span>
 					</li>
 				);
 			})}
 		</ol>
+	);
+}
+
+/** Claude's plan, shown for a decision before anything runs. */
+function PlanReview({ runId }: { runId: string }) {
+	const { t, i18n } = useTranslation();
+	const listFormat = new Intl.ListFormat(i18n.resolvedLanguage ?? i18n.language, { type: "conjunction" });
+	const plan = useClaudeOrchestratorPlan(runId, true);
+	const decide = useDecideClaudeOrchestratorPlan();
+	const decideError = claudeOrchestratorErrorCode(decide.error);
+	const planError = claudeOrchestratorErrorCode(plan.error);
+	const titles = new Map((plan.data?.steps ?? []).map((step, index) => [step.id, step.title || String(index + 1)]));
+	return (
+		<section className="mb-4 max-w-3xl" aria-labelledby={`${runId}-plan`} data-testid="claude-orchestrator-plan">
+			<h3 id={`${runId}-plan`} className="text-[13px] font-semibold text-foreground">{t("orchestrator.plan.title")}</h3>
+			{plan.isLoading ? <p role="status" className="mt-2 text-xs text-muted-foreground">{t("orchestrator.plan.loading")}</p> : null}
+			{planError ? (
+				<div role="alert" className="mt-2 flex items-center gap-2 text-xs text-destructive">
+					{t(`orchestrator.error.${planError}`)}
+					<Button variant="ghost" size="sm" onClick={() => void plan.refetch()}>{t("orchestrator.retry")}</Button>
+				</div>
+			) : null}
+			{plan.data ? (
+				<>
+					{plan.data.summary ? <p className="mt-1 max-w-prose text-[13px] leading-5 text-muted-foreground">{plan.data.summary}</p> : null}
+					<ol className="mt-3 overflow-hidden rounded-md border border-border">
+						{plan.data.steps.map((step, index) => (
+							<li key={step.id} className="flex gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
+								<span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-medium tabular-nums text-muted-foreground">{index + 1}</span>
+								<div className="min-w-0 flex-1">
+									<p className="text-[13px] font-medium leading-5 text-foreground">{step.title || step.id}</p>
+									{step.instructions ? <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{step.instructions}</p> : null}
+									<p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+										{step.provider ? <span>{t("orchestrator.plan.by", { provider: providerName(step.provider) })}</span> : null}
+										{step.dependsOn.length > 0
+											? <span>{t("orchestrator.plan.after", { steps: listFormat.format(step.dependsOn.map((id) => titles.get(id) ?? id)) })}</span>
+											: null}
+									</p>
+								</div>
+							</li>
+						))}
+					</ol>
+					<div className="mt-3 flex flex-wrap items-center gap-2">
+						<Button variant="primary" size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ runId, approve: true })}>
+							{decide.isPending && decide.variables?.approve ? <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Check className="size-3.5" aria-hidden="true" />}
+							{t("orchestrator.plan.approve")}
+						</Button>
+						<Button variant="outline" size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ runId, approve: false })}>
+							<X className="size-3.5" aria-hidden="true" />{t("orchestrator.plan.reject")}
+						</Button>
+						{decideError ? <span role="alert" className="text-xs text-destructive">{t(`orchestrator.error.${decideError}`)}</span> : null}
+					</div>
+				</>
+			) : null}
+		</section>
 	);
 }
 
@@ -372,6 +445,7 @@ function RunDetails({ run }: { run: ClaudeOrchestratorRun }) {
 	return (
 		<div className="border-t border-border bg-muted/10 px-4 py-4 ps-[3.25rem]">
 			{active ? <StageTimeline run={run} /> : null}
+			{run.state === "awaiting_approval" ? <PlanReview runId={run.runId} /> : null}
 			{outcome ? <p className="mb-4 max-w-prose text-[13px] leading-5 text-foreground" data-testid="claude-orchestrator-outcome">{t(outcome)}</p> : null}
 			<dl className="grid max-w-xl grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs">
 				{run.branch ? (
@@ -448,6 +522,7 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 	const [task, setTask] = useState("");
 	const [retries, setRetries] = useState("1");
 	const [consent, setConsent] = useState(false);
+	const [approvePlan, setApprovePlan] = useState(true);
 	const [taskError, setTaskError] = useState<string | null>(null);
 	const busy = start.isPending;
 
@@ -456,6 +531,7 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 		setTask("");
 		setRetries("1");
 		setConsent(false);
+		setApprovePlan(true);
 		setTaskError(null);
 		start.reset();
 		// Reset only when the dialog opens.
@@ -477,7 +553,7 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 			return;
 		}
 		if (!consent) return;
-		start.mutate({ task, maxRetries: Number(retries) }, { onSuccess: (run) => onStarted(run.runId) });
+		start.mutate({ task, maxRetries: Number(retries), approvePlan }, { onSuccess: (run) => onStarted(run.runId) });
 	};
 
 	return (
@@ -522,6 +598,10 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 								</SelectContent>
 							</Select>
 						</div>
+						<label htmlFor={APPROVE_PLAN_FIELD_ID} className="flex items-start gap-2.5 text-[13px] leading-5">
+							<Checkbox id={APPROVE_PLAN_FIELD_ID} className="mt-0.5" checked={approvePlan} disabled={busy} onCheckedChange={(checked) => setApprovePlan(checked === true)} />
+							<span>{t("orchestrator.form.approvePlan")}</span>
+						</label>
 						<label htmlFor={CONSENT_FIELD_ID} className="flex items-start gap-2.5 text-[13px] leading-5">
 							<Checkbox id={CONSENT_FIELD_ID} className="mt-0.5" checked={consent} disabled={busy} onCheckedChange={(checked) => setConsent(checked === true)} />
 							<span>{info.workerMode === "agents" ? t("orchestrator.form.consentAgents") : t("orchestrator.form.consent", { provider: providerName(info.workerProvider) })}</span>

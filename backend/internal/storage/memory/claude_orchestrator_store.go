@@ -272,7 +272,7 @@ func validRun(record ports.OrchestratorRunRecord) bool {
 func validRunState(state ports.RunState) bool {
 	switch state {
 	case ports.RunStatePending, ports.RunStatePlanning, ports.RunStateExecuting, ports.RunStateValidating,
-		ports.RunStateReviewing, ports.RunStateCompleted, ports.RunStateHeld, ports.RunStateFailed:
+		ports.RunStateReviewing, ports.RunStateAwaitingApproval, ports.RunStateCompleted, ports.RunStateHeld, ports.RunStateFailed:
 		return true
 	default:
 		return false
