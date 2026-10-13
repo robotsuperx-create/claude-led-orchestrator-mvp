@@ -78,6 +78,9 @@ type APIDeps struct {
 	ClaudeOrchestrator ClaudeOrchestratorRunService
 	// ClaudeOrchestratorHistory, when set, keeps run history across restarts.
 	ClaudeOrchestratorHistory ports.ClaudeOrchestratorRunHistory
+	// ClaudeOrchestratorPublisher, when set, lets a person push a finished
+	// run's branch and open a pull request for it.
+	ClaudeOrchestratorPublisher ClaudeOrchestratorRunPublisher
 
 	// Presence tracks which mobile devices are currently running the app.
 	// Nil disables presence tracking (the roster then reports every device offline).

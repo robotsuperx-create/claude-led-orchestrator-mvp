@@ -50,6 +50,8 @@ type claudeOrchestratorWiring struct {
 	// agents is set in agents mode and bound to the AO session service once
 	// the daemon has built it.
 	agents *claudeorchestrator.AgentSessions
+	// publisher pushes a run branch for review when a person asks.
+	publisher *claudeorchestrator.RunPublisher
 }
 
 // validateClaudeOrchestratorConfig validates presence without constructing
@@ -64,10 +66,15 @@ func validateClaudeOrchestratorConfig(cfg config.ClaudeOrchestratorConfig) error
 			missing = append(missing, name+"_MODEL")
 		}
 	}
-	checkProvider("AO_CLAUDE_ORCHESTRATOR_CLAUDE", cfg.ClaudeProvider, string(ports.ModelProviderClaude))
+	required := map[ports.ModelProvider]bool{plannerProvider(cfg): true}
 	if cfg.Worker.Mode != config.ClaudeOrchestratorWorkerModeAgents {
-		// In agents mode the DeepSeek agent harness brings its own credentials.
-		checkProvider("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK", cfg.DeepSeekProvider, string(ports.ModelProviderDeepSeek))
+		// In agents mode each agent harness brings its own credentials.
+		required[workerProvider(cfg)] = true
+	}
+	for _, provider := range []ports.ModelProvider{ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal} {
+		if required[provider] {
+			checkProvider(providerEnvPrefix(provider), providerConfig(cfg, provider), string(provider))
+		}
 	}
 	if strings.TrimSpace(cfg.Worker.ProjectRoot) == "" {
 		missing = append(missing, "AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT")
@@ -119,23 +126,27 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	author := injected.Author
 	agentsMode := cfg.ClaudeOrchestrator.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents
 	if model == nil {
-		providers := []modelgateway.ProviderConfig{cfg.ClaudeOrchestrator.ClaudeProvider}
-		if !agentsMode || strings.TrimSpace(cfg.ClaudeOrchestrator.DeepSeekProvider.BaseURL) != "" {
-			providers = append(providers, cfg.ClaudeOrchestrator.DeepSeekProvider)
+		// Register every provider that is configured; validation above made
+		// sure the planner and, in model mode, the default worker are.
+		var providers []modelgateway.ProviderConfig
+		for _, provider := range []ports.ModelProvider{ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal} {
+			if candidate := providerConfig(cfg.ClaudeOrchestrator, provider); strings.TrimSpace(candidate.BaseURL) != "" {
+				providers = append(providers, candidate)
+			}
 		}
 		registry, err := modelgateway.NewRegistry(providers...)
 		if err != nil {
 			return nil, fmt.Errorf("configure Claude orchestrator model providers: %w", err)
 		}
-		claude, err := registry.Provider(ports.ModelProviderClaude)
+		planner, err := registry.Provider(plannerProvider(cfg.ClaudeOrchestrator))
 		if err != nil {
-			return nil, errors.New("configure Claude orchestrator Claude provider")
+			return nil, errors.New("configure Claude orchestrator planner provider")
 		}
-		if _, err := registry.Provider(ports.ModelProviderDeepSeek); err != nil && !agentsMode {
-			return nil, errors.New("configure Claude orchestrator DeepSeek provider")
+		if _, err := registry.Provider(workerProvider(cfg.ClaudeOrchestrator)); err != nil && !agentsMode {
+			return nil, errors.New("configure Claude orchestrator worker provider")
 		}
 		wiring.providers = registry
-		model = claude
+		model = planner
 		if author == nil && !agentsMode {
 			// Claude plans and reviews; each subtask's code is written by the
 			// provider its plan names, defaulting to the configured worker.
@@ -254,14 +265,64 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 			return nil, fmt.Errorf("configure Claude orchestrator run workspaces: %w", err)
 		}
 		workspaces = provisioner
+		publisher, err := claudeorchestrator.NewRunPublisher(gitRunner, cfg.ClaudeOrchestrator.Worker.ProjectRoot, cfg.ClaudeOrchestrator.PublishRemote)
+		if err != nil {
+			return nil, fmt.Errorf("configure Claude orchestrator run publishing: %w", err)
+		}
+		wiring.publisher = publisher
 	}
 	wiring.service = claudeorchestrator.New(claudeorchestrator.Dependencies{
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
 		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
 		Workspaces:          workspaces,
 		MaxParallelSubtasks: maxParallelSubtasks(cfg.ClaudeOrchestrator.Worker, agentsMode),
+		PlannerProvider:     plannerProvider(cfg.ClaudeOrchestrator),
+		Budget:              runBudget(cfg.ClaudeOrchestrator.Budget),
+		MaxReplans:          cfg.ClaudeOrchestrator.MaxReplans,
 	})
 	return wiring, nil
+}
+
+func plannerProvider(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {
+	if cfg.PlannerProvider == "" {
+		return ports.ModelProviderClaude
+	}
+	return cfg.PlannerProvider
+}
+
+func workerProvider(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {
+	if cfg.Worker.DefaultProvider == "" {
+		return ports.ModelProviderDeepSeek
+	}
+	return cfg.Worker.DefaultProvider
+}
+
+func providerEnvPrefix(provider ports.ModelProvider) string {
+	return "AO_CLAUDE_ORCHESTRATOR_" + strings.ToUpper(string(provider))
+}
+
+func providerConfig(cfg config.ClaudeOrchestratorConfig, provider ports.ModelProvider) modelgateway.ProviderConfig {
+	switch provider {
+	case ports.ModelProviderClaude:
+		return cfg.ClaudeProvider
+	case ports.ModelProviderDeepSeek:
+		return cfg.DeepSeekProvider
+	case ports.ModelProviderLocal:
+		return cfg.LocalProvider
+	default:
+		return modelgateway.ProviderConfig{}
+	}
+}
+
+func runBudget(budget config.ClaudeOrchestratorBudgetConfig) claudeorchestrator.UsageBudget {
+	result := claudeorchestrator.UsageBudget{MaxTokens: budget.MaxTokens, MaxCostUSD: budget.MaxCostUSD}
+	if len(budget.Prices) > 0 {
+		result.Prices = make(map[ports.ModelProvider]claudeorchestrator.ModelPrice, len(budget.Prices))
+		for provider, price := range budget.Prices {
+			result.Prices[provider] = claudeorchestrator.ModelPrice{InputUSDPerMTok: price.InputUSDPerMTok, OutputUSDPerMTok: price.OutputUSDPerMTok}
+		}
+	}
+	return result
 }
 
 // maxParallelSubtasks allows parallel subtasks only in agents mode, where each

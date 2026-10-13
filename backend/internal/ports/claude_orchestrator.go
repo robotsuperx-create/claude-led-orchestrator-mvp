@@ -33,6 +33,9 @@ const (
 	ModelProviderKimi     ModelProvider = "kimi"
 	ModelProviderGemini   ModelProvider = "gemini"
 	ModelProviderOpenAI   ModelProvider = "openai"
+	// ModelProviderLocal is a model served on this machine through an
+	// OpenAI-compatible endpoint, such as Ollama or a llama.cpp server.
+	ModelProviderLocal ModelProvider = "local"
 )
 
 // OrchestrationRequest is the typed input for one end-to-end executive run.
@@ -79,6 +82,9 @@ type PlanRequest struct {
 	Provider      ModelProvider
 	Task          string
 	MemoryContext string
+	// PreviousAttempt, when set, asks for a revised plan: it describes which
+	// subtasks of the previous plan completed and which failed, and why.
+	PreviousAttempt string
 }
 
 // SubtaskMetadataKeyWorktreePath names metadata containing the path of an
@@ -264,6 +270,10 @@ type OrchestrationResult struct {
 	// Workspace identifies where the run's changes live. It is empty when the
 	// service ran without a trusted workspace.
 	Workspace RunWorkspace
+	// Usage is the model work the run used and its budget.
+	Usage RunUsage
+	// Replans counts how many times Claude revised the plan after failures.
+	Replans int
 }
 
 // RunWorkspace is the server-owned worktree a run executed in, its branch,

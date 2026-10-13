@@ -881,8 +881,12 @@ func Run() error {
 
 	var claudeOrchestratorAPI httpd.ClaudeOrchestratorRunService
 	var claudeOrchestratorHistory ports.ClaudeOrchestratorRunHistory
+	var claudeOrchestratorPublisher httpd.ClaudeOrchestratorRunPublisher
 	if claudeOrchestrator != nil {
 		claudeOrchestratorAPI = claudeOrchestrator.service
+		if claudeOrchestrator.publisher != nil {
+			claudeOrchestratorPublisher = claudeOrchestrator.publisher
+		}
 		if claudeOrchestrator.service != nil {
 			history, historyErr := orchestratorstore.NewFileRunHistory(claudeOrchestratorHistoryPath(cfg))
 			if historyErr != nil {
@@ -892,42 +896,43 @@ func Run() error {
 		}
 	}
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
-		Projects:                  projectSvc,
-		HostID:                    hostIdentity.HostID,
-		Endpoints:                 bs,
-		Agents:                    agentSvc,
-		CodexAccounts:             agentSvc,
-		SystemChecks:              systemChecks,
-		Installer:                 systemInstall,
-		Sessions:                  sessionSvc,
-		Automations:               automationSvc,
-		DesktopWorkspaces:         sessionSvc,
-		PRs:                       prActions,
-		Reviews:                   reviewSvc,
-		Notifications:             notifier,
-		Reports:                   reportSvc,
-		NotificationStream:        notificationHub,
-		Push:                      pushRegistry,
-		Presence:                  presenceTracker,
-		DeviceRoster:              deviceRoster,
-		DeviceLive:                presenceTracker,
-		Import:                    importsvc.New(importsvc.Deps{Store: store}),
-		Directories:               fsbrowsersvc.New(),
-		ShellTerminals:            shellTermSvc,
-		Cues:                      cuesvc.New(cuesvc.Deps{Store: store, Sessions: sessionSvc, Terminals: shellTermSvc}),
-		AgentAuth:                 agentAuthSvc,
-		GitHub:                    githubpat.New(cfg.DataDir),
-		Conversations:             chatSvc,
-		ClaudeOrchestrator:        claudeOrchestratorAPI,
-		ClaudeOrchestratorHistory: claudeOrchestratorHistory,
-		Settings:                  settingsSvc,
-		CDC:                       store,
-		Events:                    cdcPipe.Broadcaster,
-		Activity:                  lcStack.LCM,
-		UsageHooks:                usageCollector,
-		UsageSummary:              usagesvc.NewSummaryReader(store),
-		Telemetry:                 telemetrySink,
-		Mobile:                    mc,
+		Projects:                    projectSvc,
+		HostID:                      hostIdentity.HostID,
+		Endpoints:                   bs,
+		Agents:                      agentSvc,
+		CodexAccounts:               agentSvc,
+		SystemChecks:                systemChecks,
+		Installer:                   systemInstall,
+		Sessions:                    sessionSvc,
+		Automations:                 automationSvc,
+		DesktopWorkspaces:           sessionSvc,
+		PRs:                         prActions,
+		Reviews:                     reviewSvc,
+		Notifications:               notifier,
+		Reports:                     reportSvc,
+		NotificationStream:          notificationHub,
+		Push:                        pushRegistry,
+		Presence:                    presenceTracker,
+		DeviceRoster:                deviceRoster,
+		DeviceLive:                  presenceTracker,
+		Import:                      importsvc.New(importsvc.Deps{Store: store}),
+		Directories:                 fsbrowsersvc.New(),
+		ShellTerminals:              shellTermSvc,
+		Cues:                        cuesvc.New(cuesvc.Deps{Store: store, Sessions: sessionSvc, Terminals: shellTermSvc}),
+		AgentAuth:                   agentAuthSvc,
+		GitHub:                      githubpat.New(cfg.DataDir),
+		Conversations:               chatSvc,
+		ClaudeOrchestrator:          claudeOrchestratorAPI,
+		ClaudeOrchestratorHistory:   claudeOrchestratorHistory,
+		ClaudeOrchestratorPublisher: claudeOrchestratorPublisher,
+		Settings:                    settingsSvc,
+		CDC:                         store,
+		Events:                      cdcPipe.Broadcaster,
+		Activity:                    lcStack.LCM,
+		UsageHooks:                  usageCollector,
+		UsageSummary:                usagesvc.NewSummaryReader(store),
+		Telemetry:                   telemetrySink,
+		Mobile:                      mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{
 			Store:         store,
 			TargetDataDir: cfg.DataDir,

@@ -59,7 +59,7 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 	if err != nil {
 		return err
 	}
-	response, err := a.client.CreateChatCompletion(ctx, chatRequest)
+	response, err := a.complete(ctx, chatRequest)
 	if err != nil {
 		return err
 	}

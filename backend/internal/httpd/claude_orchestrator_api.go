@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -58,6 +59,9 @@ type ClaudeOrchestratorAPI struct {
 	// History, when set, keeps run records across daemon restarts. Call
 	// Restore once before serving.
 	History ports.ClaudeOrchestratorRunHistory
+	// Publisher, when set, lets a person push a finished run's branch and
+	// open a pull request for it. Nothing is ever pushed without that click.
+	Publisher ClaudeOrchestratorRunPublisher
 
 	persistMu sync.Mutex
 	// persistFailures counts failed history writes; the in-memory record
@@ -82,6 +86,46 @@ type ClaudeOrchestratorInfo struct {
 	WorkerMode    string `json:"workerMode"`
 	Sandboxed     bool   `json:"sandboxed"`
 	MaxActiveRuns int    `json:"maxActiveRuns"`
+	// PlannerProvider is "claude" or "local".
+	PlannerProvider ports.ModelProvider `json:"plannerProvider,omitempty"`
+	// BudgetTokens and BudgetUSD are each run's limits; zero means none.
+	BudgetTokens int64   `json:"budgetTokens"`
+	BudgetUSD    float64 `json:"budgetUsd,omitempty"`
+	MaxReplans   int     `json:"maxReplans"`
+	// CanPublish is true when runs can be pushed for review.
+	CanPublish bool `json:"canPublish"`
+}
+
+// ClaudeOrchestratorRunPublisher pushes one run branch for review.
+type ClaudeOrchestratorRunPublisher interface {
+	Publish(context.Context, claudeorchestrator.PublishRequest) (claudeorchestrator.PublishResult, error)
+}
+
+// ClaudeOrchestratorUsage is a run's model usage as shown to a person.
+type ClaudeOrchestratorUsage struct {
+	InputTokens  int64 `json:"inputTokens"`
+	OutputTokens int64 `json:"outputTokens"`
+	Calls        int64 `json:"calls"`
+	// CostUSD is an estimate, present only when every call had a price.
+	CostUSD      *float64 `json:"costUsd,omitempty"`
+	BudgetTokens int64    `json:"budgetTokens,omitempty"`
+	BudgetUSD    float64  `json:"budgetUsd,omitempty"`
+	Exhausted    bool     `json:"exhausted,omitempty"`
+}
+
+func displayUsage(usage *ports.RunUsage) *ClaudeOrchestratorUsage {
+	if usage == nil {
+		return nil
+	}
+	shown := &ClaudeOrchestratorUsage{
+		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens, Calls: usage.Calls,
+		BudgetTokens: usage.BudgetTokens, BudgetUSD: float64(usage.BudgetMicroUSD) / 1e6, Exhausted: usage.Exhausted,
+	}
+	if usage.Priced {
+		cost := float64(usage.CostMicroUSD) / 1e6
+		shown.CostUSD = &cost
+	}
+	return shown
 }
 
 // claudeOrchestratorRunDetails holds the non-sensitive record of a run.
@@ -93,6 +137,10 @@ type claudeOrchestratorRunDetails struct {
 	Interrupted    bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	Usage          *ports.RunUsage
+	Replans        int
+	PullRequestURL string
+	Publishing     bool
 }
 
 // claudeOrchestratorMaxTitleRunes bounds the task excerpt kept for history.
@@ -122,6 +170,7 @@ func (api *ClaudeOrchestratorAPI) Register(r chi.Router) {
 	r.Get("/internal/claude-orchestrator/runs/{runId}/plan", api.plan)
 	r.Post("/internal/claude-orchestrator/runs/{runId}/approve", api.decidePlan(true))
 	r.Post("/internal/claude-orchestrator/runs/{runId}/reject", api.decidePlan(false))
+	r.Post("/internal/claude-orchestrator/runs/{runId}/publish", api.publish)
 }
 
 type claudeOrchestratorRunRequest struct {
@@ -147,6 +196,14 @@ type ClaudeOrchestratorRunResponse struct {
 	Recommendation ports.MergeOutcome `json:"recommendation,omitempty"`
 	// Interrupted means the run was still active when the daemon stopped.
 	Interrupted bool `json:"interrupted,omitempty"`
+	// Usage is the run's model usage and budget.
+	Usage *ClaudeOrchestratorUsage `json:"usage,omitempty"`
+	// Replans counts how many times Claude revised the plan.
+	Replans int `json:"replans,omitempty"`
+	// PullRequestURL is set once the run was published for review;
+	// CompareURL when a pull request has to be opened by hand.
+	PullRequestURL string `json:"pullRequestUrl,omitempty"`
+	CompareURL     string `json:"compareUrl,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) {
@@ -275,11 +332,9 @@ func (api *ClaudeOrchestratorAPI) status(w http.ResponseWriter, r *http.Request)
 		writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "RUN_NOT_FOUND", "Run was not found")
 		return
 	}
-	if api.Service != nil {
-		if current, found := api.Service.RunState(runID); found && validClaudeOrchestratorRunState(current) {
-			api.setRunState(runID, current)
-			state, _ = api.getRunState(runID)
-		}
+	if api.Service != nil && !terminalClaudeOrchestratorRunState(state) {
+		api.refreshRun(runID)
+		state, _ = api.getRunState(runID)
 	}
 	envelope.WriteJSON(w, http.StatusOK, api.response(runID, state))
 }
@@ -288,10 +343,15 @@ func (api *ClaudeOrchestratorAPI) response(runID string, state ports.RunState) C
 	api.mu.RLock()
 	details := api.details[runID]
 	api.mu.RUnlock()
+	return details.response(runID, state)
+}
+
+func (details claudeOrchestratorRunDetails) response(runID string, state ports.RunState) ClaudeOrchestratorRunResponse {
 	return ClaudeOrchestratorRunResponse{
 		RunID: runID, State: state,
 		Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
-		Interrupted: details.Interrupted,
+		Interrupted: details.Interrupted, Usage: displayUsage(details.Usage), Replans: details.Replans,
+		PullRequestURL: details.PullRequestURL,
 	}
 }
 
@@ -353,6 +413,9 @@ func (api *ClaudeOrchestratorAPI) recordDetails(runID string, result ports.Orche
 	details.Branch = result.Workspace.Branch
 	details.Commit = result.Workspace.Commit
 	details.Recommendation = result.MergeDecision.Decision
+	usage := result.Usage
+	details.Usage = &usage
+	details.Replans = result.Replans
 	details.UpdatedAt = time.Now().UTC()
 	api.details[runID] = details
 }
@@ -373,6 +436,7 @@ func (api *ClaudeOrchestratorAPI) info(w http.ResponseWriter, r *http.Request) {
 	}
 	info := api.Info
 	info.Enabled = api.Gate != nil && api.Service != nil
+	info.CanPublish = api.Publisher != nil
 	if info.MaxActiveRuns <= 0 {
 		info.MaxActiveRuns = api.MaxActiveRuns
 		if info.MaxActiveRuns <= 0 {
@@ -398,12 +462,8 @@ func (api *ClaudeOrchestratorAPI) list(w http.ResponseWriter, r *http.Request) {
 		}
 		details := api.details[runID]
 		runs = append(runs, ClaudeOrchestratorRunSummary{
-			ClaudeOrchestratorRunResponse: ClaudeOrchestratorRunResponse{
-				RunID: runID, State: state,
-				Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
-				Interrupted: details.Interrupted,
-			},
-			Title: details.Title, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
+			ClaudeOrchestratorRunResponse: details.response(runID, state),
+			Title:                         details.Title, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
 		})
 	}
 	api.mu.RUnlock()
@@ -425,10 +485,29 @@ func (api *ClaudeOrchestratorAPI) refreshFromService() {
 	}
 	api.mu.RUnlock()
 	for _, runID := range active {
-		if current, found := api.Service.RunState(runID); found && validClaudeOrchestratorRunState(current) {
-			api.setRunState(runID, current)
-		}
+		api.refreshRun(runID)
 	}
+}
+
+// refreshRun pulls one active run's live stage and usage from the service.
+func (api *ClaudeOrchestratorAPI) refreshRun(runID string) {
+	if current, found := api.Service.RunState(runID); found && validClaudeOrchestratorRunState(current) {
+		api.setRunState(runID, current)
+	}
+	reporter, ok := api.Service.(ports.OrchestrationUsageReporter)
+	if !ok {
+		return
+	}
+	usage, found := reporter.UsageFor(runID)
+	if !found {
+		return
+	}
+	api.mu.Lock()
+	if details, known := api.details[runID]; known {
+		details.Usage = &usage
+		api.details[runID] = details
+	}
+	api.mu.Unlock()
 }
 
 func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrchestratorRunService, request ports.OrchestrationRequest, cancel context.CancelFunc) {
@@ -519,6 +598,7 @@ func (api *ClaudeOrchestratorAPI) Restore() error {
 			Title: runTitle(record.Title), Branch: record.Branch, Commit: record.Commit,
 			Recommendation: record.Recommendation, Interrupted: interrupted,
 			CreatedAt: record.CreatedAt, UpdatedAt: updated,
+			Usage: record.Usage, Replans: record.Replans, PullRequestURL: safeReviewURL(record.PullRequestURL),
 		}
 		api.order = append(api.order, record.RunID)
 	}
@@ -547,6 +627,7 @@ func (api *ClaudeOrchestratorAPI) persist() {
 			RunID: runID, State: state, Title: details.Title,
 			Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
 			Interrupted: details.Interrupted, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
+			Usage: details.Usage, Replans: details.Replans, PullRequestURL: details.PullRequestURL,
 		})
 	}
 	api.mu.RUnlock()
@@ -767,4 +848,102 @@ func (api *ClaudeOrchestratorAPI) decidePlan(approved bool) http.HandlerFunc {
 		api.persist()
 		envelope.WriteJSON(w, http.StatusOK, api.response(runID, state))
 	}
+}
+
+// claudeOrchestratorPublishTimeout bounds one push plus pull-request creation.
+const claudeOrchestratorPublishTimeout = 2 * time.Minute
+
+// publish pushes a finished run's own branch and opens a pull request for it.
+// It runs only when a person asks; the orchestrator never pushes or merges on
+// its own.
+func (api *ClaudeOrchestratorAPI) publish(w http.ResponseWriter, r *http.Request) {
+	if !localControlRequest(r) {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+		return
+	}
+	runID := chi.URLParam(r, "runId")
+	if api.Publisher == nil {
+		writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "PUBLISH_UNAVAILABLE", "Publishing runs is not available")
+		return
+	}
+	api.mu.Lock()
+	state, known := api.runs[runID]
+	details := api.details[runID]
+	switch {
+	case !known:
+		api.mu.Unlock()
+		writeClaudeOrchestratorAPIError(w, r, http.StatusNotFound, "RUN_NOT_FOUND", "Run was not found")
+		return
+	case details.PullRequestURL != "":
+		api.mu.Unlock()
+		envelope.WriteJSON(w, http.StatusOK, details.response(runID, state))
+		return
+	case state != ports.RunStateCompleted && state != ports.RunStateHeld:
+		api.mu.Unlock()
+		writeClaudeOrchestratorAPIError(w, r, http.StatusConflict, "RUN_NOT_PUBLISHABLE", "Only a completed or held run can be published")
+		return
+	case details.Branch == "" || details.Commit == "":
+		api.mu.Unlock()
+		writeClaudeOrchestratorAPIError(w, r, http.StatusConflict, "RUN_HAS_NO_CHANGES", "The run has no committed changes to publish")
+		return
+	case details.Publishing:
+		api.mu.Unlock()
+		writeClaudeOrchestratorAPIError(w, r, http.StatusConflict, "PUBLISH_IN_PROGRESS", "This run is already being published")
+		return
+	}
+	details.Publishing = true
+	api.details[runID] = details
+	api.mu.Unlock()
+	defer func() {
+		api.mu.Lock()
+		if current, ok := api.details[runID]; ok {
+			current.Publishing = false
+			api.details[runID] = current
+		}
+		api.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), claudeOrchestratorPublishTimeout)
+	defer cancel()
+	body := "Opened from X-ROBOT-AI Mission control. Review the changes before merging; nothing was merged automatically.\n\n" +
+		"Run: " + runID + "\nRecommendation: " + string(details.Recommendation) + "\nCommit: " + details.Commit + "\n"
+	result, err := api.Publisher.Publish(ctx, claudeorchestrator.PublishRequest{
+		RunID:  strings.TrimPrefix(details.Branch, claudeorchestrator.DefaultRunBranchPrefix),
+		Branch: details.Branch,
+		Title:  details.Title,
+		Body:   body,
+	})
+	if err != nil {
+		// Push errors can carry remote names or URLs; the person gets a fixed
+		// message and the branch stays local.
+		code, message := "PUBLISH_FAILED", "The branch could not be pushed. Check that the repository has a remote you can push to."
+		if errors.Is(err, claudeorchestrator.ErrPublishNoRemote) {
+			code, message = "NO_REMOTE", "The repository has no remote to publish to"
+		}
+		writeClaudeOrchestratorAPIError(w, r, http.StatusBadGateway, code, message)
+		return
+	}
+	api.mu.Lock()
+	current := api.details[runID]
+	current.PullRequestURL = safeReviewURL(result.PullRequestURL)
+	current.UpdatedAt = time.Now().UTC()
+	api.details[runID] = current
+	api.mu.Unlock()
+	api.persist()
+	response := current.response(runID, state)
+	response.CompareURL = safeReviewURL(result.CompareURL)
+	envelope.WriteJSON(w, http.StatusOK, response)
+}
+
+// safeReviewURL keeps only plain https links without credentials.
+func safeReviewURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 2048 {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.User != nil || parsed.Host == "" {
+		return ""
+	}
+	return parsed.String()
 }

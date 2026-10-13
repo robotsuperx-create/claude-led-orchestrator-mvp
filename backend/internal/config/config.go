@@ -120,9 +120,44 @@ type ClaudeOrchestratorConfig struct {
 	FeatureEnabled   bool
 	ClaudeProvider   modelgateway.ProviderConfig
 	DeepSeekProvider modelgateway.ProviderConfig
-	Worker           ClaudeOrchestratorWorkerConfig
-	Validator        ClaudeOrchestratorValidatorConfig
+	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
+	// reached through its OpenAI-compatible endpoint.
+	LocalProvider modelgateway.ProviderConfig
+	// PlannerProvider plans and reviews runs: claude (default) or local.
+	PlannerProvider ports.ModelProvider
+	Worker          ClaudeOrchestratorWorkerConfig
+	Validator       ClaudeOrchestratorValidatorConfig
+	// Budget limits each run's model usage.
+	Budget ClaudeOrchestratorBudgetConfig
+	// MaxReplans is how many times Claude may revise a plan whose subtasks
+	// failed after their retries.
+	MaxReplans int
+	// PublishRemote is the Git remote a run branch is pushed to when a person
+	// publishes it for review (default origin).
+	PublishRemote string
 }
+
+// ClaudeOrchestratorBudgetConfig limits each run's model usage. Zero values
+// mean no limit. Prices are US dollars per million tokens and only estimate
+// cost; a provider without a price is counted in tokens only.
+type ClaudeOrchestratorBudgetConfig struct {
+	MaxTokens  int64
+	MaxCostUSD float64
+	Prices     map[ports.ModelProvider]ClaudeOrchestratorPrice
+}
+
+// ClaudeOrchestratorPrice is one provider's price per million tokens.
+type ClaudeOrchestratorPrice struct {
+	InputUSDPerMTok  float64
+	OutputUSDPerMTok float64
+}
+
+// Run budget and re-planning defaults and ceilings.
+const (
+	DefaultClaudeOrchestratorRunTokenBudget = 2_000_000
+	DefaultClaudeOrchestratorMaxReplans     = 1
+	MaxClaudeOrchestratorReplans            = 3
+)
 
 // String keeps nested ProviderConfig API keys out of ordinary config formatting.
 func (c ClaudeOrchestratorConfig) String() string {
@@ -140,6 +175,8 @@ func (c ClaudeOrchestratorConfig) LogValue() slog.Value {
 		slog.Bool("feature_enabled", c.FeatureEnabled),
 		slog.Any("claude_provider", c.ClaudeProvider),
 		slog.Any("deepseek_provider", c.DeepSeekProvider),
+		slog.Any("local_provider", c.LocalProvider),
+		slog.String("planner_provider", string(c.PlannerProvider)),
 		slog.Int("worker_command_count", len(c.Worker.Commands)),
 		slog.Duration("worker_timeout", c.Worker.Timeout),
 		slog.Int("validator_command_count", len(c.Validator.Commands)),
@@ -577,14 +614,41 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 	if cfg.DeepSeekProvider, err = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK"); err != nil {
 		return err
 	}
+	if cfg.LocalProvider, err = loadProvider(ports.ModelProviderLocal, "AO_CLAUDE_ORCHESTRATOR_LOCAL"); err != nil {
+		return err
+	}
+	if err := requireLoopbackForPlainHTTP("AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", cfg.LocalProvider.BaseURL); err != nil {
+		return err
+	}
+	cfg.PlannerProvider = ports.ModelProvider(strings.ToLower(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER"))))
+	if cfg.PlannerProvider == "" {
+		cfg.PlannerProvider = ports.ModelProviderClaude
+	}
+	if cfg.PlannerProvider != ports.ModelProviderClaude && cfg.PlannerProvider != ports.ModelProviderLocal {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderLocal)
+	}
+	if cfg.Budget, err = loadClaudeOrchestratorBudget(); err != nil {
+		return err
+	}
+	cfg.PublishRemote = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_PUBLISH_REMOTE"))
+	cfg.MaxReplans = DefaultClaudeOrchestratorMaxReplans
+	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_MAX_REPLANS")); raw != "" {
+		replans, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || replans < 0 || replans > MaxClaudeOrchestratorReplans {
+			return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_MAX_REPLANS must be a whole number from 0 to %d", MaxClaudeOrchestratorReplans)
+		}
+		cfg.MaxReplans = replans
+	}
 	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
 	cfg.Worker.WorktreePath = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
 	cfg.Worker.DefaultProvider = ports.ModelProvider(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER")))
 	if cfg.Worker.DefaultProvider == "" {
 		cfg.Worker.DefaultProvider = ports.ModelProviderDeepSeek
 	}
-	if cfg.Worker.DefaultProvider != ports.ModelProviderClaude && cfg.Worker.DefaultProvider != ports.ModelProviderDeepSeek {
-		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek)
+	switch cfg.Worker.DefaultProvider {
+	case ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal:
+	default:
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q, %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal)
 	}
 	cfg.Worker.Mode = strings.ToLower(strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE")))
 	if cfg.Worker.Mode == "" {
@@ -653,6 +717,87 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 		return err
 	}
 	return nil
+}
+
+// loadClaudeOrchestratorBudget reads the per-run budget. The token budget
+// defaults to DefaultClaudeOrchestratorRunTokenBudget; "0" or "off" removes it.
+func loadClaudeOrchestratorBudget() (ClaudeOrchestratorBudgetConfig, error) {
+	budget := ClaudeOrchestratorBudgetConfig{MaxTokens: DefaultClaudeOrchestratorRunTokenBudget}
+	const tokenName = "AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET" //nolint:gosec // an environment variable name, not a credential
+	switch raw := strings.ToLower(strings.TrimSpace(os.Getenv(tokenName))); raw {
+	case "":
+	case "0", "off":
+		budget.MaxTokens = 0
+	default:
+		tokens, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || tokens <= 0 {
+			return budget, fmt.Errorf("%s must be a positive whole number of tokens, 0, or off", tokenName)
+		}
+		budget.MaxTokens = tokens
+	}
+	cost, err := parseOptionalNonNegativeFloat("AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD")
+	if err != nil {
+		return budget, err
+	}
+	budget.MaxCostUSD = cost
+	for provider, prefix := range map[ports.ModelProvider]string{
+		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_CLAUDE",
+		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK",
+		ports.ModelProviderLocal:    "AO_CLAUDE_ORCHESTRATOR_LOCAL",
+	} {
+		input, err := parseOptionalNonNegativeFloat(prefix + "_PRICE_INPUT_PER_MTOK")
+		if err != nil {
+			return budget, err
+		}
+		output, err := parseOptionalNonNegativeFloat(prefix + "_PRICE_OUTPUT_PER_MTOK")
+		if err != nil {
+			return budget, err
+		}
+		if input == 0 && output == 0 && provider != ports.ModelProviderLocal {
+			continue
+		}
+		if budget.Prices == nil {
+			budget.Prices = make(map[ports.ModelProvider]ClaudeOrchestratorPrice)
+		}
+		// A model on this machine costs nothing per token unless priced.
+		budget.Prices[provider] = ClaudeOrchestratorPrice{InputUSDPerMTok: input, OutputUSDPerMTok: output}
+	}
+	return budget, nil
+}
+
+func parseOptionalNonNegativeFloat(name string) (float64, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
+		return 0, fmt.Errorf("invalid %s: must be a non-negative number", name)
+	}
+	return value, nil
+}
+
+// requireLoopbackForPlainHTTP refuses an unencrypted endpoint on another
+// machine: prompts and code would cross the network in the clear.
+func requireLoopbackForPlainHTTP(name, raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URL", name)
+	}
+	if parsed.Scheme != "http" {
+		return nil
+	}
+	host := parsed.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("%s must use https unless it points at this machine (localhost or 127.0.0.1)", name)
 }
 
 func loadClaudeOrchestratorCommands(name string) ([]ClaudeOrchestratorCommandConfig, error) {

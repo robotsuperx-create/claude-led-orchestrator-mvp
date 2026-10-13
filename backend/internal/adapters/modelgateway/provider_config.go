@@ -217,9 +217,10 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 		return ChatRequest{}, err
 	}
 	input, err := json.Marshal(struct {
-		Task          string `json:"task"`
-		MemoryContext string `json:"memory_context,omitempty"`
-	}{Task: request.Task, MemoryContext: request.MemoryContext})
+		Task            string `json:"task"`
+		MemoryContext   string `json:"memory_context,omitempty"`
+		PreviousAttempt string `json:"previous_attempt,omitempty"`
+	}{Task: request.Task, MemoryContext: request.MemoryContext, PreviousAttempt: request.PreviousAttempt})
 	if err != nil {
 		return ChatRequest{}, errors.New("plan request could not be encoded")
 	}
@@ -234,10 +235,12 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 // planner is asked to split work into independent pieces where it can.
 const planningSystemPrompt = "Create a bounded execution plan for a software change. " +
 	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string]}]}. " +
-	"Use short unique ids. provider is \"claude\" or \"deepseek\". " +
+	"Use short unique ids. provider is \"claude\", \"deepseek\" or \"local\". " +
 	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. " +
 	"Prefer independent subtasks that touch different files, because independent subtasks may run in parallel. " +
-	"Never create a dependency cycle. Do not include markdown."
+	"Never create a dependency cycle. " +
+	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, and take a different approach for what failed. " +
+	"Do not include markdown."
 
 // MapReviewRequest converts a ReviewRequest into the portable HTTP-client request.
 func (a *ProviderAdapter) MapReviewRequest(request ports.ReviewRequest) (ChatRequest, error) {
@@ -291,7 +294,7 @@ func (a *ProviderAdapter) Plan(ctx context.Context, request ports.PlanRequest) (
 	if err != nil {
 		return result, err
 	}
-	response, err := a.client.CreateChatCompletion(ctx, chatRequest)
+	response, err := a.complete(ctx, chatRequest)
 	if err != nil {
 		return result, err
 	}
@@ -312,7 +315,7 @@ func (a *ProviderAdapter) Review(ctx context.Context, request ports.ReviewReques
 	if err != nil {
 		return result, err
 	}
-	response, err := a.client.CreateChatCompletion(ctx, chatRequest)
+	response, err := a.complete(ctx, chatRequest)
 	if err != nil {
 		return result, err
 	}
@@ -379,7 +382,31 @@ func normalizeProviderConfig(config ProviderConfig) (ProviderConfig, error) {
 }
 
 func supportedProvider(provider ports.ModelProvider) bool {
-	return provider == ports.ModelProviderClaude || provider == ports.ModelProviderDeepSeek
+	return provider == ports.ModelProviderClaude || provider == ports.ModelProviderDeepSeek || provider == ports.ModelProviderLocal
+}
+
+// complete sends one chat request, honoring the run's usage meter: a run
+// whose budget is spent makes no further calls, and every answered call adds
+// its provider-reported token counts.
+func (a *ProviderAdapter) complete(ctx context.Context, request ChatRequest) (ChatResponse, error) {
+	meter := ports.UsageMeterFrom(ctx)
+	if meter != nil {
+		if err := meter.Reserve(a.config.Provider); err != nil {
+			return ChatResponse{}, err
+		}
+	}
+	response, err := a.client.CreateChatCompletion(ctx, request)
+	if err != nil {
+		return response, err
+	}
+	if meter != nil {
+		input, output := response.Usage.PromptTokens, response.Usage.CompletionTokens
+		if input == 0 && output == 0 && response.Usage.TotalTokens > 0 {
+			input = response.Usage.TotalTokens
+		}
+		meter.Record(a.config.Provider, input, output)
+	}
+	return response, nil
 }
 
 var _ ports.ModelGateway = (*ProviderAdapter)(nil)

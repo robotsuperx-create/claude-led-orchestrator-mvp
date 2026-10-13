@@ -55,6 +55,11 @@ type ClaudeOrchestratorRunRecord struct {
 	Interrupted bool      `json:"interrupted,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+	// Usage is the run's model usage; Replans counts plan revisions.
+	Usage   *RunUsage `json:"usage,omitempty"`
+	Replans int       `json:"replans,omitempty"`
+	// PullRequestURL is set once a person published the run for review.
+	PullRequestURL string `json:"pullRequestUrl,omitempty"`
 }
 
 // ClaudeOrchestratorRunHistory persists run records across daemon restarts.

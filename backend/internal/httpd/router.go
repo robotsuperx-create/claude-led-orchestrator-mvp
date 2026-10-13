@@ -84,7 +84,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountMobile(r, deps.Mobile)
 	mountMobileDevices(r, &controllers.MobileDevicesController{Registry: deps.DeviceRoster, Presence: deps.DeviceLive})
-	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, deps.ClaudeOrchestratorHistory, cfg.ClaudeOrchestrator, log)
+	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, deps.ClaudeOrchestratorHistory, deps.ClaudeOrchestratorPublisher, cfg.ClaudeOrchestrator, log)
 	api.Register(r)
 
 	return r
@@ -252,14 +252,25 @@ func mountMobileDevices(r chi.Router, c *controllers.MobileDevicesController) {
 // /api/v1 OpenAPI contract. The immutable daemon config supplies the only
 // feature-flag value; ClaudeOrchestratorAPI additionally requires localControlRequest
 // and explicit per-run opt-in. The separate LAN listener blocks /internal paths.
-func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) {
+func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, publisher ClaudeOrchestratorRunPublisher, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) {
 	if !cfg.FeatureEnabled || service == nil {
 		return
 	}
-	workerModel := cfg.DeepSeekProvider.DefaultModel
-	if cfg.Worker.DefaultProvider == ports.ModelProviderClaude {
-		workerModel = cfg.ClaudeProvider.DefaultModel
+	modelOf := func(provider ports.ModelProvider) string {
+		switch provider {
+		case ports.ModelProviderClaude:
+			return cfg.ClaudeProvider.DefaultModel
+		case ports.ModelProviderLocal:
+			return cfg.LocalProvider.DefaultModel
+		default:
+			return cfg.DeepSeekProvider.DefaultModel
+		}
 	}
+	planner := cfg.PlannerProvider
+	if planner == "" {
+		planner = ports.ModelProviderClaude
+	}
+	workerModel := modelOf(cfg.Worker.DefaultProvider)
 	workerMode := config.ClaudeOrchestratorWorkerModeModel
 	if cfg.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents {
 		// The agent harness, not an API model, writes the code.
@@ -272,14 +283,22 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 		Info: ClaudeOrchestratorInfo{
 			Enabled:        true,
 			Repository:     filepath.Base(filepath.Clean(cfg.Worker.ProjectRoot)),
-			PlannerModel:   cfg.ClaudeProvider.DefaultModel,
+			PlannerModel:   modelOf(planner),
 			WorkerProvider: cfg.Worker.DefaultProvider,
 			WorkerModel:    workerModel,
 			WorkerMode:     workerMode,
 			Sandboxed:      cfg.Worker.SandboxEnabled,
 			MaxActiveRuns:  DefaultClaudeOrchestratorMaxActiveRuns,
+
+			PlannerProvider: planner,
+			BudgetTokens:    cfg.Budget.MaxTokens,
+			BudgetUSD:       cfg.Budget.MaxCostUSD,
+			MaxReplans:      cfg.MaxReplans,
 		},
 		History: history,
+	}
+	if publisher != nil {
+		api.Publisher = publisher
 	}
 	if err := api.Restore(); err != nil {
 		// History is a convenience; a broken file must not block the API.

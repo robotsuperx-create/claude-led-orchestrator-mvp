@@ -35,6 +35,14 @@ type Dependencies struct {
 	// MaxParallelSubtasks bounds how many independent subtasks run at once.
 	// Zero or one runs them one at a time in plan order.
 	MaxParallelSubtasks int
+	// PlannerProvider is the executive that plans and reviews; empty selects
+	// Claude.
+	PlannerProvider ports.ModelProvider
+	// Budget limits each run's model usage; the zero value is unlimited.
+	Budget UsageBudget
+	// MaxReplans is how many times Claude may revise the plan when subtasks
+	// fail after their retries. Zero never revises.
+	MaxReplans int
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -49,6 +57,9 @@ type Service struct {
 	defaultWorktreePath string
 	workspaces          ports.RunWorkspaceProvisioner
 	maxParallel         int
+	planner             ports.ModelProvider
+	budget              UsageBudget
+	maxReplans          int
 
 	mu        sync.RWMutex
 	states    map[string]ports.RunState
@@ -56,10 +67,17 @@ type Service struct {
 	cancels   map[string]context.CancelFunc
 	plans     map[string]ports.ExecutionPlan
 	approvals map[string]chan bool
+	meters    map[string]*usageMeter
 	finished  []string
 }
 
-var _ ports.OrchestrationPlanApprover = (*Service)(nil)
+var (
+	_ ports.OrchestrationPlanApprover  = (*Service)(nil)
+	_ ports.OrchestrationUsageReporter = (*Service)(nil)
+)
+
+// maxReplanAttempts caps MaxReplans whatever the configuration says.
+const maxReplanAttempts = 3
 
 // maxRetainedRunStates bounds how many finished runs RunState remembers.
 const maxRetainedRunStates = 256
@@ -75,6 +93,9 @@ func New(deps Dependencies) *Service {
 		defaultWorktreePath: strings.TrimSpace(deps.DefaultWorktreePath),
 		workspaces:          deps.Workspaces,
 		maxParallel:         max(1, deps.MaxParallelSubtasks),
+		planner:             plannerOrClaude(deps.PlannerProvider),
+		budget:              deps.Budget,
+		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
@@ -82,7 +103,29 @@ func New(deps Dependencies) *Service {
 		plans:   make(map[string]ports.ExecutionPlan),
 
 		approvals: make(map[string]chan bool),
+		meters:    make(map[string]*usageMeter),
 	}
+}
+
+func plannerOrClaude(provider ports.ModelProvider) ports.ModelProvider {
+	if provider == "" {
+		return ports.ModelProviderClaude
+	}
+	return provider
+}
+
+// UsageFor returns a run's model usage so far.
+func (s *Service) UsageFor(runID string) (ports.RunUsage, bool) {
+	if s == nil {
+		return ports.RunUsage{}, false
+	}
+	s.mu.RLock()
+	meter, ok := s.meters[runID]
+	s.mu.RUnlock()
+	if !ok {
+		return ports.RunUsage{}, false
+	}
+	return meter.snapshot(), true
 }
 
 // PlanFor returns a copy of the run's plan once Claude has produced it.
@@ -186,8 +229,8 @@ func (s *Service) Cancel(runID string) bool {
 // validates the collected work, requests an executive review, and returns a
 // merge recommendation. A merge recommendation is advisory only; this service
 // never applies it.
-func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (ports.OrchestrationResult, error) {
-	result := ports.OrchestrationResult{
+func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (result ports.OrchestrationResult, err error) {
+	result = ports.OrchestrationResult{
 		RunID: request.RunID,
 		Task:  request.Task,
 		State: ports.RunStatePending,
@@ -213,6 +256,12 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 	defer s.release(request.RunID)
 	defer cancel()
+	meter := newUsageMeter(s.budget)
+	s.mu.Lock()
+	s.meters[request.RunID] = meter
+	s.mu.Unlock()
+	defer func() { result.Usage = meter.snapshot() }()
+	runCtx = ports.WithUsageMeter(runCtx, meter)
 
 	if !s.advance(runCtx, request.RunID, ports.RunStatePending) {
 		return canceledResult(result)
@@ -232,7 +281,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		return s.fail(runCtx, result, fmt.Errorf("read project memory: %w", err))
 	}
 	plan, err := s.model.Plan(runCtx, ports.PlanRequest{
-		Provider:      ports.ModelProviderClaude,
+		Provider:      s.planner,
 		Task:          request.Task,
 		MemoryContext: memoryContext.Content,
 	})
@@ -243,27 +292,9 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
-	s.mu.Lock()
-	s.plans[request.RunID] = plan
-	s.mu.Unlock()
-	if request.RequirePlanApproval {
-		// Nothing has run and no worktree exists yet: the plan is the only
-		// thing produced so far, and a person decides whether it proceeds.
-		approved, waitErr := s.awaitApproval(runCtx, request.RunID)
-		if waitErr != nil {
-			result.Plan = plan
-			return canceledResult(result)
-		}
-		if !approved {
-			s.mu.Lock()
-			s.states[request.RunID] = ports.RunStateCanceled
-			s.mu.Unlock()
-			result.Plan = plan
-			return canceledResult(result)
-		}
-		if !s.advance(runCtx, request.RunID, ports.RunStatePlanning) {
-			return canceledResult(result)
-		}
+	if proceed, stopped := s.approvePlan(runCtx, request, plan); !proceed {
+		result.Plan = plan
+		return stopped(result)
 	}
 	result.Workspace, err = s.workspaceFor(runCtx, request)
 	if err != nil {
@@ -277,6 +308,27 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		return canceledResult(result)
 	}
 	result.Results = s.executePlan(runCtx, request, plan)
+	for result.Replans < s.maxReplans && hasFailedSubtask(result.Results) && runCtx.Err() == nil {
+		revised, replanErr := s.replan(runCtx, request, memoryContext.Content, plan, result.Results, result.Replans+1)
+		if replanErr != nil {
+			// The executive could not revise the plan; review what exists.
+			break
+		}
+		if proceed, stopped := s.approvePlan(runCtx, request, revised); !proceed {
+			return stopped(result)
+		}
+		if !s.advance(runCtx, request.RunID, ports.RunStateExecuting) {
+			return canceledResult(result)
+		}
+		result.Replans++
+		revised = bindTrustedWorkspace(revised, result.Workspace.Path)
+		completed, completedTasks := completedResults(result.Results)
+		completedTasks = append(completedTasks, revised.Subtasks...)
+		plan = ports.ExecutionPlan{Summary: revised.Summary, Subtasks: completedTasks}
+		result.Plan = plan
+		completed = append(completed, s.executePlan(runCtx, request, revised)...)
+		result.Results = completed
+	}
 
 	if !s.advance(runCtx, request.RunID, ports.RunStateValidating) {
 		return canceledResult(result)
@@ -294,7 +346,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		return canceledResult(result)
 	}
 	result.Review, err = s.model.Review(runCtx, ports.ReviewRequest{
-		Provider:   ports.ModelProviderClaude,
+		Provider:   s.planner,
 		Task:       request.Task,
 		Plan:       plan,
 		Results:    result.Results,
@@ -358,6 +410,7 @@ func (s *Service) release(runID string) {
 		if !s.running[oldest] {
 			delete(s.states, oldest)
 			delete(s.plans, oldest)
+			delete(s.meters, oldest)
 		}
 	}
 }
@@ -709,4 +762,120 @@ func decideMerge(results []ports.CollectedTaskResult, validation ports.Validatio
 		return ports.MergeDecision{Decision: ports.MergeOutcomeHold, Reasons: reasons}
 	}
 	return ports.MergeDecision{Decision: ports.MergeOutcomeMerge}
+}
+
+// approvePlan records plan as the run's current plan and, when the request
+// asks for it, waits for a person to approve it. When it returns false the
+// run must stop with the returned result function.
+func (s *Service) approvePlan(ctx context.Context, request ports.OrchestrationRequest, plan ports.ExecutionPlan) (bool, func(ports.OrchestrationResult) (ports.OrchestrationResult, error)) {
+	s.mu.Lock()
+	s.plans[request.RunID] = plan
+	s.mu.Unlock()
+	if !request.RequirePlanApproval {
+		return true, nil
+	}
+	// A person decides whether this plan runs; nothing in it has run yet.
+	approved, err := s.awaitApproval(ctx, request.RunID)
+	if err != nil {
+		return false, canceledResult
+	}
+	if !approved {
+		s.mu.Lock()
+		s.states[request.RunID] = ports.RunStateCanceled
+		s.mu.Unlock()
+		return false, canceledResult
+	}
+	if !s.advance(ctx, request.RunID, ports.RunStatePlanning) {
+		return false, canceledResult
+	}
+	return true, nil
+}
+
+// Bounds on the failure report sent to the executive when it revises a plan.
+const (
+	maxReplanReportRunes  = 6000
+	maxReplanFailureRunes = 600
+)
+
+// replan asks the executive for a revised plan covering only the work that
+// is still missing. New subtask IDs are prefixed with the round so they never
+// collide with earlier ones (agent branches are named after subtask IDs).
+func (s *Service) replan(ctx context.Context, request ports.OrchestrationRequest, memoryContext string, plan ports.ExecutionPlan, results []ports.CollectedTaskResult, round int) (ports.ExecutionPlan, error) {
+	if !s.advance(ctx, request.RunID, ports.RunStatePlanning) {
+		return ports.ExecutionPlan{}, context.Canceled
+	}
+	revised, err := s.model.Plan(ctx, ports.PlanRequest{
+		Provider:        s.planner,
+		Task:            request.Task,
+		MemoryContext:   memoryContext,
+		PreviousAttempt: replanReport(plan, results),
+	})
+	if err != nil {
+		return ports.ExecutionPlan{}, err
+	}
+	if err := validatePlan(revised); err != nil {
+		return ports.ExecutionPlan{}, err
+	}
+	prefix := fmt.Sprintf("r%d-", round)
+	for i, task := range revised.Subtasks {
+		task.ID = prefix + task.ID
+		dependencies := make([]string, len(task.DependsOn))
+		for j, dependency := range task.DependsOn {
+			dependencies[j] = prefix + dependency
+		}
+		task.DependsOn = dependencies
+		revised.Subtasks[i] = task
+	}
+	return revised, nil
+}
+
+// replanReport tells the executive what completed and what failed, with
+// secrets redacted and every failure bounded.
+func replanReport(plan ports.ExecutionPlan, results []ports.CollectedTaskResult) string {
+	var report strings.Builder
+	report.WriteString("A previous plan for this task ran. Its changes are already in the workspace.\n")
+	for _, result := range results {
+		status := "completed"
+		if result.FinalExecution.Status != ports.WorkerOutcomeCompleted {
+			status = "FAILED: " + boundRunes(RedactSecrets(workerFailure(result.FinalExecution)), maxReplanFailureRunes)
+		}
+		fmt.Fprintf(&report, "- %s (%s): %s\n", result.Task.ID, boundRunes(RedactSecrets(result.Task.Title), 200), status)
+	}
+	if summary := strings.TrimSpace(plan.Summary); summary != "" {
+		fmt.Fprintf(&report, "Previous plan summary: %s\n", boundRunes(RedactSecrets(summary), 500))
+	}
+	report.WriteString("Plan only the remaining work needed to finish the task. Do not repeat completed subtasks; take a different approach for failed ones.")
+	return boundRunes(report.String(), maxReplanReportRunes)
+}
+
+func boundRunes(value string, limit int) string {
+	if runes := []rune(value); len(runes) > limit {
+		return string(runes[:limit]) + "…"
+	}
+	return value
+}
+
+func hasFailedSubtask(results []ports.CollectedTaskResult) bool {
+	for _, result := range results {
+		if result.FinalExecution.Status != ports.WorkerOutcomeCompleted {
+			return true
+		}
+	}
+	return false
+}
+
+// completedResults keeps the subtasks that completed and their tasks.
+func completedResults(results []ports.CollectedTaskResult) ([]ports.CollectedTaskResult, []ports.PlannedSubtask) {
+	var kept []ports.CollectedTaskResult
+	var tasks []ports.PlannedSubtask
+	for _, result := range results {
+		if result.FinalExecution.Status == ports.WorkerOutcomeCompleted {
+			kept = append(kept, result)
+			task := result.Task
+			// Earlier dependencies all completed; the revised plan stands alone.
+			task.DependsOn = nil
+			tasks = append(tasks, task)
+		}
+	}
+	return kept, tasks
 }
