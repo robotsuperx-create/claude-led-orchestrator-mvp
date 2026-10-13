@@ -55,6 +55,7 @@ function displayTime(value: string | undefined, locale: string | undefined) {
 }
 
 function stageKey(run: ClaudeOrchestratorRun) {
+	if (run.interrupted) return "orchestrator.state.interrupted" as const;
 	if (run.state === "completed") return run.recommendation === "merge" ? "orchestrator.state.readyToMerge" as const : "orchestrator.state.completed" as const;
 	return `orchestrator.state.${run.state}` as const;
 }
@@ -345,6 +346,7 @@ function StageTimeline({ run }: { run: ClaudeOrchestratorRun }) {
 }
 
 function outcomeKey(run: ClaudeOrchestratorRun) {
+	if (run.interrupted) return "orchestrator.outcome.interrupted" as const;
 	switch (run.state) {
 		case "completed":
 			if (!run.commit) return "orchestrator.outcome.noChanges" as const;

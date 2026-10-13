@@ -148,6 +148,15 @@ describe("ClaudeOrchestratorView", () => {
 		expect(within(mission).getByTestId("mission-done")).toHaveTextContent("0");
 	});
 
+	it("explains a run that stopped because the app closed", async () => {
+		mocks.list.mockResolvedValue(ok([{ runId: RUN_A, state: "failed", interrupted: true, title: "Refactor the parser" }]));
+		renderView();
+		const row = await screen.findByTestId("claude-orchestrator-run");
+		expect(within(row).getByText("Stopped when the app closed")).toBeInTheDocument();
+		await userEvent.click(within(row).getByRole("button", { name: "Show details for Refactor the parser" }));
+		expect(await screen.findByTestId("claude-orchestrator-outcome")).toHaveTextContent("The app closed while this run was active");
+	});
+
 	it("cancels an active run after confirmation", async () => {
 		mocks.list.mockResolvedValue(ok([{ runId: RUN_A, state: "validating", title: "Refactor the parser" }]));
 		mocks.cancel.mockResolvedValue(ok({ runId: RUN_A, state: "canceled", title: "" }));

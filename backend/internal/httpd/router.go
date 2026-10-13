@@ -84,7 +84,7 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountMobile(r, deps.Mobile)
 	mountMobileDevices(r, &controllers.MobileDevicesController{Registry: deps.DeviceRoster, Presence: deps.DeviceLive})
-	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, cfg.ClaudeOrchestrator)
+	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, deps.ClaudeOrchestratorHistory, cfg.ClaudeOrchestrator, log)
 	api.Register(r)
 
 	return r
@@ -252,7 +252,7 @@ func mountMobileDevices(r chi.Router, c *controllers.MobileDevicesController) {
 // /api/v1 OpenAPI contract. The immutable daemon config supplies the only
 // feature-flag value; ClaudeOrchestratorAPI additionally requires localControlRequest
 // and explicit per-run opt-in. The separate LAN listener blocks /internal paths.
-func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, cfg config.ClaudeOrchestratorConfig) {
+func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) {
 	if !cfg.FeatureEnabled || service == nil {
 		return
 	}
@@ -279,6 +279,11 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 			Sandboxed:      cfg.Worker.SandboxEnabled,
 			MaxActiveRuns:  DefaultClaudeOrchestratorMaxActiveRuns,
 		},
+		History: history,
+	}
+	if err := api.Restore(); err != nil {
+		// History is a convenience; a broken file must not block the API.
+		log.Warn("claude orchestrator run history could not be restored", "error", err)
 	}
 	api.Register(r)
 }

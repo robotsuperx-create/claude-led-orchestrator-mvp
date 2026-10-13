@@ -76,6 +76,8 @@ type APIDeps struct {
 	// Nil leaves the internal routes unregistered; the router independently
 	// applies the default-off config feature gate before accepting any run.
 	ClaudeOrchestrator ClaudeOrchestratorRunService
+	// ClaudeOrchestratorHistory, when set, keeps run history across restarts.
+	ClaudeOrchestratorHistory ports.ClaudeOrchestratorRunHistory
 
 	// Presence tracks which mobile devices are currently running the app.
 	// Nil disables presence tracking (the roster then reports every device offline).

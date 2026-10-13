@@ -36,6 +36,11 @@ func claudeOrchestratorManagedRoot(cfg config.Config) string {
 	return filepath.Join(cfg.DataDir, "worktrees", "claude-orchestrator")
 }
 
+// claudeOrchestratorHistoryPath is where run history persists, under ~/.ao.
+func claudeOrchestratorHistoryPath(cfg config.Config) string {
+	return filepath.Join(cfg.DataDir, "claude-orchestrator", "runs.json")
+}
+
 // claudeOrchestratorWiring is the daemon composition boundary. In the default
 // off state it deliberately owns no service or network client.
 type claudeOrchestratorWiring struct {

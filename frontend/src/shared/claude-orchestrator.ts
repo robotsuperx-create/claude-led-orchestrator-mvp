@@ -42,6 +42,8 @@ export type ClaudeOrchestratorRun = {
 	branch?: string;
 	commit?: string;
 	recommendation?: ClaudeOrchestratorRecommendation;
+	/** The run was still active when the app or daemon stopped. */
+	interrupted?: boolean;
 	createdAt?: string;
 	updatedAt?: string;
 };
@@ -113,6 +115,7 @@ export function parseClaudeOrchestratorRun(value: unknown): ClaudeOrchestratorRu
 	if (typeof candidate.branch === "string" && BRANCH_PATTERN.test(candidate.branch)) run.branch = candidate.branch;
 	if (typeof candidate.commit === "string" && COMMIT_PATTERN.test(candidate.commit)) run.commit = candidate.commit;
 	if (candidate.recommendation === "merge" || candidate.recommendation === "hold") run.recommendation = candidate.recommendation;
+	if (candidate.interrupted === true) run.interrupted = true;
 	const createdAt = isoTime(candidate.createdAt);
 	const updatedAt = isoTime(candidate.updatedAt);
 	if (createdAt) run.createdAt = createdAt;

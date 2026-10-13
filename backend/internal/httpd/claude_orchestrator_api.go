@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -54,12 +55,19 @@ type ClaudeOrchestratorAPI struct {
 	// display names only: no paths beyond the repository's base name, no URLs,
 	// and no credentials.
 	Info ClaudeOrchestratorInfo
+	// History, when set, keeps run records across daemon restarts. Call
+	// Restore once before serving.
+	History ports.ClaudeOrchestratorRunHistory
 
-	mu      sync.RWMutex
-	runs    map[string]ports.RunState
-	details map[string]claudeOrchestratorRunDetails
-	order   []string
-	cancel  map[string]context.CancelFunc
+	persistMu sync.Mutex
+	// persistFailures counts failed history writes; the in-memory record
+	// stays authoritative, and the next write retries the whole history.
+	persistFailures atomic.Int64
+	mu              sync.RWMutex
+	runs            map[string]ports.RunState
+	details         map[string]claudeOrchestratorRunDetails
+	order           []string
+	cancel          map[string]context.CancelFunc
 }
 
 // ClaudeOrchestratorInfo is the display-safe configuration summary.
@@ -82,6 +90,7 @@ type claudeOrchestratorRunDetails struct {
 	Branch         string
 	Commit         string
 	Recommendation ports.MergeOutcome
+	Interrupted    bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
@@ -131,6 +140,8 @@ type ClaudeOrchestratorRunResponse struct {
 	Branch         string             `json:"branch,omitempty"`
 	Commit         string             `json:"commit,omitempty"`
 	Recommendation ports.MergeOutcome `json:"recommendation,omitempty"`
+	// Interrupted means the run was still active when the daemon stopped.
+	Interrupted bool `json:"interrupted,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) {
@@ -191,6 +202,7 @@ func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) 
 		writeClaudeOrchestratorAPIError(w, r, http.StatusTooManyRequests, "TOO_MANY_ACTIVE_RUNS", "Too many Claude orchestrator runs are active; wait for one to finish")
 		return
 	}
+	api.persist()
 	service := api.Service
 	request := ports.OrchestrationRequest{RunID: runID, Task: body.Task, MaxRetries: body.MaxRetries, WorktreePath: body.WorktreePath}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -236,6 +248,7 @@ func (api *ClaudeOrchestratorAPI) cancelRun(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	api.cancelLocal(runID)
+	api.persist()
 	envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorRunResponse{RunID: runID, State: ports.RunStateCanceled})
 }
 
@@ -270,6 +283,7 @@ func (api *ClaudeOrchestratorAPI) response(runID string, state ports.RunState) C
 	return ClaudeOrchestratorRunResponse{
 		RunID: runID, State: state,
 		Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
+		Interrupted: details.Interrupted,
 	}
 }
 
@@ -379,6 +393,7 @@ func (api *ClaudeOrchestratorAPI) list(w http.ResponseWriter, r *http.Request) {
 			ClaudeOrchestratorRunResponse: ClaudeOrchestratorRunResponse{
 				RunID: runID, State: state,
 				Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
+				Interrupted: details.Interrupted,
 			},
 			Title: details.Title, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
 		})
@@ -424,6 +439,7 @@ func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrc
 	// through the run's local control endpoint.
 	result, err := service.Run(ctx, request)
 	api.recordDetails(request.RunID, result)
+	api.persist()
 	if err == nil && validClaudeOrchestratorRunState(result.State) {
 		state = result.State
 		return
@@ -434,6 +450,12 @@ func (api *ClaudeOrchestratorAPI) execute(ctx context.Context, service ClaudeOrc
 }
 
 func (api *ClaudeOrchestratorAPI) setRunState(runID string, state ports.RunState) {
+	if api.updateRunState(runID, state) {
+		api.persist()
+	}
+}
+
+func (api *ClaudeOrchestratorAPI) updateRunState(runID string, state ports.RunState) bool {
 	if !validClaudeOrchestratorRunState(state) {
 		state = ports.RunStateFailed
 	}
@@ -444,13 +466,93 @@ func (api *ClaudeOrchestratorAPI) setRunState(runID string, state ports.RunState
 	}
 	current, ok := api.runs[runID]
 	if ok && terminalClaudeOrchestratorRunState(current) {
-		return
+		return false
 	}
 	api.runs[runID] = state
 	if details, known := api.details[runID]; known && current != state {
 		details.UpdatedAt = time.Now().UTC()
 		api.details[runID] = details
 	}
+	return current != state
+}
+
+// Restore loads persisted history. A run that was active when the daemon
+// stopped can no longer progress, so it is recorded as failed and marked
+// interrupted; its branch and any commits stay in Git.
+func (api *ClaudeOrchestratorAPI) Restore() error {
+	if api.History == nil {
+		return nil
+	}
+	records, err := api.History.Load()
+	api.mu.Lock()
+	if api.runs == nil {
+		api.runs = make(map[string]ports.RunState)
+	}
+	if api.details == nil {
+		api.details = make(map[string]claudeOrchestratorRunDetails)
+	}
+	if len(records) > claudeOrchestratorMaxRetainedRuns {
+		records = records[len(records)-claudeOrchestratorMaxRetainedRuns:]
+	}
+	now := time.Now().UTC()
+	for _, record := range records {
+		if !validClaudeOrchestratorRunID(record.RunID) || !validClaudeOrchestratorRunState(record.State) {
+			continue
+		}
+		if _, exists := api.runs[record.RunID]; exists {
+			continue
+		}
+		state, interrupted, updated := record.State, record.Interrupted, record.UpdatedAt
+		if !terminalClaudeOrchestratorRunState(state) {
+			state, interrupted, updated = ports.RunStateFailed, true, now
+		}
+		api.runs[record.RunID] = state
+		api.details[record.RunID] = claudeOrchestratorRunDetails{
+			Title: runTitle(record.Title), Branch: record.Branch, Commit: record.Commit,
+			Recommendation: record.Recommendation, Interrupted: interrupted,
+			CreatedAt: record.CreatedAt, UpdatedAt: updated,
+		}
+		api.order = append(api.order, record.RunID)
+	}
+	api.mu.Unlock()
+	api.persist()
+	return err
+}
+
+// persist writes the full bounded history. Snapshots are taken while holding
+// persistMu, so concurrent writers can never store an older view last.
+func (api *ClaudeOrchestratorAPI) persist() {
+	if api.History == nil {
+		return
+	}
+	api.persistMu.Lock()
+	defer api.persistMu.Unlock()
+	api.mu.RLock()
+	records := make([]ports.ClaudeOrchestratorRunRecord, 0, len(api.order))
+	for _, runID := range api.order {
+		state, ok := api.runs[runID]
+		if !ok {
+			continue
+		}
+		details := api.details[runID]
+		records = append(records, ports.ClaudeOrchestratorRunRecord{
+			RunID: runID, State: state, Title: details.Title,
+			Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
+			Interrupted: details.Interrupted, CreatedAt: details.CreatedAt, UpdatedAt: details.UpdatedAt,
+		})
+	}
+	api.mu.RUnlock()
+	if err := api.History.Save(records); err != nil {
+		api.persistFailures.Add(1)
+	}
+}
+
+func validClaudeOrchestratorRunID(runID string) bool {
+	if !strings.HasPrefix(runID, "claude-run-") || len(runID) != len("claude-run-")+32 {
+		return false
+	}
+	_, err := hex.DecodeString(strings.TrimPrefix(runID, "claude-run-"))
+	return err == nil
 }
 
 func (api *ClaudeOrchestratorAPI) registerCancel(runID string, cancel context.CancelFunc) {
