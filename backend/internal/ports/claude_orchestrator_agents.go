@@ -21,11 +21,24 @@ type AgentImplementRequest struct {
 	PreviousFailure string
 }
 
-// AgentImplementer dispatches a subtask to an AO agent session and integrates
-// the finished work into the run worktree. It returns a short summary. Errors
-// wrapping ErrAgentAttemptFailed are retryable attempt failures.
+// AgentWork is an agent's finished, committed work on its own branch, ready
+// to be integrated into the run worktree.
+type AgentWork struct {
+	// Summary is a short, redacted description for the run record.
+	Summary string
+	// Branch holds the agent's commits; Base is the run commit it was cut from.
+	Branch string
+	Base   string
+}
+
+// AgentImplementer dispatches a subtask to an AO agent session in two phases.
+// Implement may run concurrently for independent subtasks: it returns once the
+// agent's work is committed on its own branch. Integrate merges that work into
+// the run worktree; callers serialize it with anything else that touches the
+// run worktree. Errors wrapping ErrAgentAttemptFailed are retryable.
 type AgentImplementer interface {
-	Implement(ctx context.Context, request AgentImplementRequest) (string, error)
+	Implement(ctx context.Context, request AgentImplementRequest) (AgentWork, error)
+	Integrate(ctx context.Context, worktreePath string, work AgentWork) error
 }
 
 // ClaudeOrchestratorRunRecord is the durable, display-safe record of one run:

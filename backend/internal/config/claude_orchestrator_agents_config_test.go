@@ -47,3 +47,19 @@ func TestLoadClaudeOrchestratorWorkerMode(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadClaudeOrchestratorParallelSubtasks(t *testing.T) {
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", "on")
+	cfg, err := Load()
+	if err != nil || cfg.ClaudeOrchestrator.Worker.MaxParallelSubtasks != DefaultClaudeOrchestratorMaxParallelSubtasks {
+		t.Fatalf("default parallel = %d, %v", cfg.ClaudeOrchestrator.Worker.MaxParallelSubtasks, err)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS", "5")
+	if cfg, err = Load(); err != nil || cfg.ClaudeOrchestrator.Worker.MaxParallelSubtasks != 5 {
+		t.Fatalf("parallel = %d, %v", cfg.ClaudeOrchestrator.Worker.MaxParallelSubtasks, err)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS", "99")
+	if _, err := Load(); err == nil {
+		t.Fatal("an excessive parallel limit was accepted")
+	}
+}

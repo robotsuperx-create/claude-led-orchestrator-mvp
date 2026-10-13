@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -54,6 +55,10 @@ type WorkerRuntime struct {
 	sandboxLimits ports.SandboxResourceLimits
 	author        ports.CodeAuthor
 	agents        ports.AgentImplementer
+	// runMu serializes everything that touches the shared run worktree:
+	// applying model edits, integrating agent work, and running checks.
+	// Agent coding itself happens in each agent's own worktree, outside it.
+	runMu sync.Mutex
 }
 
 // NewWorkerRuntime constructs a runtime around existing worktree, validation,
@@ -115,39 +120,59 @@ func (r *WorkerRuntime) Execute(ctx context.Context, request ports.WorkerRequest
 	if request.Attempt < 1 {
 		return ports.WorkerExecution{}, errors.New("worker attempt must be positive")
 	}
+	worktreeRef := request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath]
+	subject := fmt.Sprintf("subtask %q", request.Task.ID)
+
+	var output strings.Builder
+	authored := ""
+	var agentWork ports.AgentWork
+	if r.agents != nil {
+		// The agent codes in its own worktree, so independent subtasks may do
+		// this part at the same time, each within its own timeout.
+		implementCtx, cancelImplement := context.WithTimeout(ctx, r.timeout)
+		worktreePath, err := verifyWorktree(implementCtx, r.worktrees, r.projectRoot, worktreeRef, subject)
+		if err != nil {
+			cancelImplement()
+			return ports.WorkerExecution{}, err
+		}
+		agentWork, err = r.agents.Implement(implementCtx, ports.AgentImplementRequest{
+			WorktreePath:    worktreePath,
+			Task:            request.Task,
+			Attempt:         request.Attempt,
+			PreviousFailure: request.PreviousFailure,
+		})
+		cancelImplement()
+		if failed, ok := agentAttemptExecution(err); ok {
+			return failed, nil
+		}
+		if err != nil {
+			return ports.WorkerExecution{}, err
+		}
+	}
+
+	// From here on the shared run worktree changes, one subtask at a time.
+	r.runMu.Lock()
+	defer r.runMu.Unlock()
 	runCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	worktreePath, err := verifyWorktree(runCtx, r.worktrees, r.projectRoot,
-		request.Task.Metadata[ports.SubtaskMetadataKeyWorktreePath], fmt.Sprintf("subtask %q", request.Task.ID))
+	worktreePath, err := verifyWorktree(runCtx, r.worktrees, r.projectRoot, worktreeRef, subject)
 	if err != nil {
 		return ports.WorkerExecution{}, err
 	}
 	if err := runCtx.Err(); err != nil {
 		return ports.WorkerExecution{}, err
 	}
-
-	var output strings.Builder
-	authored := ""
 	if r.agents != nil {
-		summary, err := r.agents.Implement(runCtx, ports.AgentImplementRequest{
-			WorktreePath:    worktreePath,
-			Task:            request.Task,
-			Attempt:         request.Attempt,
-			PreviousFailure: request.PreviousFailure,
-		})
-		if errors.Is(err, ports.ErrAgentAttemptFailed) {
-			return ports.WorkerExecution{
-				Status:  ports.WorkerOutcomeFailed,
-				Summary: "the agent did not produce an applicable change",
-				Error:   boundedRedacted(err.Error()),
-			}, nil
+		err := r.agents.Integrate(runCtx, worktreePath, agentWork)
+		if failed, ok := agentAttemptExecution(err); ok {
+			return failed, nil
 		}
 		if err != nil {
 			return ports.WorkerExecution{}, err
 		}
-		authored = summary
+		authored = agentWork.Summary
 		output.WriteString("[agent]\n")
-		output.WriteString(summary)
+		output.WriteString(agentWork.Summary)
 	} else if r.author != nil {
 		summary, err := r.authorCode(runCtx, worktreePath, request)
 		var attemptErr *authorAttemptError
@@ -421,4 +446,16 @@ func (r *WorkerRuntime) repositoryFiles(ctx context.Context, worktreePath string
 		files = append(files, clean)
 	}
 	return files, nil
+}
+
+// agentAttemptExecution turns a retryable agent failure into a failed attempt.
+func agentAttemptExecution(err error) (ports.WorkerExecution, bool) {
+	if !errors.Is(err, ports.ErrAgentAttemptFailed) {
+		return ports.WorkerExecution{}, false
+	}
+	return ports.WorkerExecution{
+		Status:  ports.WorkerOutcomeFailed,
+		Summary: "the agent did not produce an applicable change",
+		Error:   boundedRedacted(err.Error()),
+	}, true
 }

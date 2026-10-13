@@ -32,6 +32,9 @@ type Dependencies struct {
 	// Workspaces, when set, gives each run that has no explicit or default
 	// worktree its own new worktree and branch, and commits the result there.
 	Workspaces ports.RunWorkspaceProvisioner
+	// MaxParallelSubtasks bounds how many independent subtasks run at once.
+	// Zero or one runs them one at a time in plan order.
+	MaxParallelSubtasks int
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -45,6 +48,7 @@ type Service struct {
 
 	defaultWorktreePath string
 	workspaces          ports.RunWorkspaceProvisioner
+	maxParallel         int
 
 	mu        sync.RWMutex
 	states    map[string]ports.RunState
@@ -70,6 +74,7 @@ func New(deps Dependencies) *Service {
 
 		defaultWorktreePath: strings.TrimSpace(deps.DefaultWorktreePath),
 		workspaces:          deps.Workspaces,
+		maxParallel:         max(1, deps.MaxParallelSubtasks),
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
@@ -454,41 +459,116 @@ func (s *Service) record(ctx context.Context, result ports.OrchestrationResult) 
 	})
 }
 
+// executePlan runs every subtask once its dependencies have completed, up to
+// maxParallel at a time. A subtask whose dependency did not complete is not
+// run and is reported as blocked. Results keep plan order.
 func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRequest, plan ports.ExecutionPlan) []ports.CollectedTaskResult {
-	collected := make([]ports.CollectedTaskResult, 0, len(plan.Subtasks))
 	maxAttempts := request.MaxRetries + 1
 	if maxAttempts < 1 {
 		maxAttempts = 1
 	}
+	results := make([]ports.CollectedTaskResult, len(plan.Subtasks))
+	index := make(map[string]int, len(plan.Subtasks))
+	for i, task := range plan.Subtasks {
+		index[task.ID] = i
+	}
+	const (
+		waiting = iota
+		running
+		done
+	)
+	status := make([]int, len(plan.Subtasks))
+	succeeded := make([]bool, len(plan.Subtasks))
+	finished := make(chan int)
+	active := 0
+	remaining := len(plan.Subtasks)
 
-	for _, task := range plan.Subtasks {
+	for remaining > 0 {
+		// Settle subtasks that can never run, then start what is ready.
+		for i, task := range plan.Subtasks {
+			if status[i] != waiting {
+				continue
+			}
+			ready, blockedBy := true, ""
+			for _, dependency := range task.DependsOn {
+				j := index[dependency]
+				if status[j] != done {
+					ready = false
+					break
+				}
+				if !succeeded[j] {
+					blockedBy = dependency
+					break
+				}
+			}
+			if blockedBy != "" || ctx.Err() != nil {
+				reason := "the run was stopped before this subtask started"
+				if blockedBy != "" {
+					reason = fmt.Sprintf("not started: subtask %q did not complete", blockedBy)
+				}
+				execution := ports.WorkerExecution{Status: ports.WorkerOutcomeBlocked, Error: reason}
+				results[i] = ports.CollectedTaskResult{Task: task, FinalExecution: execution}
+				status[i] = done
+				remaining--
+				continue
+			}
+			if !ready || active >= s.maxParallel {
+				continue
+			}
+			status[i] = running
+			active++
+			go func(i int, task ports.PlannedSubtask) {
+				results[i] = s.runSubtask(ctx, task, maxAttempts)
+				finished <- i
+			}(i, task)
+		}
+		if active == 0 {
+			if remaining > 0 && ctx.Err() == nil {
+				// Unreachable for a validated plan; never spin.
+				break
+			}
+			continue
+		}
+		i := <-finished
+		active--
+		status[i] = done
+		succeeded[i] = results[i].FinalExecution.Status == ports.WorkerOutcomeCompleted
+		remaining--
+	}
+	// Return only settled subtasks, in plan order.
+	collected := make([]ports.CollectedTaskResult, 0, len(results))
+	for i, result := range results {
+		if status[i] == done {
+			collected = append(collected, result)
+		}
+	}
+	return collected
+}
+
+// runSubtask executes one subtask with retries, feeding each failure back.
+func (s *Service) runSubtask(ctx context.Context, task ports.PlannedSubtask, maxAttempts int) ports.CollectedTaskResult {
+	taskResult := ports.CollectedTaskResult{Task: task}
+	previousFailure := ""
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		execution, err := s.worker.Execute(ctx, ports.WorkerRequest{
+			Task:            task,
+			Attempt:         attempt,
+			PreviousFailure: previousFailure,
+		})
+		if err != nil {
+			execution = ports.WorkerExecution{Status: ports.WorkerOutcomeFailed, Error: err.Error()}
+		}
+		taskResult.Attempts = append(taskResult.Attempts, ports.CollectedAttempt{Attempt: attempt, Execution: execution})
+		taskResult.FinalExecution = execution
+		if err == nil && execution.Status == ports.WorkerOutcomeCompleted {
+			break
+		}
+		previousFailure = workerFailure(execution)
 		if ctx.Err() != nil {
 			break
 		}
-		taskResult := ports.CollectedTaskResult{Task: task}
-		previousFailure := ""
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			execution, err := s.worker.Execute(ctx, ports.WorkerRequest{
-				Task:            task,
-				Attempt:         attempt,
-				PreviousFailure: previousFailure,
-			})
-			if err != nil {
-				execution = ports.WorkerExecution{Status: ports.WorkerOutcomeFailed, Error: err.Error()}
-			}
-			taskResult.Attempts = append(taskResult.Attempts, ports.CollectedAttempt{Attempt: attempt, Execution: execution})
-			taskResult.FinalExecution = execution
-			if err == nil && execution.Status == ports.WorkerOutcomeCompleted {
-				break
-			}
-			previousFailure = workerFailure(execution)
-			if ctx.Err() != nil {
-				break
-			}
-		}
-		collected = append(collected, taskResult)
 	}
-	return collected
+	return taskResult
 }
 
 func validatePlan(plan ports.ExecutionPlan) error {
@@ -507,6 +587,54 @@ func validatePlan(plan ports.ExecutionPlan) error {
 			return fmt.Errorf("executive plan contains duplicate subtask ID %q", task.ID)
 		}
 		seen[task.ID] = struct{}{}
+	}
+	return validateDependencies(plan.Subtasks)
+}
+
+// validateDependencies rejects unknown, self, and cyclic dependencies.
+func validateDependencies(subtasks []ports.PlannedSubtask) error {
+	edges := make(map[string][]string, len(subtasks))
+	for _, task := range subtasks {
+		edges[task.ID] = nil
+	}
+	for _, task := range subtasks {
+		for _, dependency := range task.DependsOn {
+			if dependency == task.ID {
+				return fmt.Errorf("executive plan subtask %q depends on itself", task.ID)
+			}
+			if _, ok := edges[dependency]; !ok {
+				return fmt.Errorf("executive plan subtask %q depends on unknown subtask %q", task.ID, dependency)
+			}
+			edges[task.ID] = append(edges[task.ID], dependency)
+		}
+	}
+	const (
+		unvisited = iota
+		visiting
+		visited
+	)
+	state := make(map[string]int, len(subtasks))
+	var visit func(string) error
+	visit = func(id string) error {
+		switch state[id] {
+		case visiting:
+			return fmt.Errorf("executive plan has a dependency cycle through subtask %q", id)
+		case visited:
+			return nil
+		}
+		state[id] = visiting
+		for _, dependency := range edges[id] {
+			if err := visit(dependency); err != nil {
+				return err
+			}
+		}
+		state[id] = visited
+		return nil
+	}
+	for _, task := range subtasks {
+		if err := visit(task.ID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

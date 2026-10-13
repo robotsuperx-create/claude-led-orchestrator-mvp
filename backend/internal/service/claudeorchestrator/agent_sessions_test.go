@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -167,6 +168,15 @@ func agentRequest(worktree string, attempt int, failure string) ports.AgentImple
 	}
 }
 
+// implementAndIntegrate runs both phases, as the worker runtime does.
+func implementAndIntegrate(ctx context.Context, agents *AgentSessions, request ports.AgentImplementRequest) (ports.AgentWork, error) {
+	work, err := agents.Implement(ctx, request)
+	if err != nil {
+		return work, err
+	}
+	return work, agents.Integrate(ctx, request.WorktreePath, work)
+}
+
 func TestAgentSessionsIntegrateAFinishedAgentsWork(t *testing.T) {
 	_, worktree := newAgentRun(t)
 	api := newFakeAgentAPI(t, "", func(dir string, _ int) agentTurn {
@@ -177,7 +187,8 @@ func TestAgentSessionsIntegrateAFinishedAgentsWork(t *testing.T) {
 	agents := newTestAgentSessions(t, api)
 	before := runGit(t, worktree, "rev-parse", "HEAD")
 
-	summary, err := agents.Implement(context.Background(), agentRequest(worktree, 1, ""))
+	work, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 1, ""))
+	summary := work.Summary
 	if err != nil {
 		t.Fatalf("Implement: %v", err)
 	}
@@ -213,10 +224,10 @@ func TestAgentSessionsRetryMessagesTheSameAgent(t *testing.T) {
 		return agentTurn{report: domain.ReportDone, note: "done", activity: domain.ActivityWaitingInput}
 	})
 	agents := newTestAgentSessions(t, api)
-	if _, err := agents.Implement(context.Background(), agentRequest(worktree, 1, "")); err != nil {
+	if _, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 1, "")); err != nil {
 		t.Fatalf("attempt 1: %v", err)
 	}
-	if _, err := agents.Implement(context.Background(), agentRequest(worktree, 2, "go test: greeting is wrong")); err != nil {
+	if _, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 2, "go test: greeting is wrong")); err != nil {
 		t.Fatalf("attempt 2: %v", err)
 	}
 	if len(api.spawned) != 1 {
@@ -237,7 +248,7 @@ func TestAgentSessionsCompleteWhenTheAgentSettlesAtItsPrompt(t *testing.T) {
 		return agentTurn{activity: domain.ActivityWaitingInput}
 	})
 	agents := newTestAgentSessions(t, api)
-	if _, err := agents.Implement(context.Background(), agentRequest(worktree, 1, "")); err != nil {
+	if _, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 1, "")); err != nil {
 		t.Fatalf("Implement: %v", err)
 	}
 	if got := mustRead(t, filepath.Join(worktree, "greet.txt")); got != "hi\n" {
@@ -270,7 +281,7 @@ func TestAgentSessionsTreatUnusableWorkAsRetryableFailures(t *testing.T) {
 			api := newFakeAgentAPI(t, worktree, func(dir string, _ int) agentTurn { return play(t, dir) })
 			agents := newTestAgentSessions(t, api)
 			before := runGit(t, worktree, "rev-parse", "HEAD")
-			_, err := agents.Implement(context.Background(), agentRequest(worktree, 1, ""))
+			_, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 1, ""))
 			if !errors.Is(err, ports.ErrAgentAttemptFailed) {
 				t.Fatalf("Implement error = %v, want a retryable agent failure", err)
 			}
@@ -288,10 +299,10 @@ func TestAgentSessionsNeverTypeIntoABlockedAgent(t *testing.T) {
 		return agentTurn{report: domain.ReportDone, activity: domain.ActivityBlocked}
 	})
 	agents := newTestAgentSessions(t, api)
-	if _, err := agents.Implement(context.Background(), agentRequest(worktree, 1, "")); err != nil {
+	if _, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 1, "")); err != nil {
 		t.Fatalf("attempt 1: %v", err)
 	}
-	_, err := agents.Implement(context.Background(), agentRequest(worktree, 2, "tests failed"))
+	_, err := implementAndIntegrate(context.Background(), agents, agentRequest(worktree, 2, "tests failed"))
 	if !errors.Is(err, ports.ErrAgentAttemptFailed) {
 		t.Fatalf("retry error = %v, want a failure instead of input to a blocked agent", err)
 	}
@@ -306,7 +317,7 @@ func TestAgentSessionsKillTheAgentWhenTheAttemptIsCanceled(t *testing.T) {
 	agents := newTestAgentSessions(t, api)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err := agents.Implement(ctx, agentRequest(worktree, 1, ""))
+	_, err := implementAndIntegrate(ctx, agents, agentRequest(worktree, 1, ""))
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Implement error = %v, want the deadline", err)
 	}
@@ -347,14 +358,21 @@ func TestAgentSessionsRequireABoundBackendAndKnownHarnesses(t *testing.T) {
 }
 
 type agentImplementerFake struct {
-	summary string
-	err     error
-	request ports.AgentImplementRequest
+	summary      string
+	integrateErr error
+	integrated   []ports.AgentWork
+	err          error
+	request      ports.AgentImplementRequest
 }
 
-func (f *agentImplementerFake) Implement(_ context.Context, request ports.AgentImplementRequest) (string, error) {
+func (f *agentImplementerFake) Implement(_ context.Context, request ports.AgentImplementRequest) (ports.AgentWork, error) {
 	f.request = request
-	return f.summary, f.err
+	return ports.AgentWork{Summary: f.summary, Branch: "agent-branch", Base: "base"}, f.err
+}
+
+func (f *agentImplementerFake) Integrate(_ context.Context, _ string, work ports.AgentWork) error {
+	f.integrated = append(f.integrated, work)
+	return f.integrateErr
 }
 
 func TestWorkerHandsSubtasksToAgentsBeforeRunningCommands(t *testing.T) {
@@ -387,5 +405,95 @@ func TestWorkerHandsSubtasksToAgentsBeforeRunningCommands(t *testing.T) {
 	execution, err = runtime.Execute(context.Background(), authoringRequest(worktree))
 	if err != nil || execution.Status != ports.WorkerOutcomeFailed || !strings.Contains(execution.Error, "reported stuck") {
 		t.Fatalf("Execute = %+v, %v; want a retryable failed attempt", execution, err)
+	}
+}
+
+func subtaskRequest(worktree, id string) ports.AgentImplementRequest {
+	return ports.AgentImplementRequest{
+		WorktreePath: worktree,
+		Task:         ports.PlannedSubtask{ID: id, Title: "Subtask " + id, Instructions: "work", Provider: ports.ModelProviderDeepSeek},
+		Attempt:      1,
+	}
+}
+
+func TestAgentSessionsMergeIndependentSubtasksDoneInParallel(t *testing.T) {
+	_, worktree := newAgentRun(t)
+	api := newFakeAgentAPI(t, worktree, func(dir string, _ int) agentTurn {
+		// Each agent writes its own file, as independent subtasks should.
+		mustWrite(t, filepath.Join(dir, filepath.Base(dir)+".txt"), "work of "+filepath.Base(dir)+"\n")
+		return agentTurn{report: domain.ReportDone, activity: domain.ActivityWaitingInput}
+	})
+	agents := newTestAgentSessions(t, api)
+	before := runGit(t, worktree, "rev-parse", "HEAD")
+
+	type outcome struct {
+		work ports.AgentWork
+		err  error
+	}
+	results := make(chan outcome, 2)
+	for _, id := range []string{"left", "right"} {
+		go func(id string) {
+			work, err := agents.Implement(context.Background(), subtaskRequest(worktree, id))
+			results <- outcome{work, err}
+		}(id)
+	}
+	var works []ports.AgentWork
+	for range 2 {
+		got := <-results
+		if got.err != nil {
+			t.Fatalf("Implement: %v", got.err)
+		}
+		if got.work.Base != before {
+			t.Fatalf("work base = %s, want the run head %s", got.work.Base, before)
+		}
+		works = append(works, got.work)
+	}
+	for _, work := range works {
+		if err := agents.Integrate(context.Background(), worktree, work); err != nil {
+			t.Fatalf("Integrate %s: %v", work.Branch, err)
+		}
+	}
+	for _, name := range []string{"ao-1.txt", "ao-2.txt"} {
+		if _, err := os.Stat(filepath.Join(worktree, name)); err != nil {
+			t.Fatalf("%s is missing from the run worktree: %v", name, err)
+		}
+	}
+	// The second integration could not fast-forward, so it merged.
+	if parents := strings.Fields(runGit(t, worktree, "rev-list", "--parents", "-n", "1", "HEAD")); len(parents) != 3 {
+		t.Fatalf("HEAD parents = %v, want a merge commit", parents)
+	}
+	if status := runGit(t, worktree, "status", "--porcelain"); status != "" {
+		t.Fatalf("run worktree is dirty: %q", status)
+	}
+}
+
+func TestAgentSessionsConflictingSubtasksFailWithoutTouchingTheRun(t *testing.T) {
+	_, worktree := newAgentRun(t)
+	api := newFakeAgentAPI(t, worktree, func(dir string, _ int) agentTurn {
+		mustWrite(t, filepath.Join(dir, "README.md"), "rewritten by "+filepath.Base(dir)+"\n")
+		return agentTurn{report: domain.ReportDone, activity: domain.ActivityWaitingInput}
+	})
+	agents := newTestAgentSessions(t, api)
+	first, err := agents.Implement(context.Background(), subtaskRequest(worktree, "one"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := agents.Implement(context.Background(), subtaskRequest(worktree, "two"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := agents.Integrate(context.Background(), worktree, first); err != nil {
+		t.Fatalf("first Integrate: %v", err)
+	}
+	head := runGit(t, worktree, "rev-parse", "HEAD")
+	err = agents.Integrate(context.Background(), worktree, second)
+	if !errors.Is(err, ports.ErrAgentAttemptFailed) || !strings.Contains(err.Error(), "README.md") {
+		t.Fatalf("second Integrate = %v, want a retryable conflict naming README.md", err)
+	}
+	if after := runGit(t, worktree, "rev-parse", "HEAD"); after != head {
+		t.Fatal("a conflicting merge moved the run")
+	}
+	if status := runGit(t, worktree, "status", "--porcelain"); status != "" {
+		t.Fatalf("the aborted merge left the run worktree dirty: %q", status)
 	}
 }

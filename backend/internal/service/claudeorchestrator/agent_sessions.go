@@ -73,6 +73,8 @@ type agentBinding struct {
 	sessionID domain.SessionID
 	projectID domain.ProjectID
 	branch    string
+	// base is the run commit the agent branch was cut from.
+	base string
 }
 
 // AgentSessions implements ports.AgentImplementer with real AO agent
@@ -181,21 +183,22 @@ func agentAttemptFailure(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ports.ErrAgentAttemptFailed, fmt.Sprintf(format, args...))
 }
 
-// Implement dispatches one attempt and integrates the agent's work.
-func (a *AgentSessions) Implement(ctx context.Context, request ports.AgentImplementRequest) (string, error) {
+// Implement dispatches one attempt and returns once the agent's work is
+// committed on its own branch. Independent subtasks may call it concurrently.
+func (a *AgentSessions) Implement(ctx context.Context, request ports.AgentImplementRequest) (ports.AgentWork, error) {
 	if a == nil {
-		return "", errors.New("agent sessions are not configured")
+		return ports.AgentWork{}, errors.New("agent sessions are not configured")
 	}
 	backend := a.backend.Load()
 	if backend == nil {
-		return "", errors.New("agent sessions are not connected to the AO session service yet")
+		return ports.AgentWork{}, errors.New("agent sessions are not connected to the AO session service yet")
 	}
 	if request.WorktreePath == "" || strings.TrimSpace(request.Task.ID) == "" {
-		return "", errors.New("agent request needs a run worktree and a subtask id")
+		return ports.AgentWork{}, errors.New("agent request needs a run worktree and a subtask id")
 	}
 	runHead, err := a.gitOutput(ctx, request.WorktreePath, "rev-parse", "HEAD")
 	if err != nil {
-		return "", err
+		return ports.AgentWork{}, err
 	}
 	key := request.WorktreePath + "\x00" + request.Task.ID
 	harness := a.HarnessFor(request.Task.Provider)
@@ -203,13 +206,13 @@ func (a *AgentSessions) Implement(ctx context.Context, request ports.AgentImplem
 
 	binding, reuse := a.lookup(key)
 	if reuse && request.Attempt > 1 {
-		if err := a.sendRetry(ctx, backend, binding, request); err != nil {
-			return "", err
+		if err := a.sendRetry(ctx, backend, binding, request, runHead); err != nil {
+			return ports.AgentWork{}, err
 		}
 	} else {
 		binding, err = a.spawn(ctx, backend, request, harness, runHead)
 		if err != nil {
-			return "", err
+			return ports.AgentWork{}, err
 		}
 		a.store(key, binding)
 	}
@@ -219,27 +222,24 @@ func (a *AgentSessions) Implement(ctx context.Context, request ports.AgentImplem
 		if ctx.Err() != nil {
 			a.killQuietly(backend, binding.sessionID)
 		}
-		return "", err
+		return ports.AgentWork{}, err
 	}
 	session, err := backend.sessions.Get(ctx, binding.sessionID)
 	if err != nil {
-		return "", fmt.Errorf("read agent session: %w", err)
+		return ports.AgentWork{}, fmt.Errorf("read agent session: %w", err)
 	}
 	sessionPath, err := a.verifySessionWorkspace(ctx, request.WorktreePath, session, binding.branch)
 	if err != nil {
-		return "", err
+		return ports.AgentWork{}, err
 	}
 	if err := a.commitAgentWork(ctx, sessionPath, request.Task); err != nil {
-		return "", err
-	}
-	if err := a.integrate(ctx, request.WorktreePath, runHead, binding.branch); err != nil {
-		return "", err
+		return ports.AgentWork{}, err
 	}
 	summary := fmt.Sprintf("%s agent session %s finished subtask %q", harness, binding.sessionID, request.Task.ID)
 	if note != "" {
 		summary += ": " + note
 	}
-	return boundedRedacted(summary), nil
+	return ports.AgentWork{Summary: boundedRedacted(summary), Branch: binding.branch, Base: binding.base}, nil
 }
 
 func (a *AgentSessions) spawn(ctx context.Context, backend *agentBackend, request ports.AgentImplementRequest, harness domain.AgentHarness, runHead string) (agentBinding, error) {
@@ -272,7 +272,7 @@ func (a *AgentSessions) spawn(ctx context.Context, backend *agentBackend, reques
 		_, _ = a.gitOutput(cleanupCtx, request.WorktreePath, "branch", "-D", branch)
 		return agentBinding{}, fmt.Errorf("spawn %s agent session: %s", harness, boundedRedacted(err.Error()))
 	}
-	return agentBinding{sessionID: session.ID, projectID: projectID, branch: branch}, nil
+	return agentBinding{sessionID: session.ID, projectID: projectID, branch: branch, base: runHead}, nil
 }
 
 // createAgentBranch cuts a fresh branch for the agent from the run's HEAD.
@@ -306,7 +306,7 @@ func (a *AgentSessions) createAgentBranch(ctx context.Context, worktree, runBran
 	return "", fmt.Errorf("no unused agent branch name for %q", base)
 }
 
-func (a *AgentSessions) sendRetry(ctx context.Context, backend *agentBackend, binding agentBinding, request ports.AgentImplementRequest) error {
+func (a *AgentSessions) sendRetry(ctx context.Context, backend *agentBackend, binding agentBinding, request ports.AgentImplementRequest, runHead string) error {
 	session, err := backend.sessions.Get(ctx, binding.sessionID)
 	if err != nil {
 		return fmt.Errorf("read agent session: %w", err)
@@ -317,6 +317,11 @@ func (a *AgentSessions) sendRetry(ctx context.Context, backend *agentBackend, bi
 	if session.Activity.State == domain.ActivityBlocked {
 		// Never type into a session that is waiting on an approval dialog.
 		return agentAttemptFailure("agent session %s is waiting for an approval in AO", binding.sessionID)
+	}
+	// Bring the run's latest work (including other subtasks) into the agent's
+	// branch so the retry builds on what will actually be validated.
+	if path := strings.TrimSpace(session.Metadata.WorkspacePath); path != "" {
+		a.syncWithRun(ctx, path, runHead)
 	}
 	if err := backend.sessions.Send(ctx, binding.sessionID, agentRetryPrompt(request), nil); err != nil {
 		return fmt.Errorf("send the retry to agent session %s: %s", binding.sessionID, boundedRedacted(err.Error()))
@@ -469,20 +474,29 @@ func (a *AgentSessions) commitAgentWork(ctx context.Context, sessionPath string,
 	return err
 }
 
-// integrate fast-forwards the run worktree to the agent branch after checking
-// that the agent built on the run's HEAD and touched no protected paths.
-func (a *AgentSessions) integrate(ctx context.Context, worktree, runHead, branch string) error {
-	tip, err := a.gitOutput(ctx, worktree, "rev-parse", "refs/heads/"+branch)
+// Integrate merges an agent's committed branch into the run worktree. It
+// fast-forwards when it can and otherwise records a merge commit, after
+// checking that the agent built on its base and touched no protected paths.
+// A conflict with another subtask's work is a retryable attempt failure and
+// leaves the run worktree as it was. Callers serialize Integrate.
+func (a *AgentSessions) Integrate(ctx context.Context, worktree string, work ports.AgentWork) error {
+	if a == nil {
+		return errors.New("agent sessions are not configured")
+	}
+	if worktree == "" || work.Branch == "" || work.Base == "" {
+		return errors.New("agent work is missing its branch or base")
+	}
+	tip, err := a.gitOutput(ctx, worktree, "rev-parse", "refs/heads/"+work.Branch)
 	if err != nil {
 		return err
 	}
-	if tip == runHead {
+	if tip == work.Base {
 		return agentAttemptFailure("the agent made no changes")
 	}
-	if _, err := a.gitOutput(ctx, worktree, "merge-base", "--is-ancestor", runHead, tip); err != nil {
+	if _, err := a.gitOutput(ctx, worktree, "merge-base", "--is-ancestor", work.Base, tip); err != nil {
 		return agentAttemptFailure("the agent rewrote history; its branch no longer builds on the run")
 	}
-	changed, err := a.gitOutput(ctx, worktree, "diff", "--name-only", "-z", runHead, tip)
+	changed, err := a.gitOutput(ctx, worktree, "diff", "--name-only", "-z", work.Base, tip)
 	if err != nil {
 		return err
 	}
@@ -495,10 +509,42 @@ func (a *AgentSessions) integrate(ctx context.Context, worktree, runHead, branch
 			return agentAttemptFailure("the agent changed a protected path %q", boundedRedacted(name))
 		}
 	}
-	if _, err := a.gitOutput(ctx, worktree, "merge", "--ff-only", "--quiet", tip); err != nil {
-		return fmt.Errorf("fast-forward the run worktree: %w", err)
+	head, err := a.gitOutput(ctx, worktree, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	if head == tip {
+		return nil
+	}
+	if _, err := a.gitOutput(ctx, worktree, "merge-base", "--is-ancestor", head, tip); err == nil {
+		if _, err := a.gitOutput(ctx, worktree, "merge", "--ff-only", "--quiet", tip); err != nil {
+			return fmt.Errorf("fast-forward the run worktree: %w", err)
+		}
+		return nil
+	}
+	// Another subtask moved the run on: merge, never rewrite.
+	if _, err := a.gitOutput(ctx, worktree,
+		"-c", "user.name="+a.authorName, "-c", "user.email="+a.authorEmail,
+		"merge", "--no-ff", "--no-edit", "--no-verify", "--quiet", "-m", "Merge agent work from "+work.Branch, tip); err != nil {
+		conflicts, _ := a.gitOutput(ctx, worktree, "diff", "--name-only", "--diff-filter=U")
+		_, _ = a.gitOutput(context.WithoutCancel(ctx), worktree, "merge", "--abort")
+		return agentAttemptFailure("the agent's changes conflict with another subtask's work in: %s",
+			boundedRedacted(strings.Join(strings.Fields(conflicts), ", ")))
 	}
 	return nil
+}
+
+// syncWithRun merges the run's current commit into the agent's branch, in the
+// agent's own worktree. A conflict is left for the agent to resolve.
+func (a *AgentSessions) syncWithRun(ctx context.Context, sessionPath, runHead string) {
+	if _, err := a.gitOutput(ctx, sessionPath, "merge-base", "--is-ancestor", runHead, "HEAD"); err == nil {
+		return
+	}
+	if _, err := a.gitOutput(ctx, sessionPath,
+		"-c", "user.name="+a.authorName, "-c", "user.email="+a.authorEmail,
+		"merge", "--no-edit", "--no-verify", "--quiet", "-m", "Bring in the run's latest work", runHead); err != nil {
+		_, _ = a.gitOutput(context.WithoutCancel(ctx), sessionPath, "merge", "--abort")
+	}
 }
 
 func (a *AgentSessions) gitOutput(ctx context.Context, dir string, args ...string) (string, error) {

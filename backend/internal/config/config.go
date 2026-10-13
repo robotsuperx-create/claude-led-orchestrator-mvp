@@ -173,15 +173,26 @@ type ClaudeOrchestratorWorkerConfig struct {
 	AgentHarnesses map[ports.ModelProvider]domain.AgentHarness
 	// AgentProjectID optionally names the AO project for agent sessions. When
 	// empty, the registered project whose path is ProjectRoot is used.
-	AgentProjectID     string
-	Commands           []ClaudeOrchestratorCommandConfig
-	Timeout            time.Duration
-	SandboxEnabled     bool
-	SandboxImage       string
-	SandboxMemoryBytes int64
-	SandboxNanoCPUs    int64
-	SandboxPIDs        int64
+	AgentProjectID string
+	// MaxParallelSubtasks bounds how many independent subtasks run at once in
+	// agents mode. Model mode always runs one at a time, since model edits are
+	// applied straight into the shared run worktree.
+	MaxParallelSubtasks int
+	Commands            []ClaudeOrchestratorCommandConfig
+	Timeout             time.Duration
+	SandboxEnabled      bool
+	SandboxImage        string
+	SandboxMemoryBytes  int64
+	SandboxNanoCPUs     int64
+	SandboxPIDs         int64
 }
+
+// Parallel agent subtasks: the default, and a ceiling that keeps a run from
+// starting more agent sessions than one machine can sensibly host.
+const (
+	DefaultClaudeOrchestratorMaxParallelSubtasks = 3
+	MaxClaudeOrchestratorParallelSubtasks        = 8
+)
 
 // Worker modes.
 const (
@@ -601,6 +612,18 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
 		cfg.Worker.AgentHarnesses[provider] = harness
 	}
 	cfg.Worker.AgentProjectID = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_AGENT_PROJECT_ID"))
+	parallel, err := parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS")
+	if err != nil {
+		return err
+	}
+	switch {
+	case parallel == 0:
+		cfg.Worker.MaxParallelSubtasks = DefaultClaudeOrchestratorMaxParallelSubtasks
+	case parallel > MaxClaudeOrchestratorParallelSubtasks:
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS must be at most %d", MaxClaudeOrchestratorParallelSubtasks)
+	default:
+		cfg.Worker.MaxParallelSubtasks = int(parallel)
+	}
 	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
 		if err != nil {

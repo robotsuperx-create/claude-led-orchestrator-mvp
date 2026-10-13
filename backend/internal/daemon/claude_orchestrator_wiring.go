@@ -259,8 +259,18 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
 		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
 		Workspaces:          workspaces,
+		MaxParallelSubtasks: maxParallelSubtasks(cfg.ClaudeOrchestrator.Worker, agentsMode),
 	})
 	return wiring, nil
+}
+
+// maxParallelSubtasks allows parallel subtasks only in agents mode, where each
+// agent codes in its own worktree; model edits share the run worktree.
+func maxParallelSubtasks(worker config.ClaudeOrchestratorWorkerConfig, agentsMode bool) int {
+	if !agentsMode || worker.MaxParallelSubtasks < 1 {
+		return 1
+	}
+	return worker.MaxParallelSubtasks
 }
 
 func toOrchestratorCommands(commands []config.ClaudeOrchestratorCommandConfig) []claudeorchestrator.ValidationCommand {
