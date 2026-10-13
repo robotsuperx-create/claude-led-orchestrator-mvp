@@ -2,6 +2,7 @@ import { createInstance, type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { APP_LOCALES, DEFAULT_LOCALE, type AppLocale } from "./locales";
 import {
+	arMessages,
 	deMessages,
 	enMessages,
 	esMessages,
@@ -16,6 +17,7 @@ export type TranslationCatalogs = Record<AppLocale, Record<string, string | stri
 
 export const appCatalogs: TranslationCatalogs = {
 	en: enMessages,
+	ar: arMessages,
 	"zh-CN": zhCNMessages,
 	ja: jaMessages,
 	ko: koMessages,

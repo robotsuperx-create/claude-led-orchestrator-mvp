@@ -9,7 +9,7 @@ export function CodexAccountDetails({ account, resetCreditSupported, mutationDis
 	const { t, i18n } = useTranslation();
 	if (account.status === "signed_out") return null;
 	if (account.authentication.state === "unauthorized") {
-		return <div className="ml-9 mt-4 space-y-5 pb-1 text-xs"><CapacityNotice reason={t(codexAccountReasonKey(account.authentication.reasonCode))} tone="warning" /></div>;
+		return <div className="ms-9 mt-4 space-y-5 pb-1 text-xs"><CapacityNotice reason={t(codexAccountReasonKey(account.authentication.reasonCode))} tone="warning" /></div>;
 	}
 	const plan = formatPlanLabel(account.capacity.plan, t);
 	const hasOverall = Boolean(account.capacity.overall?.primary || account.capacity.overall?.secondary);
@@ -21,7 +21,7 @@ export function CodexAccountDetails({ account, resetCreditSupported, mutationDis
 	const capacityNotice = capacityNoticeFor(account, t, i18n.language);
 	const usageUnavailable = !hasCapacityDetails && account.capacity.freshness !== "checking";
 	return (
-		<div className="ml-9 mt-4 space-y-5 pb-1 text-xs">
+		<div className="ms-9 mt-4 space-y-5 pb-1 text-xs">
 			{capacityNotice ? <CapacityNotice {...capacityNotice} /> : null}
 			{plan || resetCredits ? <PlanCard plan={plan} resetCredits={resetCredits} resetEnabled={resetCreditSupported && !mutationDisabled} resetBusy={resetBusy} locale={i18n.language} onUseReset={onUseReset} /> : null}
 			{hasUsage ? <AccountActivity usage={usage} locale={i18n.language} /> : null}
@@ -53,13 +53,13 @@ function CapacityWindowRow({ window, label, reached, locale }: { window: Capacit
 	const tone = reached || remaining <= 0 ? "exhausted" : remaining <= 25 ? "near" : "available";
 	const fillClass = tone === "exhausted" ? "bg-error" : tone === "near" ? "bg-warning" : "bg-foreground/80";
 	const valueClass = tone === "exhausted" ? "text-error" : tone === "near" ? "text-warning" : "text-muted-foreground";
-	return <div className="grid gap-2 px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,11rem)_auto] sm:items-center sm:gap-4"><div className="min-w-0"><p className="font-medium text-foreground">{label}</p>{reset ? <p className="mt-0.5 text-muted-foreground" title={reset.full}>{t("settings.codexAccounts.capacityResets", { value: reset.visible })}</p> : null}</div><div role="progressbar" aria-label={t("settings.codexAccounts.remainingForLimit", { label, value: percentage })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={remaining} className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full transition-[width] ${fillClass}`} style={{ width: `${remaining}%` }} /></div><p className={`whitespace-nowrap text-right tabular-nums ${valueClass}`}>{t("settings.codexAccounts.percentLeft", { value: percentage })}</p></div>;
+	return <div className="grid gap-2 px-3.5 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,11rem)_auto] sm:items-center sm:gap-4"><div className="min-w-0"><p className="font-medium text-foreground">{label}</p>{reset ? <p className="mt-0.5 text-muted-foreground" title={reset.full}>{t("settings.codexAccounts.capacityResets", { value: reset.visible })}</p> : null}</div><div role="progressbar" aria-label={t("settings.codexAccounts.remainingForLimit", { label, value: percentage })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={remaining} className="h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full transition-[width] ${fillClass}`} style={{ width: `${remaining}%` }} /></div><p className={`whitespace-nowrap text-end tabular-nums ${valueClass}`}>{t("settings.codexAccounts.percentLeft", { value: percentage })}</p></div>;
 }
 
 function PlanCard({ plan, resetCredits, resetEnabled, resetBusy, locale, onUseReset }: { plan: string | null; resetCredits: ResetCreditsValue | null | undefined; resetEnabled: boolean; resetBusy: boolean; locale: string; onUseReset: () => void }) {
 	const { t } = useTranslation();
 	const expiry = formatResetTime(resetCredits?.nearestExpiresAt, locale);
-	return <section aria-labelledby="codex-account-plan-heading"><h4 id="codex-account-plan-heading" className="mb-2 font-medium text-foreground">{t("settings.codexAccounts.yourPlan")}</h4><div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/15 px-3.5 py-3">{plan ? <p className="text-sm font-medium text-foreground">{plan}</p> : <span />}{resetCredits ? <div className="flex items-center gap-3"><div className="text-right"><p className="font-medium text-foreground">{resetCredits.availableCount > 0 ? t("settings.codexAccounts.resetCount", { count: resetCredits.availableCount }) : t("settings.codexAccounts.noResetsAvailable")}</p>{expiry ? <p className="mt-0.5 text-muted-foreground" title={expiry.full}>{t("settings.codexAccounts.resetExpires", { value: expiry.visible })}</p> : null}</div>{resetCredits.availableCount > 0 && resetEnabled ? <Button type="button" size="sm" variant="outline" disabled={resetBusy} onClick={onUseReset}>{resetBusy ? <LoaderCircle className="animate-spin" aria-label={t("settings.codexAccounts.resetting")} /> : <RotateCcw aria-hidden="true" />}{t("settings.codexAccounts.useReset")}</Button> : null}</div> : null}</div></section>;
+	return <section aria-labelledby="codex-account-plan-heading"><h4 id="codex-account-plan-heading" className="mb-2 font-medium text-foreground">{t("settings.codexAccounts.yourPlan")}</h4><div className="flex flex-wrap items-center justify-between gap-4 rounded-md border border-border/70 bg-muted/15 px-3.5 py-3">{plan ? <p className="text-sm font-medium text-foreground">{plan}</p> : <span />}{resetCredits ? <div className="flex items-center gap-3"><div className="text-end"><p className="font-medium text-foreground">{resetCredits.availableCount > 0 ? t("settings.codexAccounts.resetCount", { count: resetCredits.availableCount }) : t("settings.codexAccounts.noResetsAvailable")}</p>{expiry ? <p className="mt-0.5 text-muted-foreground" title={expiry.full}>{t("settings.codexAccounts.resetExpires", { value: expiry.visible })}</p> : null}</div>{resetCredits.availableCount > 0 && resetEnabled ? <Button type="button" size="sm" variant="outline" disabled={resetBusy} onClick={onUseReset}>{resetBusy ? <LoaderCircle className="animate-spin" aria-label={t("settings.codexAccounts.resetting")} /> : <RotateCcw aria-hidden="true" />}{t("settings.codexAccounts.useReset")}</Button> : null}</div> : null}</div></section>;
 }
 
 function AccountActivity({ usage, locale }: { usage: UsageSummaryValue | null | undefined; locale: string }) {

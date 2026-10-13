@@ -1110,6 +1110,7 @@
 	"settings.language.ko": "한국어",
 	"settings.language.es": "Español",
 	"settings.language.fr": "Français",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.ptBR": "Português (Brasil)",
 	"settings.models.autoRouteLabel": "자동",
@@ -2491,5 +2492,6 @@
 	"orchestrator.error.invalid_task": "데몬이 이 작업을 거부했습니다. 길이를 확인하고 다시 시도하세요.",
 	"orchestrator.error.not_found": "데몬이 더 이상 이 실행을 알지 못합니다.",
 	"orchestrator.error.already_finished": "이 실행은 이미 끝났습니다.",
-	"orchestrator.error.failed": "문제가 발생했습니다. 다시 시도하세요."
+	"orchestrator.error.failed": "문제가 발생했습니다. 다시 시도하세요.",
+	"chat.yesterdayAt": "어제 · {{time}}"
 }

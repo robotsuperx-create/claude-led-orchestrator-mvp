@@ -51,7 +51,7 @@ export function DropdownMenuItem({
 		<DropdownMenuPrimitive.Item
 			className={cn(
 				actionMenuItemClass,
-				inset && "pl-8",
+				inset && "ps-8",
 				className,
 			)}
 			{...props}
@@ -68,7 +68,7 @@ export function DropdownMenuLabel({
 		<DropdownMenuPrimitive.Label
 			className={cn(
 				actionMenuLabelClass,
-				inset && "pl-8",
+				inset && "ps-8",
 				className,
 			)}
 			{...props}
@@ -84,7 +84,7 @@ export function DropdownMenuSeparator({
 }
 
 export function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<"span">) {
-	return <span className={cn("ml-auto text-micro tracking-wide-md text-passive", className)} {...props} />;
+	return <span className={cn("ms-auto text-micro tracking-wide-md text-passive", className)} {...props} />;
 }
 
 export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
@@ -101,7 +101,7 @@ export function DropdownMenuSubTrigger({
 			{...props}
 		>
 			{children}
-			<ChevronRight aria-hidden="true" className="ml-auto size-3.5 shrink-0 text-passive" />
+			<ChevronRight aria-hidden="true" className="ms-auto size-3.5 shrink-0 text-passive" />
 		</DropdownMenuPrimitive.SubTrigger>
 	);
 }

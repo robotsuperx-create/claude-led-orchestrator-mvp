@@ -22,7 +22,7 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
 		>
 			<SwitchPrimitive.Thumb
 				data-slot="switch-thumb"
-				className="pointer-events-none block size-3 rounded-full bg-background shadow-sm ring-0 transition-transform duration-fast ease-out data-[state=unchecked]:translate-x-0.5 data-[state=checked]:translate-x-4 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground"
+				className="pointer-events-none block size-3 rounded-full bg-background shadow-sm ring-0 transition-transform duration-fast ease-out data-[state=unchecked]:translate-x-0.5 data-[state=checked]:translate-x-4 rtl:data-[state=unchecked]:-translate-x-0.5 rtl:data-[state=checked]:-translate-x-4 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground"
 			/>
 		</SwitchPrimitive.Root>
 	);

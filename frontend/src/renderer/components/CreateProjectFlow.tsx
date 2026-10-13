@@ -1282,7 +1282,7 @@ function CloudSignInPanel({
 	const { t } = useTranslation();
 	return (
 		<div className={cn(onboardingPanelClass, "flex flex-col items-center gap-4 px-4 py-6 text-center")}>
-			<Button type="button" variant="outline" size="icon" className="absolute left-3 top-3" aria-label={t("createProject.backToSource")} onClick={onBack}>
+			<Button type="button" variant="outline" size="icon" className="absolute start-3 top-3" aria-label={t("createProject.backToSource")} onClick={onBack}>
 				<ChevronRight className="size-4 rotate-180" aria-hidden="true" />
 			</Button>
 			<Cloud className="size-6 text-foreground" aria-hidden="true" />
@@ -1714,7 +1714,7 @@ function CloudProjectCard({
 		<div className={onboardingPanelClass}>
 			{dialog ? (
 				<>
-					<Dialog.Title className={cn(onboardingPanelTitleClass, onClose && "pr-12")}>{t("createProject.cloudCreate")}</Dialog.Title>
+					<Dialog.Title className={cn(onboardingPanelTitleClass, onClose && "pe-12")}>{t("createProject.cloudCreate")}</Dialog.Title>
 					<Dialog.Description className="sr-only">{t("createProject.cloudDescription")}</Dialog.Description>
 				</>
 			) : (
@@ -1723,7 +1723,7 @@ function CloudProjectCard({
 			{dialog && onClose ? (
 				<button
 					type="button"
-					className="settings-close-button absolute right-3 top-3 z-10"
+					className="settings-close-button absolute end-3 top-3 z-10"
 					aria-label={t("createProject.closeDialog")}
 					disabled={isCreating}
 					onClick={onClose}
@@ -1742,7 +1742,7 @@ function CloudProjectCard({
 					{!appConnected || noRepositoriesShared ? (
 						<button
 							type="button"
-							className="flex w-full items-center gap-3 rounded-lg border border-border/50 bg-[var(--color-bg-import-card)] px-4 py-3 text-left transition-colors hover:bg-accent/50 active:bg-accent disabled:opacity-60"
+							className="flex w-full items-center gap-3 rounded-lg border border-border/50 bg-[var(--color-bg-import-card)] px-4 py-3 text-start transition-colors hover:bg-accent/50 active:bg-accent disabled:opacity-60"
 							disabled={isCreating || githubOAuthBusy}
 							onClick={() => void connectGitHub()}
 						>
@@ -1762,7 +1762,7 @@ function CloudProjectCard({
 								</span>
 							</span>
 							{githubOAuthBusy && (
-								<span className="ml-auto size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+								<span className="ms-auto size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 							)}
 						</button>
 					) : (
@@ -1790,7 +1790,7 @@ function CloudProjectCard({
 					{appConnected && (githubAppRepos.data?.length ?? 0) > 0 ? (
 						<button
 							type="button"
-							className="ml-auto block text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+							className="ms-auto block text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
 							disabled={isCreating || githubOAuthBusy}
 							onClick={() => void connectGitHub()}
 						>
@@ -1963,7 +1963,7 @@ function ImportSourcePicker({
 					<div className="overflow-hidden rounded-md border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-modal)]">
 						<button
 							type="button"
-							className="group flex min-h-[76px] w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-accent/50 active:bg-accent disabled:pointer-events-none disabled:opacity-50"
+							className="group flex min-h-[76px] w-full items-center gap-3 px-3.5 py-3 text-start hover:bg-accent/50 active:bg-accent disabled:pointer-events-none disabled:opacity-50"
 							aria-label={t("createProject.cloudTitle")}
 							disabled={disabled}
 							onClick={onCloudSelect}
@@ -1984,7 +1984,7 @@ function ImportSourcePicker({
 							<button
 								key={source}
 								type="button"
-								className="group flex min-h-[76px] items-center gap-3 border-b border-[var(--color-border-import-modal)] px-3.5 py-3 text-left hover:bg-accent/50 active:bg-accent disabled:pointer-events-none disabled:opacity-50 last:border-b-0"
+								className="group flex min-h-[76px] items-center gap-3 border-b border-[var(--color-border-import-modal)] px-3.5 py-3 text-start hover:bg-accent/50 active:bg-accent disabled:pointer-events-none disabled:opacity-50 last:border-b-0"
 								aria-label={label}
 								disabled={disabled}
 								onClick={() => onSelect(source)}
@@ -1999,7 +1999,7 @@ function ImportSourcePicker({
 							</button>
 						))}
 						{onCreateStandaloneAgent ? (
-							<button type="button" className="group flex min-h-[76px] items-center gap-3 px-3.5 py-3 text-left hover:bg-accent/50" aria-label={t("home.newStandaloneAgent")} disabled={disabled} onClick={createStandaloneAgent}>
+							<button type="button" className="group flex min-h-[76px] items-center gap-3 px-3.5 py-3 text-start hover:bg-accent/50" aria-label={t("home.newStandaloneAgent")} disabled={disabled} onClick={createStandaloneAgent}>
 								<span className="grid w-9 shrink-0 place-items-center text-muted-foreground group-hover:text-foreground">
 									<MessageSquarePlus className="size-5" aria-hidden="true" strokeWidth={1.8} />
 								</span>
@@ -2012,7 +2012,7 @@ function ImportSourcePicker({
 			{dialog && onClose ? (
 				<button
 					type="button"
-					className="settings-close-button absolute right-3 top-3"
+					className="settings-close-button absolute end-3 top-3"
 					aria-label={t("createProject.closeDialog")}
 					disabled={closeDisabled ?? disabled}
 					onClick={onClose}
@@ -2156,7 +2156,7 @@ function ProjectImportDialog({
 						<Button type="button" variant="outline" size="icon" aria-label={t("createProject.backToSource")} disabled={disabled} onClick={onBack}>
 							<ChevronRight className="size-4 rotate-180" aria-hidden="true" />
 						</Button>
-						<div className="min-w-0 flex-1 pr-8">
+						<div className="min-w-0 flex-1 pe-8">
 							<Dialog.Title className="text-[18px] font-semibold text-[var(--color-text-import-title)]">
 								{step === "prepare_git"
 									? t("createProject.prepareProjectTitle")
@@ -2196,7 +2196,7 @@ function ProjectImportDialog({
 							</p>
 						) : null}
 						{validation.warning ? (
-							<div className="border-l-2 border-amber-500/60 pl-3 text-[12px] leading-5 text-muted-foreground">
+							<div className="border-s-2 border-amber-500/60 ps-3 text-[12px] leading-5 text-muted-foreground">
 								{validation.warning}
 							</div>
 						) : null}
@@ -2290,7 +2290,7 @@ function ProjectImportDialog({
 																animate={{ opacity: 1, filter: "blur(0px)" }}
 																exit={{ opacity: 0, filter: "blur(2px)" }}
 																transition={{ duration: 0.15, ease: "easeOut" }}
-																className="absolute right-0 top-0 max-w-[65%] truncate overflow-hidden whitespace-nowrap text-right text-[12px] leading-5 text-destructive"
+																className="absolute end-0 top-0 max-w-[65%] truncate overflow-hidden whitespace-nowrap text-end text-[12px] leading-5 text-destructive"
 																role="alert"
 															>
 																{availability.message ?? t("createProject.githubRepoUnavailable")}
@@ -2304,7 +2304,7 @@ function ProjectImportDialog({
 														aria-label={t("createProject.githubRepositoryName")}
 														aria-describedby={githubNameDescription}
 														aria-invalid={availability.state === "unavailable" ? true : undefined}
-														className="h-8 bg-[var(--color-bg-import-card)] pr-8 font-mono text-[12px]"
+														className="h-8 bg-[var(--color-bg-import-card)] pe-8 font-mono text-[12px]"
 														disabled={disabled}
 														value={githubRepository?.name ?? ""}
 														onChange={(event) => {
@@ -2320,7 +2320,7 @@ function ProjectImportDialog({
 																animate={{ opacity: 1, filter: "blur(0px)" }}
 																exit={{ opacity: 0, filter: "blur(2px)" }}
 																transition={{ duration: 0.15, ease: "easeOut" }}
-																className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
+																className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2"
 																aria-label={t("createProject.githubRepoChecking")}
 																role="status"
 															>
@@ -2492,7 +2492,7 @@ function CreateProjectFolderDialog({
 						>
 							<ChevronRight className="size-4 rotate-180" aria-hidden="true" />
 						</Button>
-						<div className="min-w-0 flex-1 pr-8">
+						<div className="min-w-0 flex-1 pe-8">
 							<Dialog.Title className="text-[18px] font-semibold text-[var(--color-text-import-title)]">
 								{isWorkspace ? t("createProject.importWorkspace") : t("createProject.importProject")}
 							</Dialog.Title>
@@ -2526,7 +2526,7 @@ function CreateProjectFolderDialog({
 								{error && !isWorkspace && (
 									<div className="rounded-lg border border-destructive/40 bg-destructive/10">
 										<div className="border-b border-destructive/30 px-3 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-destructive">
-											<span className="mr-2 inline-block size-2 rounded-full bg-destructive" aria-hidden="true" />
+											<span className="me-2 inline-block size-2 rounded-full bg-destructive" aria-hidden="true" />
 											{isWorkspace ? t("createProject.importFailedWorkspace") : t("createProject.importFailedProject")}
 										</div>
 						<div className="px-3 py-2 text-[12px] leading-5 text-destructive">{error}</div>
@@ -2594,12 +2594,12 @@ function ImportRepoRow({ failed = false, onSetup, repo, setupExpanded = false }:
 	const isPlainFolder = repo.needsGitInit && !repo.isRepo && !needsSetup;
 	const repositoryUrl = !failed && !needsSetup && !isPlainFolder ? repositoryWebUrl(repo.remote) : null;
 	return (
-		<div className={cn("flex shrink-0 items-center gap-2.5 py-1.5 pl-3", isPlainFolder ? "pr-1.5" : "pr-3")}>
+		<div className={cn("flex shrink-0 items-center gap-2.5 py-1.5 ps-3", isPlainFolder ? "pe-1.5" : "pe-3")}>
 			<div className="flex size-4 shrink-0 items-center justify-center">
 				{failed ? <XCircle className="size-4 text-destructive" aria-hidden="true" /> : isPlainFolder ? <Folder className="size-4 text-[var(--color-text-import-muted)]" aria-hidden="true" /> : repositoryAvatar ? <ImportRepositoryAvatar owner={repositoryAvatar.owner} url={repositoryAvatar.url} /> : <Folder className="size-4 text-[var(--color-text-import-muted)]" aria-hidden="true" />}
 			</div>
 			<div className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--color-text-import-title)]">{repo.name}</div>
-			<div className="flex max-w-[220px] shrink-0 items-center gap-1 truncate text-right text-[11px] text-[var(--color-text-import-muted)]">
+			<div className="flex max-w-[220px] shrink-0 items-center gap-1 truncate text-end text-[11px] text-[var(--color-text-import-muted)]">
 				{needsSetup ? onSetup ? <button type="button" aria-expanded={setupExpanded} className="rounded-sm border border-orange-400/40 bg-orange-500/15 px-2 py-0.5 text-orange-300 hover:bg-orange-500/25" onClick={onSetup}>{setupExpanded ? "Hide setup" : `${workspaceSetupLabel(repo)} · Set up`}</button> : <span className="rounded-sm border border-orange-400/40 bg-orange-500/15 px-2 py-0.5 text-orange-300">{t("createProject.setupRequired")}</span> : repositoryUrl ? <><GitBranch className="size-3.5 shrink-0" aria-hidden="true" /><AppLink className="truncate underline decoration-border underline-offset-2 hover:text-foreground" href={repositoryUrl} rel="noreferrer" target="_blank">{repo.branch}</AppLink></> : <><span className={cn("truncate", isPlainFolder && "rounded-sm bg-orange-500/15 px-2 py-0.5 text-orange-300")}>{isPlainFolder ? "Needs git init" : failed ? (repo.reason ?? t("createProject.repoCannotImport")) : repo.branch}</span></>}
 			</div>
 		</div>

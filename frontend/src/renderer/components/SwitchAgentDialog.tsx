@@ -366,10 +366,10 @@ export function SwitchAgentDialog({ agentSwitch, container, open, session, onOpe
 							<X className="size-icon-base" aria-hidden="true" />
 						</button>
 					</DialogClose>
-					<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">
+					<DialogTitle className="settings-dialog-title px-4 pe-12 pt-3">
 						{t("switchAgent.title")}
 					</DialogTitle>
-					<DialogDescription className="px-4 pr-12 pt-0.5 text-caption leading-4 text-muted-foreground">
+					<DialogDescription className="px-4 pe-12 pt-0.5 text-caption leading-4 text-muted-foreground">
 						{t("switchAgent.description", { current: agentLabel(session.provider) })}
 					</DialogDescription>
 

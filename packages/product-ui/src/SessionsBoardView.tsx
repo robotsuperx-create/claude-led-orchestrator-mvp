@@ -202,9 +202,9 @@ function BoardColumnView<TSession extends BoardSessionPresentation>({
 				<span className={cn("text-xs font-medium", column.titleClassName)}>
 					{column.label}
 				</span>
-				<span className="ml-auto tabular-nums text-xs leading-none text-passive">{ordered.length}</span>
+				<span className="ms-auto tabular-nums text-xs leading-none text-passive">{ordered.length}</span>
 			</div>
-			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto pl-3 pr-2 pb-3 pt-3">
+			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto ps-3 pe-2 pb-3 pt-3">
 				<div className="flex min-h-full flex-col gap-2.5">
 					{ordered.map((session) => (
 						<Fragment key={session.id}>{renderSessionCard(session)}</Fragment>
@@ -312,7 +312,7 @@ export function SessionCardView({
 			onClick={interactive ? onOpen : undefined}
 			role={interactive ? undefined : "listitem"}
 			className={cn(
-				"group relative w-full rounded-lg border border-border text-left transition-[background-color,box-shadow,transform] duration-[120ms] ease-out",
+				"group relative w-full rounded-lg border border-border text-start transition-[background-color,box-shadow,transform] duration-[120ms] ease-out",
 				badge.cardClassName ?? "border-border bg-surface",
 				interactive &&
 					"cursor-pointer hover:bg-interactive-hover focus-within:bg-interactive-hover active:scale-[0.99] has-[.pr-link:active]:scale-100",
@@ -339,7 +339,7 @@ export function SessionCardView({
 						{session.title}
 					</div>
 					{overlay || action ? (
-						<div className="relative z-10 -mr-1 shrink-0 self-center">
+						<div className="relative z-10 -me-1 shrink-0 self-center">
 							{overlay}
 							{action}
 						</div>
@@ -388,11 +388,11 @@ export function SessionCardView({
 						data-kanban-column={statusPresentation ? undefined : column.column}
 						data-testid="session-status"
 					>
-						{showStatusLoader ? <LoaderCircleIcon aria-hidden="true" className="mr-1 size-icon-2xs animate-spin" /> : null}
+						{showStatusLoader ? <LoaderCircleIcon aria-hidden="true" className="me-1 size-icon-2xs animate-spin" /> : null}
 						<span className="min-w-0 truncate">{renderedStatusLabel}</span>
 					</span>
 				</div>
-				<div className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-2xs text-muted-foreground">
+				<div className="ms-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-2xs text-muted-foreground">
 					{usage ? renderUsage(usage) : null}
 					{usage ? <span aria-hidden="true" className="text-border-strong">·</span> : null}
 					<span className="tabular-nums text-muted-foreground" title={labels.updatedAt(session.updatedAt)}>
@@ -501,12 +501,12 @@ function BoardPullRequestGroup({
 			<span className="truncate font-mono text-xs font-medium text-foreground">#{pr.number}</span>
 			<span className="sr-only">{statusLabel}</span>
 			{hasComments ? (
-				<div className="-ml-0.5 flex shrink-0 items-center pl-1">
+				<div className="-ms-0.5 flex shrink-0 items-center ps-1">
 					{(pr.reviewers ?? [])
 						.slice(0, 3)
 						.map((reviewer, index) => (
 							<UserAvatar
-								className={cn("size-5 rounded-full border-2 border-surface object-cover ring-1 ring-border", index > 0 && "-ml-1.5")}
+								className={cn("size-5 rounded-full border-2 border-surface object-cover ring-1 ring-border", index > 0 && "-ms-1.5")}
 								imageUrl={reviewer.avatarUrl}
 								key={`${reviewer.id}-${index}`}
 								name={reviewer.id}
@@ -518,7 +518,7 @@ function BoardPullRequestGroup({
 						{hasComments ? (
 							<ExternalLink
 								ariaLabel={`${pr.commentCount} comments on PR #${pr.number}`}
-								className={cn("ml-auto inline-flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground", linkClassName)}
+								className={cn("ms-auto inline-flex shrink-0 items-center gap-1 text-xs tabular-nums text-muted-foreground", linkClassName)}
 								href={pr.url}
 								stopPropagation
 							>
@@ -659,7 +659,7 @@ export const SessionsArchiveView = memo(function SessionsArchiveView<
 					direction="right"
 				/>
 				<span className="text-2xs font-medium tracking-wide-sm">{labels.archive}</span>
-				<span className="ml-1.5 font-mono text-micro text-passive">{sessions.length}</span>
+				<span className="ms-1.5 font-mono text-micro text-passive">{sessions.length}</span>
 			</button>
 			{/* Keep the sheet mounted after first open; height tracks `expanded`. */}
 			{cardsReady ? (

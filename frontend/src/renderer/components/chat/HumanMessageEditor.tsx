@@ -110,11 +110,11 @@ export function HumanMessageEditor({
 		) : null}
 		<div className="mt-2 flex min-h-7 items-center justify-end gap-1.5">
 			{error ? (
-				<span role="alert" className="mr-auto text-[11px] text-destructive">
+				<span role="alert" className="me-auto text-[11px] text-destructive">
 					{error}
 				</span>
 			) : busyMessage ? (
-				<span className="mr-auto text-[11px] text-muted-foreground">{busyMessage}</span>
+				<span className="me-auto text-[11px] text-muted-foreground">{busyMessage}</span>
 			) : null}
 			{onAbandonRecovery ? (
 				<Button

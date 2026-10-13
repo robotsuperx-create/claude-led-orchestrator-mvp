@@ -164,7 +164,7 @@ function Coder11xSectionInner({ titleHidden }: { titleHidden?: boolean }) {
 					<Label htmlFor="coder11x-token" className={onboardingFormLabelClass}>{t("settings.coder11x.tokenLabel")}</Label>
 					<p className={onboardingFieldHintClass}>{t("settings.coder11x.tokenHint")}</p>
 					<div className="relative">
-						<span className="pointer-events-none absolute inset-y-0 left-3 flex w-4 items-center justify-center text-muted-foreground">
+						<span className="pointer-events-none absolute inset-y-0 start-3 flex w-4 items-center justify-center text-muted-foreground">
 							<KeyRound className="size-4" aria-hidden="true" />
 						</span>
 						<Input
@@ -172,7 +172,7 @@ function Coder11xSectionInner({ titleHidden }: { titleHidden?: boolean }) {
 							type="password"
 							autoComplete="off"
 							spellCheck={false}
-							className="pl-10 font-mono text-[13px]"
+							className="ps-10 font-mono text-[13px]"
 							placeholder={tokenStored ? t("settings.coder11x.tokenStored") : t("settings.coder11x.tokenPlaceholder")}
 							disabled={busy}
 							value={token}

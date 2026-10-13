@@ -639,7 +639,7 @@ export function TerminalCacheProvider({
 			<div
 				ref={parkingRef}
 				aria-hidden="true"
-				className="pointer-events-none invisible fixed top-0 -left-[100000px]"
+				className="pointer-events-none invisible fixed top-0 -start-[100000px]"
 				data-testid="terminal-cache-parking"
 			/>
 			{/* The parking ref must commit before routed children run their layout
@@ -1279,7 +1279,7 @@ function AttachedTerminal({
 			    full top/right/bottom extent. The host fills the remaining
 			    content box, so FitAddon still measures it correctly and the absolute
 			    overlays (empty state, banner) keep covering the full padding box. */}
-			<div className="relative min-h-0 flex-1 pl-2">
+			<div className="relative min-h-0 flex-1 ps-2">
 				<XtermTerminal
 					ariaLabel={terminalTarget?.kind === "shell" ? t("terminal.shellAria") : t("terminal.sessionAria")}
 					fontSize={fontSize}

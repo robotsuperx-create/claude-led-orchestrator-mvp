@@ -48,14 +48,14 @@ export function AgentProviderGroup({
 					type="button"
 					aria-controls={contentId}
 					aria-expanded={expanded}
-					className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+					className="flex min-w-0 flex-1 items-center gap-3 rounded-sm text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
 					disabled={collapseLocked}
 					onClick={() => onExpandedChange(!expanded)}
 				>
 					{identity}
 					<ChevronDown
 						aria-hidden="true"
-						className={`ml-auto size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`}
+						className={`ms-auto size-4 shrink-0 text-muted-foreground transition-transform ${expanded ? "" : "-rotate-90"}`}
 					/>
 				</button> : <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>}
 				{action ? <div className="shrink-0">{action}</div> : null}

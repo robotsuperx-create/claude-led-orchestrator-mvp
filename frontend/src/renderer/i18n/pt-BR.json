@@ -1130,6 +1130,7 @@
 	"settings.language.ko": "한국어",
 	"settings.language.es": "Español",
 	"settings.language.fr": "Français",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.ptBR": "Português (Brasil)",
 	"settings.models.autoRouteLabel": "Automático",
@@ -2522,5 +2523,6 @@
 	"orchestrator.error.invalid_task": "O daemon recusou esta tarefa. Verifique o tamanho e tente de novo.",
 	"orchestrator.error.not_found": "O daemon não conhece mais esta execução.",
 	"orchestrator.error.already_finished": "Esta execução já terminou.",
-	"orchestrator.error.failed": "Algo deu errado. Tente novamente."
+	"orchestrator.error.failed": "Algo deu errado. Tente novamente.",
+	"chat.yesterdayAt": "Ontem · {{time}}"
 }

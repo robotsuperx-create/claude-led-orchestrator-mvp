@@ -322,7 +322,7 @@ export function TaskComposerView({
 											<button
 												type="button"
 												disabled={submission.isSubmitting}
-												className="absolute top-1 right-1 grid size-4.5 place-items-center rounded-full bg-background/80 text-muted-foreground hover:bg-background hover:text-foreground shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-50"
+												className="absolute top-1 end-1 grid size-4.5 place-items-center rounded-full bg-background/80 text-muted-foreground hover:bg-background hover:text-foreground shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-50"
 												aria-label={labels.removeFile(attachment.name)}
 												onClick={() => {
 													if (!submission.isSubmitting) attachments.onRemove(attachment.id);
@@ -332,7 +332,7 @@ export function TaskComposerView({
 											</button>
 										</div>
 									) : (
-										<div className="relative flex h-14 min-w-36 max-w-48 items-center gap-2 rounded-lg border border-border bg-surface pl-2.5 pr-8 py-1.5 text-xs text-foreground group">
+										<div className="relative flex h-14 min-w-36 max-w-48 items-center gap-2 rounded-lg border border-border bg-surface ps-2.5 pe-8 py-1.5 text-xs text-foreground group">
 											<FileText
 												className="size-7.5 shrink-0 rounded bg-input/60 p-1.5 text-muted-foreground"
 												aria-hidden="true"
@@ -348,7 +348,7 @@ export function TaskComposerView({
 											<button
 												type="button"
 												disabled={submission.isSubmitting}
-												className="absolute top-1 right-1 grid size-4.5 place-items-center rounded-full bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-50"
+												className="absolute top-1 end-1 grid size-4.5 place-items-center rounded-full bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground shadow-sm transition-colors disabled:pointer-events-none disabled:opacity-50"
 												aria-label={labels.removeFile(attachment.name)}
 												onClick={() => {
 													if (!submission.isSubmitting) attachments.onRemove(attachment.id);

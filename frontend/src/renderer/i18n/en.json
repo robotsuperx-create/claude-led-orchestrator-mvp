@@ -1241,6 +1241,7 @@
 	"settings.navSectionsAria": "Settings sections",
 	"settings.keyboardShortcuts": "Keyboard shortcuts",
 	"settings.language": "Language",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.en": "English",
 	"settings.language.es": "Español",
@@ -2471,5 +2472,6 @@
 	"orchestrator.error.invalid_task": "The daemon rejected this task. Check its length and try again.",
 	"orchestrator.error.not_found": "This run is no longer known to the daemon.",
 	"orchestrator.error.already_finished": "This run has already finished.",
-	"orchestrator.error.failed": "Something went wrong. Try again."
+	"orchestrator.error.failed": "Something went wrong. Try again.",
+	"chat.yesterdayAt": "Yesterday · {{time}}"
 }

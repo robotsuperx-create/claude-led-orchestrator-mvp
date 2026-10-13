@@ -146,7 +146,7 @@
 	   TYPOGRAPHY
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--font-family-base: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+	--font-family-base: "Geist Variable", "Geist", "Noto Sans Arabic Variable", ui-sans-serif, system-ui, sans-serif;
 	--font-family-mono:
 		"Geist Mono Variable", "Geist Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font",
 		"FiraCode Nerd Font Mono", "FiraCode Nerd Font", "MesloLGS NF", ui-monospace, SFMono-Regular, Menlo, Monaco,

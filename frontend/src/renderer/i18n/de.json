@@ -1110,6 +1110,7 @@
 	"settings.language.ko": "한국어",
 	"settings.language.es": "Español",
 	"settings.language.fr": "Français",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.ptBR": "Português (Brasil)",
 	"settings.models.autoRouteLabel": "Auto",
@@ -2491,5 +2492,6 @@
 	"orchestrator.error.invalid_task": "Der Daemon hat diese Aufgabe abgelehnt. Prüfe die Länge und versuche es erneut.",
 	"orchestrator.error.not_found": "Der Daemon kennt diesen Lauf nicht mehr.",
 	"orchestrator.error.already_finished": "Dieser Lauf ist bereits beendet.",
-	"orchestrator.error.failed": "Etwas ist schiefgelaufen. Versuche es erneut."
+	"orchestrator.error.failed": "Etwas ist schiefgelaufen. Versuche es erneut.",
+	"chat.yesterdayAt": "Gestern · {{time}}"
 }

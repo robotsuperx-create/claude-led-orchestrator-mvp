@@ -212,7 +212,7 @@ export function SessionInterfaceSwitchDialog({
 					) : (
 						<button
 							type="button"
-							className="rounded-lg border border-border bg-background px-3.5 py-3 text-left transition-colors hover:border-border-strong hover:bg-muted disabled:opacity-50"
+							className="rounded-lg border border-border bg-background px-3.5 py-3 text-start transition-colors hover:border-border-strong hover:bg-muted disabled:opacity-50"
 							disabled={busy}
 							onClick={() => onChoose("drain")}
 						>
@@ -225,7 +225,7 @@ export function SessionInterfaceSwitchDialog({
 					)}
 					<button
 						type="button"
-						className="rounded-lg border border-border bg-background px-3.5 py-3 text-left transition-colors hover:border-warning/60 hover:bg-muted disabled:opacity-50"
+						className="rounded-lg border border-border bg-background px-3.5 py-3 text-start transition-colors hover:border-warning/60 hover:bg-muted disabled:opacity-50"
 						disabled={busy}
 						onClick={() => onChoose("interrupt")}
 					>

@@ -384,7 +384,7 @@ function DiffRowContentInner({ annotation, index, path, previousPath, row, runs,
 					t={t}
 					target={lineAnnotationTarget(path, previousPath, row, index)}
 				/>
-				<span className="w-9 shrink-0 select-none border-r border-border/50 bg-terminal px-1.5 text-right text-passive/70 tabular-nums">
+				<span className="w-9 shrink-0 select-none border-e border-border/50 bg-terminal px-1.5 text-end text-passive/70 tabular-nums">
 					{row.newNo ?? row.oldNo ?? ""}
 				</span>
 				<span
@@ -396,7 +396,7 @@ function DiffRowContentInner({ annotation, index, path, previousPath, row, runs,
 				>
 					{diffMarkerGlyph[row.kind]}
 				</span>
-				<span className={cn("pr-3", wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre")}>
+				<span className={cn("pe-3", wrap ? "whitespace-pre-wrap break-all" : "whitespace-pre")}>
 					{renderDiffRuns(runs, row.kind === "add")}
 				</span>
 			</div>
@@ -574,7 +574,7 @@ function SplitSide({
 					target={target}
 				/>
 			) : null}
-			<span className="w-9 shrink-0 select-none border-r border-border/50 bg-terminal px-1.5 text-right text-passive/70 tabular-nums">
+			<span className="w-9 shrink-0 select-none border-e border-border/50 bg-terminal px-1.5 text-end text-passive/70 tabular-nums">
 				{lineNo ?? ""}
 			</span>
 			<span className="min-w-0 whitespace-pre-wrap break-all px-1.5">{renderDiffRuns(runs, row.kind === "add")}</span>
@@ -649,8 +649,8 @@ export function LineFeedbackButtonControl({
 			className={cn(
 				"z-20 size-6 rounded-sm border-primary/70 shadow-md shadow-black/30 active:translate-y-0 active:scale-100",
 				gutter
-					? "relative mr-[-0.75rem]"
-					: "absolute inset-y-0 left-6 my-auto opacity-0 transition-opacity focus-visible:opacity-100 group-hover/line:opacity-100",
+					? "relative me-[-0.75rem]"
+					: "absolute inset-y-0 start-6 my-auto opacity-0 transition-opacity focus-visible:opacity-100 group-hover/line:opacity-100",
 			)}
 			data-utility-button={gutter ? "" : undefined}
 			onClick={(event) => {
@@ -767,7 +767,7 @@ export function FileAnnotationComposer({ annotation }: { annotation: FileAnnotat
 				) : null}
 				<div className="mt-1 flex items-center justify-end gap-1">
 					{/* Truncates rather than squeezing the buttons in a narrow split column. */}
-					<span className="mr-auto min-w-0 truncate text-caption text-passive">{t("files.feedbackShortcut")}</span>
+					<span className="me-auto min-w-0 truncate text-caption text-passive">{t("files.feedbackShortcut")}</span>
 					<Button
 						className="px-2 text-xs text-muted-foreground hover:text-foreground"
 						disabled={sending}

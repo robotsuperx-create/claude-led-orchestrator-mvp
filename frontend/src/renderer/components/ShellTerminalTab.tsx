@@ -196,7 +196,7 @@ export function ShellTerminalTab({
 				isConnected
 					? cn(
 							"session-tab-icon-floor session-tab-icon-floor--closable relative inline-flex max-w-shell-tab-max border-x border-transparent",
-							isEditing && "pl-2 pr-1",
+							isEditing && "ps-2 pe-1",
 						)
 					: "inline-flex min-w-shell-tab-min shrink-0 items-center gap-1 rounded-md px-2 py-1",
 				isConnected
@@ -209,14 +209,14 @@ export function ShellTerminalTab({
 			)}
 		>
 			{isConnected && isEditing ? (
-				<SquareTerminal aria-hidden="true" className={cn("mr-1", connectedGlyphClass)} />
+				<SquareTerminal aria-hidden="true" className={cn("me-1", connectedGlyphClass)} />
 			) : null}
 			{isEditing ? (
 				<input
 					aria-label={t("terminal.rename", { title })}
 					className={cn(
 						"rounded-sm border border-accent bg-background px-1 font-mono text-control font-semibold text-foreground shadow-sm outline-none ring-1 ring-accent",
-						isConnected ? "min-w-0 w-full text-left" : "min-w-flex-min max-w-shell-tab-max",
+						isConnected ? "min-w-0 w-full text-start" : "min-w-flex-min max-w-shell-tab-max",
 					)}
 					onBlur={commit}
 					onChange={(event) => setDraft(event.target.value)}
@@ -240,7 +240,7 @@ export function ShellTerminalTab({
 					className={cn(
 						"select-none truncate text-control focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
 						isConnected
-							? "inline-flex h-full min-w-0 cursor-pointer items-center pl-2 pr-2 text-left"
+							? "inline-flex h-full min-w-0 cursor-pointer items-center ps-2 pe-2 text-start"
 							: "min-w-flex-min max-w-shell-tab-max cursor-pointer",
 					isConnected ? "font-normal" : "font-mono font-semibold",
 						isActive ? "text-foreground" : "text-passive group-hover:text-foreground",
@@ -262,7 +262,7 @@ export function ShellTerminalTab({
 							<SquareTerminal
 								aria-hidden="true"
 								className={cn(
-									"mr-1",
+									"me-1",
 									connectedGlyphClass,
 									"group-hover:opacity-0 group-focus-within:opacity-0",
 								)}
@@ -279,7 +279,7 @@ export function ShellTerminalTab({
 							{...closeControl}
 							className={
 								isConnected
-									? "absolute inset-y-0 right-2 z-20 grid size-icon-sm place-items-center text-passive opacity-0 pointer-events-none before:absolute before:-inset-1.5 before:content-[''] transition-colors duration-fast ease-out hover:text-foreground group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 motion-reduce:transition-none"
+									? "absolute inset-y-0 end-2 z-20 grid size-icon-sm place-items-center text-passive opacity-0 pointer-events-none before:absolute before:-inset-1.5 before:content-[''] transition-colors duration-fast ease-out hover:text-foreground group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 motion-reduce:transition-none"
 									: "inline-flex h-control-sm w-control-sm shrink-0 items-center justify-center overflow-hidden text-passive opacity-0 transition-colors duration-fast ease-out hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50 motion-reduce:transition-none"
 								}
 							>

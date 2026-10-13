@@ -145,7 +145,7 @@ export const MermaidBlock = memo(function MermaidBlock({
 				<span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
 					mermaid
 				</span>
-				<div className="ml-auto flex items-center gap-1.5">
+				<div className="ms-auto flex items-center gap-1.5">
 					{svg !== undefined ? (
 						<div
 							role="group"

@@ -77,7 +77,7 @@ function ChildRow({ child, onOpen }: { child: OrchestratorChildView; onOpen: () 
 			data-testid="orchestrator-child-row"
 		>
 			<button
-				className="flex w-full min-w-0 cursor-pointer items-center gap-2 text-left"
+				className="flex w-full min-w-0 cursor-pointer items-center gap-2 text-start"
 				onClick={onOpen}
 				type="button"
 			>
@@ -91,7 +91,7 @@ function ChildRow({ child, onOpen }: { child: OrchestratorChildView; onOpen: () 
 				<span className="shrink-0 text-2xs text-settings-muted">{statusLabel}</span>
 			</button>
 			{child.prs.length > 0 ? (
-				<div className="mt-1 flex flex-wrap items-center gap-1.5 pl-4">
+				<div className="mt-1 flex flex-wrap items-center gap-1.5 ps-4">
 					{child.prs.map((pr) => (
 						<PullRequestChip key={pr.url || pr.number} pr={pr} />
 					))}

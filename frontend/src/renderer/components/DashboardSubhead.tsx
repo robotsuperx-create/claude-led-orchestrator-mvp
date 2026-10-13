@@ -20,7 +20,7 @@ export function DashboardSubhead({
 				{typeof count === "number" && <span className="font-mono text-control text-passive">{count}</span>}
 				<span className="text-md-sm text-passive">{subtitle}</span>
 			</div>
-			{actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
+			{actions ? <div className="ms-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
 		</div>
 	);
 }

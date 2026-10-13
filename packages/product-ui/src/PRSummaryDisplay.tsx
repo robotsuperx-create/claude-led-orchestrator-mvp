@@ -157,7 +157,7 @@ export function PRCardStatusSummary({
 								<PRCardStatusLink externalLink={externalLink} status={status} />
 							</div>
 							{status.detail || (status.key === "review" && reviewDetailsAction) ? (
-								<div className="mt-0.5 flex min-w-0 items-baseline gap-2 pl-4 text-2xs leading-4">
+								<div className="mt-0.5 flex min-w-0 items-baseline gap-2 ps-4 text-2xs leading-4">
 									{status.detail ? <span className="text-muted-foreground">{status.detail}</span> : null}
 									{status.key === "review" && reviewDetailsAction ? reviewDetailsAction : null}
 								</div>
@@ -172,7 +172,7 @@ export function PRCardStatusSummary({
 								<span aria-hidden="true" className="size-dot-sm shrink-0 rounded-full bg-current" />
 								{presentation.readiness.label}
 							</div>
-							<div className="mt-0.5 min-w-0 break-words pl-4 text-2xs leading-4 text-muted-foreground">{presentation.readiness.detail}</div>
+							<div className="mt-0.5 min-w-0 break-words ps-4 text-2xs leading-4 text-muted-foreground">{presentation.readiness.detail}</div>
 						</div>
 						{action ? <div className="shrink-0 self-center">{action}</div> : null}
 					</div>
@@ -223,7 +223,7 @@ export function PRCardStatusSummary({
 						</div>
 					</div>
 					{supporting.length > 0 ? (
-						<div className="min-w-0 pl-4">
+						<div className="min-w-0 ps-4">
 							<div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 font-mono text-2xs">
 								{supporting.map((status) => (
 									<span

@@ -156,7 +156,7 @@ export function ShellTerminalsView() {
 					<TooltipTrigger asChild>
 						<button
 							aria-label={t("shortcut.new-shell-terminal")}
-							className="ml-auto inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
+							className="ms-auto inline-flex size-control-sm shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
 							onClick={requestNewShellTerminal}
 							type="button"
 						>

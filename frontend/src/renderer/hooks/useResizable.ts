@@ -173,7 +173,7 @@ export function useResizable({
 			const seedWidth =
 				visualWidth !== undefined && Math.abs(visualWidth - widthRef.current) > 0.5 ? visualWidth : widthRef.current;
 			const startWidth = Math.min(maxValue(), Math.max(minValue(), seedWidth));
-			const sign = edge === "right" ? 1 : -1;
+			const sign = dragSign(edge, captureTarget);
 			// Nothing is written or persisted until the width actually changes: a
 			// press, or a drag in a window too narrow to resize, must not pin the
 			// panel at its narrow-window width.
@@ -222,7 +222,7 @@ export function useResizable({
 			const captureTarget = event.currentTarget;
 			captureTarget.setPointerCapture?.(pointerId);
 			const startX = event.clientX;
-			const sign = edge === "right" ? 1 : -1;
+			const sign = dragSign(edge, captureTarget);
 			let expanded = false;
 			document.body.classList.add("is-resizing-x");
 
@@ -270,4 +270,16 @@ export function useResizable({
 	}, [apply, defaultWidth, storageKey]);
 
 	return { onPointerDown, onCollapsedPointerDown, onDoubleClick };
+}
+
+/**
+ * Which pointer direction widens the panel. `edge` names the handle's side in
+ * left-to-right layout; inside right-to-left content the panel is mirrored, so
+ * the same handle sits on the opposite side and the direction flips.
+ */
+export function dragSign(edge: "left" | "right", handle: unknown): 1 | -1 {
+	const base = edge === "right" ? 1 : -1;
+	const mirrored =
+		typeof Element !== "undefined" && handle instanceof Element && getComputedStyle(handle).direction === "rtl";
+	return (mirrored ? -base : base) as 1 | -1;
 }

@@ -1148,16 +1148,16 @@ describe("Sidebar", () => {
 		const actionButtons = screen.getByLabelText("Pin session").parentElement;
 		const time = actions?.querySelector("time");
 
-		expect(openSession).toHaveClass("pr-[36px]");
+		expect(openSession).toHaveClass("pe-[36px]");
 		expect(openSession).toHaveClass(
-			"group-hover/session-row:pr-[50px]",
-			"group-focus-within/session-row:pr-[50px]",
+			"group-hover/session-row:pe-[50px]",
+			"group-focus-within/session-row:pe-[50px]",
 		);
 		expect(label).toHaveClass("min-w-0", "flex-1", "truncate");
 		expect(actions).toHaveAttribute("data-session-actions");
 		expect(actionButtons).toHaveClass(
 			"absolute",
-			"right-0.5",
+			"end-0.5",
 			"opacity-0",
 			"scale-[0.8]",
 			"duration-normal",
@@ -1169,12 +1169,12 @@ describe("Sidebar", () => {
 		expect(time).toHaveAttribute("datetime", lastUserMessageAt);
 		expect(time).toHaveClass(
 			"absolute",
-			"right-1.5",
+			"end-1.5",
 			"opacity-100",
 			"group-focus-within/session-row:opacity-0",
 		);
-		expect(openSession).toHaveClass("pl-1.5");
-		expect(openSession.closest("li")).toHaveClass("pl-0.5");
+		expect(openSession).toHaveClass("ps-1.5");
+		expect(openSession.closest("li")).toHaveClass("ps-0.5");
 	});
 
 	it("keeps session status and actions stable when an action receives keyboard focus", async () => {
@@ -2181,7 +2181,7 @@ describe("Sidebar", () => {
 		expect(input).not.toHaveClass("rounded-xs", "border-accent", "px-1", "focus-visible:ring-1");
 		expect(input.parentElement).toHaveAttribute("data-session-row");
 		expect(input.parentElement?.className).toContain("group/nav-row");
-		expect(input.parentElement).toHaveClass("text-foreground", "pr-1");
+		expect(input.parentElement).toHaveClass("text-foreground", "pe-1");
 		expect(input.parentElement).not.toHaveClass("bg-interactive-active");
 		const highlight = input.parentElement?.querySelector("[data-nav-row-highlight]");
 		expect(highlight).toBeTruthy();
@@ -2238,7 +2238,7 @@ describe("Sidebar", () => {
 		if (!projectRow) throw new Error("Project row button not found");
 		expect(projectRow).toHaveClass("pr-sidebar-project-actions");
 		expect(actionCluster).toHaveAttribute("data-project-actions");
-		expect(actionCluster).toHaveClass("right-0.5", "gap-px");
+		expect(actionCluster).toHaveClass("end-0.5", "gap-px");
 		expect(within(actionCluster as HTMLElement).getAllByRole("button")).toHaveLength(2);
 		expect(screen.getByLabelText("Project actions for Project One")).not.toHaveClass("opacity-0");
 	});

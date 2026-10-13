@@ -166,7 +166,7 @@ export function ShellTopbar({
 		<LayoutGroup id="shell-topbar">
 		<motion.header
 			className={
-				embedded ? "contents" : cn(topbarHeaderClass, "workspace-topbar-container", isSessionRoute && "pr-2")
+				embedded ? "contents" : cn(topbarHeaderClass, "workspace-topbar-container", isSessionRoute && "pe-2")
 			}
 			style={embedded ? undefined : { ...dragStyle, paddingLeft }}
 		>
@@ -348,7 +348,7 @@ export function ShellTopbar({
 									<span className="inline-flex" style={noDragStyle}>
 										<TopbarButton
 											aria-label={t("shell.openOrchestrator")}
-											className="topbar-control--labeled -mr-1"
+											className="topbar-control--labeled -me-1"
 											data-priority="secondary"
 											disabled={isSpawning || isProjectRestarting || isProvisioning}
 											onClick={() => void openOrchestrator()}

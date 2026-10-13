@@ -1130,6 +1130,7 @@
 	"settings.language.ko": "한국어",
 	"settings.language.es": "Español",
 	"settings.language.fr": "Français",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.ptBR": "Português (Brasil)",
 	"settings.models.autoRouteLabel": "Auto",
@@ -2522,5 +2523,6 @@
 	"orchestrator.error.invalid_task": "Le daemon a refusé cette tâche. Vérifiez sa longueur et réessayez.",
 	"orchestrator.error.not_found": "Le daemon ne connaît plus cette exécution.",
 	"orchestrator.error.already_finished": "Cette exécution est déjà terminée.",
-	"orchestrator.error.failed": "Un problème est survenu. Réessayez."
+	"orchestrator.error.failed": "Un problème est survenu. Réessayez.",
+	"chat.yesterdayAt": "Hier · {{time}}"
 }

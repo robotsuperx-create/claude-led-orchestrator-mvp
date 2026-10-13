@@ -63,7 +63,7 @@ export function CloudWorkspaceExplorer({ annotation = noAnnotation, session, isM
 	return (
 		<section aria-label={t("files.sessionFiles")} className="flex h-full min-h-0 flex-col bg-background text-foreground">
 			<header className="flex h-10 shrink-0 items-center gap-0.5 border-b border-border bg-surface px-2">
-				<label className="relative mr-1 min-w-0 flex-1"><Search className="pointer-events-none absolute left-2.5 top-1/2 size-icon-sm -translate-y-1/2 text-passive" /><Input aria-label={t("files.explorer.filter")} className="h-8 pl-8 font-mono text-xs" onChange={(event) => setFilter(event.target.value)} placeholder={t("files.explorer.filterPlaceholder")} value={filter} /></label>
+				<label className="relative me-1 min-w-0 flex-1"><Search className="pointer-events-none absolute start-2.5 top-1/2 size-icon-sm -translate-y-1/2 text-passive" /><Input aria-label={t("files.explorer.filter")} className="h-8 ps-8 font-mono text-xs" onChange={(event) => setFilter(event.target.value)} placeholder={t("files.explorer.filterPlaceholder")} value={filter} /></label>
 				{changedFiles.length > 0 ? <div aria-label={t("files.viewMode")} className="flex items-center rounded-md border border-border bg-muted/30 p-0.5" role="tablist">
 					<Button aria-selected={showChanges} className="h-6 px-2 text-2xs" onClick={() => setShowChanges(true)} role="tab" size="sm" variant={showChanges ? "secondary" : "ghost"}>{t("files.reviewChanges")}</Button>
 					<Button aria-selected={!showChanges} className="h-6 px-2 text-2xs" onClick={() => setShowChanges(false)} role="tab" size="sm" variant={!showChanges ? "secondary" : "ghost"}>{t("files.allFiles")}</Button>

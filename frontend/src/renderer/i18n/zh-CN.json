@@ -1085,6 +1085,7 @@
 	"settings.advanced": "高级",
 	"settings.keyboardShortcuts": "键盘快捷键",
 	"settings.language": "语言",
+	"settings.language.ar": "العربية",
 	"settings.language.de": "Deutsch",
 	"settings.language.en": "English",
 	"settings.language.es": "Español",
@@ -2473,5 +2474,6 @@
 	"orchestrator.error.invalid_task": "守护进程拒绝了此任务。请检查长度后重试。",
 	"orchestrator.error.not_found": "守护进程已不再记录此运行。",
 	"orchestrator.error.already_finished": "此运行已经结束。",
-	"orchestrator.error.failed": "出现问题，请重试。"
+	"orchestrator.error.failed": "出现问题，请重试。",
+	"chat.yesterdayAt": "昨天 · {{time}}"
 }

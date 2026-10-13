@@ -208,7 +208,7 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
 				{/* Hover-revealed, and focus-revealed so the keyboard can reach it. The
 				    timeline's whole point is that prose dominates; a permanent row of
 				    controls on every fence is the opposite. */}
-				<div className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/code:opacity-100">
+				<div className="ms-auto flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/code:opacity-100">
 					<button
 						type="button"
 						onClick={() => {
@@ -383,7 +383,7 @@ function InlineCode({ children }: { children?: ReactNode }) {
 				else onFileOpen(filePath, line);
 			}}
 			aria-label={`Open ${filePath} in Files`}
-			className="inline rounded text-left transition-colors hover:bg-interactive-hover"
+			className="inline rounded text-start transition-colors hover:bg-interactive-hover"
 		>
 			{code}
 		</button>
@@ -422,9 +422,9 @@ const COMPONENTS: Components = {
 			<p className="my-2 first:mt-0 last:mb-0">{compactEmoji(children)}</p>
 		),
 
-	ul: ({ children }) => <ul className="my-2 ml-4 list-disc space-y-1 first:mt-0">{children}</ul>,
+	ul: ({ children }) => <ul className="my-2 ms-4 list-disc space-y-1 first:mt-0">{children}</ul>,
 	ol: ({ children }) => (
-		<ol className="my-2 ml-4 list-decimal space-y-1 first:mt-0">{children}</ol>
+		<ol className="my-2 ms-4 list-decimal space-y-1 first:mt-0">{children}</ol>
 	),
 	li: ({ children, className }) => (
 		// A task-list item drops its bullet: the checkbox is the marker.
@@ -441,7 +441,7 @@ const COMPONENTS: Components = {
 				checked={Boolean(checked)}
 				readOnly
 				aria-label={checked ? "done" : "not done"}
-				className="mr-1.5 -ml-4 size-3 translate-y-[1px] accent-accent"
+				className="me-1.5 -ms-4 size-3 translate-y-[1px] accent-accent"
 			/>
 		) : null,
 
@@ -469,7 +469,7 @@ const COMPONENTS: Components = {
 	),
 	thead: ({ children }) => <thead className="bg-raised/40">{children}</thead>,
 	th: ({ children }) => (
-		<th className="border-b border-border px-2.5 py-1.5 text-left font-medium text-muted-foreground">
+		<th className="border-b border-border px-2.5 py-1.5 text-start font-medium text-muted-foreground">
 			{compactEmoji(children)}
 		</th>
 	),
@@ -478,7 +478,7 @@ const COMPONENTS: Components = {
 	),
 
 	blockquote: ({ children }) => (
-		<blockquote className="my-2.5 border-l-2 border-border-strong pl-3 text-muted-foreground">
+		<blockquote className="my-2.5 border-s-2 border-border-strong ps-3 text-muted-foreground">
 			{children}
 		</blockquote>
 	),

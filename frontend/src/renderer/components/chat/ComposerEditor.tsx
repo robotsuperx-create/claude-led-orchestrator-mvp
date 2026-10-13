@@ -393,7 +393,7 @@ export const ComposerEditor = forwardRef<
 
 	const placeholderNode = useCallback(
 		() => (
-			<div className="pointer-events-none absolute inset-x-0 top-0 py-1 pl-[7px] text-base! leading-relaxed text-muted-foreground">
+			<div className="pointer-events-none absolute inset-x-0 top-0 py-1 ps-[7px] text-base! leading-relaxed text-muted-foreground">
 				{placeholder}
 			</div>
 		),
@@ -427,7 +427,7 @@ export const ComposerEditor = forwardRef<
 								if (event.defaultPrevented) event.stopPropagation();
 							}}
 							className={cn(
-								"chat-composer-scrollbar max-h-40 min-h-[4.5rem] w-full overflow-y-auto overscroll-contain bg-transparent py-1 pl-[7px] pr-0 text-base! leading-relaxed text-foreground caret-foreground outline-none selection:bg-foreground selection:text-background",
+								"chat-composer-scrollbar max-h-40 min-h-[4.5rem] w-full overflow-y-auto overscroll-contain bg-transparent py-1 ps-[7px] pe-0 text-base! leading-relaxed text-foreground caret-foreground outline-none selection:bg-foreground selection:text-background",
 								disabled && "opacity-50",
 							)}
 						/>

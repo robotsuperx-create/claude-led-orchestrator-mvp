@@ -230,7 +230,7 @@ function SettingsDialogLayer({ settingsModal }: { settingsModal: SettingsModal }
 					ref={contentRef}
 				>
 					<div className="flex h-full min-h-0">
-						<aside className="flex w-48 shrink-0 flex-col border-r border-(--color-border-settings-dialog-header) bg-card">
+						<aside className="flex w-48 shrink-0 flex-col border-e border-(--color-border-settings-dialog-header) bg-card">
 							<p className="px-3 pb-1 pt-3 text-2xs font-semibold tracking-wider text-muted-foreground/60">{t("settings.title")}</p>
 							<nav aria-label={t("settings.navSectionsAria")} className="flex flex-col gap-0.5 p-2 pt-0">
 								{isProjectSettings
@@ -274,7 +274,7 @@ function SettingsDialogLayer({ settingsModal }: { settingsModal: SettingsModal }
 						{/* Main area — same bg as the app page */}
 						<div className="flex min-w-0 flex-1 flex-col bg-card">
 							<DialogHeader className={cn(settingsDialogHeaderClass, "flex h-auto shrink-0 flex-row items-center justify-between border-b-0 pb-3")}>
-								<Dialog.Title className="text-2xl font-bold text-foreground">{activeLabel}{remoteHostId && <span className="ml-2 text-sm font-normal text-muted-foreground">· {labelForHost(remoteHostId) ?? remoteHostId}</span>}</Dialog.Title>
+								<Dialog.Title className="text-2xl font-bold text-foreground">{activeLabel}{remoteHostId && <span className="ms-2 text-sm font-normal text-muted-foreground">· {labelForHost(remoteHostId) ?? remoteHostId}</span>}</Dialog.Title>
 								<Dialog.Description className="sr-only">
 									{isProjectSettings
 										? t("settings.project.dialogDescription")
@@ -319,7 +319,7 @@ function SettingsNavItem({ active, disabled, icon: Icon, label, onClick }: { act
 		<button
 			aria-current={active ? "page" : undefined}
 			className={cn(
-				"flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition-[background-color,color,transform] duration-fast ease-out active:scale-press focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
+				"flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-start text-sm font-medium transition-[background-color,color,transform] duration-fast ease-out active:scale-press focus:outline-none focus-visible:outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground",
 				active ? "bg-interactive-active text-foreground" : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
 			)}
 			disabled={disabled}

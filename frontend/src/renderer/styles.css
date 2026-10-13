@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "../styles/tokens.css";
 @import "@fontsource-variable/geist";
+/* Arabic glyphs: Geist has none, so the browser falls back per glyph to this. */
+@import "@fontsource-variable/noto-sans-arabic";
 @import "@fontsource-variable/geist-mono";
 @source "../../../packages/product-ui/src";
 
@@ -6028,4 +6030,46 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 	.xr-core-pulse {
 		animation: none;
 	}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Right-to-left (Arabic)
+   The document is dir="rtl" in Arabic, and components use logical
+   utilities (ms/me, ps/pe, start/end, text-start, border-s) so their
+   content mirrors. The outer window frame stays put: the sidebar keeps
+   its side next to the native window controls and the titlebar keeps its
+   order, so platform chrome (traffic lights, Windows caption buttons)
+   never collides with app chrome. Code-like content stays left to right.
+   ═══════════════════════════════════════════════════════════════ */
+:root[dir="rtl"] [data-slot="sidebar-wrapper"],
+:root[dir="rtl"] .window-titlebar {
+	direction: ltr;
+}
+
+:root[dir="rtl"] [data-slot="sidebar-inner"],
+:root[dir="rtl"] [data-slot="sidebar-inset"],
+:root[dir="rtl"] .center-panel-shell {
+	direction: rtl;
+}
+
+/* Terminals, code, paths, shortcuts, and identifiers read left to right. */
+:root[dir="rtl"] :is(.xterm, pre, code, kbd, samp) {
+	direction: ltr;
+	unicode-bidi: isolate;
+}
+
+:root[dir="rtl"] .font-mono {
+	unicode-bidi: plaintext;
+}
+
+/* Session titles take the direction of their own text,
+   so an English title truncates at its end instead of its start. */
+:root[dir="rtl"] [data-session-name] {
+	unicode-bidi: plaintext;
+}
+
+/* Directional glyphs point the reading way; rotated disclosure chevrons stay as drawn. */
+:root[dir="rtl"] :is([data-slot="sidebar-inner"], [data-slot="sidebar-inset"], .center-panel-shell, [role="dialog"], [role="menu"], [role="listbox"])
+	:is(.lucide-chevron-right, .lucide-chevron-left, .lucide-arrow-right, .lucide-arrow-left):not([class*="rotate-"]) {
+	scale: -1 1;
 }

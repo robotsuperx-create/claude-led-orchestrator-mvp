@@ -93,7 +93,7 @@ export function ExecutionContextView({
 						</span>
 					) : null}
 					<ChevronIcon
-						className="ml-auto size-3.5 shrink-0 transition-transform group-open:rotate-180"
+						className="ms-auto size-3.5 shrink-0 transition-transform group-open:rotate-180"
 						direction="down"
 					/>
 				</summary>

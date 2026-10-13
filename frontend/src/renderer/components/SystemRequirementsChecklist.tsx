@@ -45,7 +45,7 @@ export function SystemRequirementsChecklist({
 	return (
 		<div
 			aria-live="polite"
-			className="ao-startup-checklist mt-4 flex w-full max-w-content-max flex-col gap-2 text-left"
+			className="ao-startup-checklist mt-4 flex w-full max-w-content-max flex-col gap-2 text-start"
 			role="status"
 		>
 			{requirements.map((requirement, index) => (

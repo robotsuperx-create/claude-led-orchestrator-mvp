@@ -656,8 +656,8 @@ function ChatAgentSwitchStatus({
 		>
 			<div
 				className={cn(
-					"pointer-events-auto relative flex w-full max-w-lg items-start gap-3 rounded-lg border bg-surface/95 px-4 py-3 text-left shadow-lg",
-					onDismiss && "pr-11",
+					"pointer-events-auto relative flex w-full max-w-lg items-start gap-3 rounded-lg border bg-surface/95 px-4 py-3 text-start shadow-lg",
+					onDismiss && "pe-11",
 					success
 						? "border-success/40"
 						: warning
@@ -692,7 +692,7 @@ function ChatAgentSwitchStatus({
 				{onDismiss ? (
 					<button
 						aria-label={t("common.close")}
-						className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
+						className="absolute end-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
 						onClick={onDismiss}
 						type="button"
 					>

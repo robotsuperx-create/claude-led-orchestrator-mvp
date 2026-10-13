@@ -173,7 +173,7 @@ export function MigrationSection() {
 						onClick={() => run.mutate()}
 						disabled={run.isPending || (!available && !completed)}
 					>
-						{run.isPending && <Loader2 className="mr-2 size-icon-base animate-spin" />}
+						{run.isPending && <Loader2 className="me-2 size-icon-base animate-spin" />}
 						{buttonLabel}
 					</Button>
 					{!available && !query.isLoading && (

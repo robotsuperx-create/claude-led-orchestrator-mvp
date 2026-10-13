@@ -1,4 +1,5 @@
 import en from "./en.json";
+import ar from "./ar.json";
 import zhCN from "./zh-CN.json";
 import ja from "./ja.json";
 import ko from "./ko.json";
@@ -10,6 +11,7 @@ import type { AppLocale } from "./locales";
 
 /** English is the source-of-truth catalog; keys are typed from it. */
 export const enMessages = en;
+export const arMessages = ar;
 export const zhCNMessages = zhCN;
 export const jaMessages = ja;
 export const koMessages = ko;
@@ -33,6 +35,7 @@ export type MessageCatalog = Record<MessageKey, string>;
 
 const catalogs: Record<AppLocale, MessageCatalog> = {
 	en: enMessages as unknown as MessageCatalog,
+	ar: arMessages as unknown as MessageCatalog,
 	"zh-CN": zhCNMessages as unknown as MessageCatalog,
 	ja: jaMessages as unknown as MessageCatalog,
 	ko: koMessages as unknown as MessageCatalog,

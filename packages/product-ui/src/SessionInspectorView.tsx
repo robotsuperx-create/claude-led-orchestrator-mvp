@@ -109,7 +109,7 @@ export function SessionInspectorShellView({
 		<aside className={inspectorShellClass} aria-label={ariaLabel}>
 			<div
 				className={cn(
-					"session-inspector__topbar flex h-inspector-tabs shrink-0 items-center border-b border-border-strong pl-1",
+					"session-inspector__topbar flex h-inspector-tabs shrink-0 items-center border-b border-border-strong ps-1",
 					activeView === "browser" && "session-inspector__topbar--browser",
 				)}
 			>
@@ -153,7 +153,7 @@ export function SessionInspectorShellView({
 									{tab.badge ? (
 										<span
 											aria-hidden="true"
-											className="absolute right-0 top-0 inline-flex size-dot-sm"
+											className="absolute end-0 top-0 inline-flex size-dot-sm"
 											data-testid="browser-unseen-indicator"
 										>
 											<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
@@ -387,14 +387,14 @@ const timelineNodeTone: Record<InspectorTimelineTone, string> = {
 
 export function InspectorActivityTimelineView({ events }: { events: InspectorTimelineEvent[] }) {
 	return (
-		<div className="relative pl-5">
+		<div className="relative ps-5">
 			{events.map((event, index) => (
 				<div key={index} className="relative pb-4 last:pb-0" data-testid="inspector-timeline-event">
 					{index < events.length - 1 ? (
 						<span
 							aria-hidden="true"
 							className={cn(
-								"absolute -bottom-[10.5px] -left-3.5 w-px bg-border",
+								"absolute -bottom-[10.5px] -start-3.5 w-px bg-border",
 								event.tone === "now" ? "top-1/2" : "top-[10.5px]",
 							)}
 							data-testid="inspector-timeline-connector"
@@ -404,7 +404,7 @@ export function InspectorActivityTimelineView({ events }: { events: InspectorTim
 						<span
 							aria-hidden="true"
 							className={cn(
-								"absolute -left-4.5 size-icon-xs rounded-full",
+								"absolute -start-4.5 size-icon-xs rounded-full",
 								event.tone === "now" ? "top-1/2 -translate-y-1/2" : "top-1.5",
 								timelineNodeTone[event.tone],
 								event.markerBreathe && "animate-status-pulse",
@@ -686,7 +686,7 @@ function ReviewSourceLabel({
 					{marker}
 				</span>
 			) : null}
-			<span aria-hidden="true" className="ml-1 h-px min-w-0 flex-1 bg-border/80" />
+			<span aria-hidden="true" className="ms-1 h-px min-w-0 flex-1 bg-border/80" />
 		</div>
 	);
 }
@@ -736,7 +736,7 @@ function ReviewDisclosure({
 			<button
 				aria-expanded={open}
 				data-testid="review-pr-row"
-				className="flex w-full min-w-0 items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-interactive-hover/30 @max-[420px]/inspector:grid @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)]"
+				className="flex w-full min-w-0 items-start gap-2 px-3 py-2.5 text-start transition-colors hover:bg-interactive-hover/30 @max-[420px]/inspector:grid @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)]"
 				onClick={() => setOpen((current) => !current)}
 				type="button"
 			>
@@ -1009,7 +1009,7 @@ function ExternalReviewCard({
 				</span>
 				{entry.submittedAtLabel ? <span className="font-mono text-micro text-passive">{labels.reviewedAt(entry.submittedAtLabel)}</span> : null}
 			</span>
-			<span className={cn("flex shrink-0 items-center gap-2 whitespace-nowrap pr-1 text-2xs font-medium @max-[420px]/inspector:col-start-2 @max-[420px]/inspector:row-start-2 @max-[420px]/inspector:justify-self-start", reviewerVerdictTone[entry.verdict.tone])}>
+			<span className={cn("flex shrink-0 items-center gap-2 whitespace-nowrap pe-1 text-2xs font-medium @max-[420px]/inspector:col-start-2 @max-[420px]/inspector:row-start-2 @max-[420px]/inspector:justify-self-start", reviewerVerdictTone[entry.verdict.tone])}>
 				<span>{entry.verdict.label}</span>
 				{openComments.length > 0 ? (
 					<span className="rounded-sm px-0.5 text-muted-foreground" title={labels.openInlineComments(openComments.length)}>{openComments.length}</span>
@@ -1019,19 +1019,19 @@ function ExternalReviewCard({
 	);
 	return (
 		<article className="relative min-w-0 border-b border-border/70 py-2 first:pt-0 last:border-b-0 last:pb-0" data-testid="github-review-card">
-			<div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 rounded-md pr-1" data-testid="external-review-header">
+			<div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1 rounded-md pe-1" data-testid="external-review-header">
 				{collapsible ? (
-					<button aria-expanded={open} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-interactive-hover/30 @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)] @max-[420px]/inspector:gap-x-2" onClick={() => setOpen((current) => !current)} type="button">
+					<button aria-expanded={open} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-md px-1.5 py-1.5 text-start transition-colors hover:bg-interactive-hover/30 @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)] @max-[420px]/inspector:gap-x-2" onClick={() => setOpen((current) => !current)} type="button">
 						{headerContent}
 					</button>
 				) : (
-					<div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-1.5 py-1.5 text-left @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)] @max-[420px]/inspector:gap-x-2">
+					<div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-1.5 py-1.5 text-start @max-[420px]/inspector:grid-cols-[auto_minmax(0,1fr)] @max-[420px]/inspector:gap-x-2">
 						{headerContent}
 					</div>
 				)}
 				<ReviewSummaryActions body={body ?? ""} externalLink={externalLink} labels={labels} onOpenInAOBrowser={onOpenInAOBrowser} onRequestRereview={entry.canRequestRereview ? () => onRequestRereview?.(entry) : undefined} onSendReviewSummary={onSendReviewSummary} pullRequestUrl={entry.pullRequestUrl} reviewerId={entry.reviewerId} source="external" url={entry.reviewUrl || entry.pullRequestUrl} />
 			</div>
-			<div className="flex min-w-0 flex-col gap-3 px-1 pt-2 text-left">
+			<div className="flex min-w-0 flex-col gap-3 px-1 pt-2 text-start">
 				{body ? (
 					<ReviewMarkdownBody body={body} clamped={!open} elementRef={bodyRef} renderMarkdown={renderMarkdown} testId="github-review-summary" />
 				) : null}
@@ -1065,7 +1065,7 @@ function GithubInlineComments({
 	if (comments.length === 0) return null;
 	return (
 		<section className="min-w-0" data-testid="github-inline-comments">
-			<button aria-expanded={open} className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium leading-none text-muted-foreground transition-colors hover:bg-interactive-hover/20 hover:text-foreground" onClick={() => setOpen((current) => !current)} type="button">
+			<button aria-expanded={open} className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-start text-xs font-medium leading-none text-muted-foreground transition-colors hover:bg-interactive-hover/20 hover:text-foreground" onClick={() => setOpen((current) => !current)} type="button">
 				<ChevronIcon className="size-icon-2xs shrink-0" direction={open ? "down" : "right"} />
 				<span>{labels.openComments} · {comments.length}</span>
 			</button>
@@ -1092,7 +1092,7 @@ function ResolvedInlineComments({
 	const [open, setOpen] = useState(false);
 	return (
 		<section className="min-w-0 border-t border-border/60 pt-2" data-testid="github-resolved-comments">
-			<button aria-expanded={open} className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs font-medium leading-none text-muted-foreground transition-colors hover:bg-interactive-hover/20 hover:text-foreground" onClick={() => setOpen((current) => !current)} type="button">
+			<button aria-expanded={open} className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-start text-xs font-medium leading-none text-muted-foreground transition-colors hover:bg-interactive-hover/20 hover:text-foreground" onClick={() => setOpen((current) => !current)} type="button">
 				<ChevronIcon className="size-icon-2xs shrink-0" direction={open ? "down" : "right"} />
 				<span>{labels.resolvedComments(comments.length)}</span>
 			</button>
@@ -1243,7 +1243,7 @@ function InlineCommentRow({
 		<div className="relative flex min-w-0 flex-col gap-1.5 py-2.5 text-xs">
 			<div
 				{...(canExpand ? { "aria-expanded": expanded, role: "button", tabIndex: 0 } : {})}
-				className={cn("w-full min-w-0 rounded-md py-1 text-left transition-colors", canExpand && "cursor-pointer hover:bg-interactive-hover/20")}
+				className={cn("w-full min-w-0 rounded-md py-1 text-start transition-colors", canExpand && "cursor-pointer hover:bg-interactive-hover/20")}
 				onClick={canExpand ? () => setExpanded((current) => !current) : undefined}
 				onKeyDown={canExpand ? (event) => {
 					if (event.key === "Enter" || event.key === " ") {
@@ -1269,12 +1269,12 @@ function InlineCommentRow({
 							<MoreHorizontalIcon className="size-icon-xs" />
 						</button>
 						{menuOpen ? (
-							<div className="isolate absolute right-0 top-8 z-[100] flex w-40 flex-col rounded-md border border-border-strong bg-[var(--color-bg-settings-menu)] p-1 text-2xs shadow-[0_16px_40px_rgba(0,0,0,0.65)]">
-								{onSend && !sent ? <button className="rounded px-2 py-1.5 text-left text-muted-foreground hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-60" disabled={sending} onClick={() => { setMenuOpen(false); onSend(); }} type="button">{labels.sendToWorkerAgent}</button> : null}
-								{onResolve ? <button className="rounded px-2 py-1.5 text-left text-muted-foreground hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-60" disabled={resolving} onClick={() => void onResolve()} type="button">{labels.resolveComment}</button> : null}
-								{onViewInFile ? <button className="rounded px-2 py-1.5 text-left text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={onViewInFile} type="button">{labels.viewInFile}</button> : null}
+							<div className="isolate absolute end-0 top-8 z-[100] flex w-40 flex-col rounded-md border border-border-strong bg-[var(--color-bg-settings-menu)] p-1 text-2xs shadow-[0_16px_40px_rgba(0,0,0,0.65)]">
+								{onSend && !sent ? <button className="rounded px-2 py-1.5 text-start text-muted-foreground hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-60" disabled={sending} onClick={() => { setMenuOpen(false); onSend(); }} type="button">{labels.sendToWorkerAgent}</button> : null}
+								{onResolve ? <button className="rounded px-2 py-1.5 text-start text-muted-foreground hover:bg-interactive-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-60" disabled={resolving} onClick={() => void onResolve()} type="button">{labels.resolveComment}</button> : null}
+								{onViewInFile ? <button className="rounded px-2 py-1.5 text-start text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={onViewInFile} type="button">{labels.viewInFile}</button> : null}
 								{comment.url ? <ExternalLink className="rounded px-2 py-1.5 text-muted-foreground no-underline hover:bg-interactive-hover hover:text-foreground" href={comment.url}>Open on GitHub</ExternalLink> : null}
-								{comment.url ? <button className="rounded px-2 py-1.5 text-left text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={() => void copy(comment.url)} type="button">Copy comment link</button> : null}
+								{comment.url ? <button className="rounded px-2 py-1.5 text-start text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={() => void copy(comment.url)} type="button">Copy comment link</button> : null}
 							</div>
 						) : null}
 					</span>
@@ -1347,7 +1347,7 @@ function ReviewSummaryCard({
 					</span>
 					<VerdictBadge className="shrink-0" verdict={verdict} />
 				</span>
-				<span className="ml-auto inline-flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 text-right text-micro text-passive @max-[420px]/inspector:col-span-2 @max-[420px]/inspector:col-start-1 @max-[420px]/inspector:row-start-2 @max-[420px]/inspector:ml-0 @max-[420px]/inspector:justify-self-start @max-[420px]/inspector:text-left">
+				<span className="ms-auto inline-flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 text-end text-micro text-passive @max-[420px]/inspector:col-span-2 @max-[420px]/inspector:col-start-1 @max-[420px]/inspector:row-start-2 @max-[420px]/inspector:ms-0 @max-[420px]/inspector:justify-self-start @max-[420px]/inspector:text-start">
 					{isEarlier ? <span>{labels.earlierPass}</span> : null}
 					<span className="font-mono">{timestamp}</span>
 				</span>
@@ -1411,12 +1411,12 @@ function ReviewMarkdownBody({
 				"min-w-0 select-text break-words text-xs leading-relaxed text-muted-foreground",
 				"[&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-2",
 				"[&_code]:rounded [&_code]:bg-muted/55 [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-foreground",
-				"[&_li]:my-0.5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-4 [&_p]:my-1.5 [&_pre]:my-2",
+				"[&_li]:my-0.5 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:ps-4 [&_p]:my-1.5 [&_pre]:my-2",
 				"[&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-border [&_pre]:bg-muted/35 [&_pre]:p-2",
 				"[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:text-foreground [&_table]:my-2 [&_table]:w-full",
 				"[&_table]:border-collapse [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1",
 				"[&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1 [&_th]:text-foreground",
-				"[&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+				"[&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:ps-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
 				clamped && "line-clamp-4",
 			)}
 			data-testid={testId}
@@ -1485,10 +1485,10 @@ function ReviewSummaryActions({
 				<MoreHorizontalIcon className="size-icon-xs" />
 			</button>
 			{menuOpen ? (
-				<span className="isolate absolute right-0 top-8 z-[100] flex w-48 flex-col rounded-md border border-border-strong bg-[var(--color-bg-settings-menu)] p-1 text-2xs shadow-[0_16px_40px_rgba(0,0,0,0.65)]">
-					{canSend ? <button className={cn("rounded px-2 py-1.5 text-left hover:bg-interactive-hover disabled:pointer-events-none", sendState === "sent" ? "text-success" : sendState === "error" ? "text-error" : "text-muted-foreground hover:text-foreground")} disabled={sendState === "sending" || sendState === "sent"} onClick={() => void send()} type="button">{sendState === "sent" ? labels.sentToWorkerAgent : sendState === "error" ? labels.sendToWorkerAgentError : labels.sendToWorkerAgent}</button> : null}
-					{onRequestRereview ? <button className={cn("rounded px-2 py-1.5 text-left hover:bg-interactive-hover disabled:pointer-events-none", rereviewState === "requested" ? "text-success" : rereviewState === "error" ? "text-error" : "text-muted-foreground hover:text-foreground")} disabled={rereviewState === "requesting" || rereviewState === "requested"} onClick={() => void requestRereview()} type="button">{rereviewState === "requested" ? labels.rereviewRequested : rereviewState === "error" ? labels.rereviewRequestFailed : labels.requestRereviewPR}</button> : null}
-					{url && onOpenInAOBrowser ? <button className="rounded px-2 py-1.5 text-left text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={() => onOpenInAOBrowser(url)} type="button">{labels.openInAOBrowser}</button> : null}
+				<span className="isolate absolute end-0 top-8 z-[100] flex w-48 flex-col rounded-md border border-border-strong bg-[var(--color-bg-settings-menu)] p-1 text-2xs shadow-[0_16px_40px_rgba(0,0,0,0.65)]">
+					{canSend ? <button className={cn("rounded px-2 py-1.5 text-start hover:bg-interactive-hover disabled:pointer-events-none", sendState === "sent" ? "text-success" : sendState === "error" ? "text-error" : "text-muted-foreground hover:text-foreground")} disabled={sendState === "sending" || sendState === "sent"} onClick={() => void send()} type="button">{sendState === "sent" ? labels.sentToWorkerAgent : sendState === "error" ? labels.sendToWorkerAgentError : labels.sendToWorkerAgent}</button> : null}
+					{onRequestRereview ? <button className={cn("rounded px-2 py-1.5 text-start hover:bg-interactive-hover disabled:pointer-events-none", rereviewState === "requested" ? "text-success" : rereviewState === "error" ? "text-error" : "text-muted-foreground hover:text-foreground")} disabled={rereviewState === "requesting" || rereviewState === "requested"} onClick={() => void requestRereview()} type="button">{rereviewState === "requested" ? labels.rereviewRequested : rereviewState === "error" ? labels.rereviewRequestFailed : labels.requestRereviewPR}</button> : null}
+					{url && onOpenInAOBrowser ? <button className="rounded px-2 py-1.5 text-start text-muted-foreground hover:bg-interactive-hover hover:text-foreground" onClick={() => onOpenInAOBrowser(url)} type="button">{labels.openInAOBrowser}</button> : null}
 					{url ? <ExternalLink className="rounded px-2 py-1.5 text-muted-foreground no-underline hover:bg-interactive-hover hover:text-foreground" href={url}>{labels.openInSystemBrowser}</ExternalLink> : null}
 				</span>
 			) : null}

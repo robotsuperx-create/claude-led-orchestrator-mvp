@@ -107,7 +107,7 @@ export function StandaloneArchiveView() {
 		>
 			{headerInPanel ? (
 				<div
-					className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-2"
+					className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pe-2"
 					style={dragStyle}
 				>
 					<span

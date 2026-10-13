@@ -72,7 +72,7 @@ export function ProjectSourcePickerView({
 			role={dialog ? undefined : "group"}
 			aria-label={dialog ? undefined : labels.title}
 		>
-			<div className={cn("relative z-[1] flex flex-col items-start gap-1", onClose && "pr-10")}>
+			<div className={cn("relative z-[1] flex flex-col items-start gap-1", onClose && "pe-10")}>
 				<h2 className={dialog ? "text-base font-semibold text-foreground" : "import-title text-balance"}>{labels.title}</h2>
 				<p className={dialog ? "text-sm text-muted-foreground" : "import-description text-pretty"}>{labels.description}</p>
 			</div>
@@ -100,7 +100,7 @@ export function ProjectSourcePickerView({
 				type="button"
 				aria-label={labels.workspace}
 				className={cn(
-					"relative z-[2] flex min-h-18 w-full items-center gap-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50",
+					"relative z-[2] flex min-h-18 w-full items-center gap-4 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50",
 					dialog
 						? "rounded-md border border-border bg-muted/50 px-3 py-3 hover:bg-muted"
 						: "rounded-welcome-panel border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-card)] px-5 py-4 hover:bg-[var(--color-bg-import-card-hover)]",
@@ -171,7 +171,7 @@ function ProjectSourceButton({
 			type="button"
 			aria-label={title}
 			className={cn(
-				"flex w-full flex-col justify-start text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50",
+				"flex w-full flex-col justify-start text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50",
 				dialog
 					? "min-h-36 gap-3 rounded-md border border-border bg-muted/50 p-4 hover:bg-muted"
 					: "min-h-56 gap-5 rounded-welcome-panel border border-[var(--color-border-import-modal)] bg-[var(--color-bg-import-card)] p-6 hover:bg-[var(--color-bg-import-card-hover)]",
@@ -274,7 +274,7 @@ export function ProjectSetupHeaderView({
 		>
 			{leadingAction}
 			<div className={cn("min-w-0", !showPath && "flex-1")}>
-				<Title className={showPath ? "text-subtitle font-semibold text-foreground" : "settings-dialog-title text-left"}>
+				<Title className={showPath ? "text-subtitle font-semibold text-foreground" : "settings-dialog-title text-start"}>
 					{title}
 				</Title>
 				{showPath && path ? (

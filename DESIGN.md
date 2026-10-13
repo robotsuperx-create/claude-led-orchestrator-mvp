@@ -392,6 +392,14 @@ Reject these patterns in renderer work unless a specific exception is approved:
 - For a new named token, prove that existing semantic roles cannot express the need. Add it to `frontend/src/styles/tokens.css`, then expose it through `styles.css` only when Tailwind/component usage requires it.
 - For visual changes, test dark and light themes, compact sidebar, narrow center panel, keyboard focus, disabled/loading/error states, and at least one screen with real long project/session names.
 
+### Right-to-left (Arabic)
+
+- The app ships in Arabic with `dir="rtl"`. Use logical utilities only: `ms-`/`me-`, `ps-`/`pe-`, `start-`/`end-`, `text-start`/`text-end`, `border-s`/`border-e`, `rounded-s`/`rounded-e`. They are identical in LTR. Physical `left-1/2` with `-translate-x-1/2` is fine for centering.
+- A transform that moves along x for state (a switch thumb) needs an `rtl:` counterpart.
+- The window frame (sidebar position, titlebar order) stays fixed so platform window controls never collide; everything inside it mirrors. Terminals, code, paths, and mono values stay left to right.
+- User-written titles may be in either script: give them their own direction (`[data-session-name]` uses `unicode-bidi: plaintext`; wrap a path in `<bdi>`).
+- Format dates and relative times with the UI language (`appI18n.language`), never the OS default.
+
 ## 15. Design QA checklist
 
 Before calling a visual change done, verify:
@@ -432,5 +440,6 @@ Approve only when the answer to every applicable check is yes. Otherwise classif
 | 2026-09-04 | Only trustworthy user-facing data belongs below an agent name | The model catalog's `binaryVersion` is an internal cache fingerprint, so it must not be presented as a CLI version. |
 | 2026-09-16 | Home: quiet Star-us link; 2×2 action grid with standalone in-grid; recent rows use NavRowHighlight | Rejected accent CTAs, Connect Mobile on home, and flat hover washes — keep home minimal and aligned with sidebar row chrome. |
 | 2026-09-16 | Brand mark clicks to home with no hover/focus fill | Separate home affordance and sidebar focus wash on the brand were rejected. |
+| 2026-10-13 | Arabic and right-to-left support across the renderer | Owner's audience; logical utilities keep LTR pixel-identical while mirroring RTL. |
 | 2026-10-13 | X-ROBOT-AI brand layer: deep-space palette as default, cosmic treatment on brand surfaces only | Owner's product identity; bounded so working surfaces stay calm and status stays truthful. |
 | 2026-09-16 | Resize grips: fixed 80vh hover pill on center-pane border; clamp to panel min/max ∩ CSS max-width | Rejected always-on/`::after`/inset grips and unclamped pointer-following (inspector flew past both limits). |

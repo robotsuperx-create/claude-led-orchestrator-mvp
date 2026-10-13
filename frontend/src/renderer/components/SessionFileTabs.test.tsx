@@ -24,15 +24,15 @@ describe("SessionFileTabs", () => {
 		expect(languageIcon).toBeInTheDocument();
 		expect(languageIcon).toHaveClass("group-hover:opacity-0", "group-focus-within:opacity-0");
 		const closeButton = screen.getByRole("button", { name: "Close App.tsx" });
-		expect(closeButton.closest("[data-terminal-tab-action]")).toHaveClass("absolute", "left-2");
+		expect(closeButton.closest("[data-terminal-tab-action]")).toHaveClass("absolute", "start-2");
 		expect(closeButton).toHaveClass("opacity-0", "pointer-events-none", "group-hover:opacity-100");
 		expect(screen.queryByRole("button", { name: "Add feedback for file src/App.tsx" })).not.toBeInTheDocument();
 		expect(tab.closest("[data-terminal-tab-frame]")).toHaveClass("max-w-shell-tab-max");
 		expect(tab.closest("[data-terminal-tab-frame]")).not.toHaveClass(
 			"session-tab-icon-floor",
 			"session-tab-icon-floor--closable",
-			"pl-3",
-			"pr-1.5",
+			"ps-3",
+			"pe-1.5",
 		);
 		await userEvent.click(languageIcon!);
 		expect(onActivateFile).toHaveBeenCalledWith("src/App.tsx");

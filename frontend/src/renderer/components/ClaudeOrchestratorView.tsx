@@ -93,7 +93,7 @@ export function ClaudeOrchestratorView() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col bg-background">
-			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pr-2">
+			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pe-2">
 				<div className="flex min-w-0 items-center gap-2">
 					<h1 className={showPageTitle ? cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5") : "sr-only"}>
 						{showPageTitle ? <Orbit className="size-icon-md" aria-hidden="true" /> : null}
@@ -280,7 +280,7 @@ function RunRow({ run, expanded, onExpand }: { run: ClaudeOrchestratorRun; expan
 				aria-label={t(expanded ? "orchestrator.run.hide" : "orchestrator.run.show", { title })}
 				onClick={onExpand}
 				className={cn(
-					"grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 motion-reduce:transition-none lg:grid-cols-[minmax(0,1fr)_minmax(0,240px)_160px]",
+					"grid w-full grid-cols-[minmax(0,1fr)] items-center gap-x-4 gap-y-1 px-4 py-3 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60 motion-reduce:transition-none lg:grid-cols-[minmax(0,1fr)_minmax(0,240px)_160px]",
 					expanded ? "bg-muted/30" : "hover:bg-muted/20",
 				)}
 			>
@@ -292,8 +292,8 @@ function RunRow({ run, expanded, onExpand }: { run: ClaudeOrchestratorRun; expan
 						<p className="truncate text-[11px] leading-5 text-muted-foreground">{t(stageKey(run))}</p>
 					</div>
 				</div>
-				<span className="truncate pl-11 font-mono text-[11px] text-muted-foreground lg:pl-0" title={run.branch}>{run.branch ?? "—"}</span>
-				<span className="pl-11 text-xs tabular-nums text-muted-foreground lg:pl-0">{displayTime(run.updatedAt ?? run.createdAt, i18n.resolvedLanguage)}</span>
+				<span className="truncate ps-11 font-mono text-[11px] text-muted-foreground lg:ps-0" title={run.branch}>{run.branch ?? "—"}</span>
+				<span className="ps-11 text-xs tabular-nums text-muted-foreground lg:ps-0">{displayTime(run.updatedAt ?? run.createdAt, i18n.resolvedLanguage)}</span>
 			</button>
 			<AnimatePresence initial={false}>
 				{expanded ? (
@@ -368,7 +368,7 @@ function RunDetails({ run }: { run: ClaudeOrchestratorRun }) {
 	const outcome = outcomeKey(run);
 	const cancelError = claudeOrchestratorErrorCode(cancel.error);
 	return (
-		<div className="border-t border-border bg-muted/10 px-4 py-4 pl-[3.25rem]">
+		<div className="border-t border-border bg-muted/10 px-4 py-4 ps-[3.25rem]">
 			{active ? <StageTimeline run={run} /> : null}
 			{outcome ? <p className="mb-4 max-w-prose text-[13px] leading-5 text-foreground" data-testid="claude-orchestrator-outcome">{t(outcome)}</p> : null}
 			<dl className="grid max-w-xl grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs">
@@ -486,8 +486,8 @@ function NewRunDialog({ open, info, onOpenChange, onStarted }: { open: boolean; 
 						<X className="size-4" aria-hidden="true" />
 					</button>
 				</DialogClose>
-				<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">{t("orchestrator.form.title")}</DialogTitle>
-				<DialogDescription className="px-4 pr-12 pt-1 text-[13px] leading-5 text-muted-foreground">
+				<DialogTitle className="settings-dialog-title px-4 pe-12 pt-3">{t("orchestrator.form.title")}</DialogTitle>
+				<DialogDescription className="px-4 pe-12 pt-1 text-[13px] leading-5 text-muted-foreground">
 					{t(info.workerMode === "agents" ? "orchestrator.form.descriptionAgents" : "orchestrator.form.description", { repository: info.repository, planner: info.plannerModel, worker: info.workerModel })}
 				</DialogDescription>
 				<form className="flex min-h-0 flex-1 flex-col" noValidate onSubmit={submit}>
