@@ -1,5 +1,6 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { AutoUnpackNativesPlugin } from "@electron-forge/plugin-auto-unpack-natives";
+import { PRODUCT_REPO_SLUG } from "./src/shared/brand";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { rebuild } from "@electron/rebuild";
 import electronPackage from "electron/package.json";
@@ -19,7 +20,7 @@ import { BUNDLED_TMUX_VERSION } from "./scripts/tmux-version.mjs";
 // workflows set AO_RELEASE_REPO to the repo they run in, and build-artifacts.yml
 // asserts the baked app-update.yml matches it, so a future org/repo rename
 // fails the build instead of stranding the fleet on a redirect (#3523).
-const DEFAULT_RELEASE_REPO = "Untrivial-ai/agent-orchestrator";
+const DEFAULT_RELEASE_REPO = PRODUCT_REPO_SLUG;
 
 // The packaged binary name (no extension). Single source of truth: the packager
 // names the exe/ELF from this, and the NSIS + deb makers must point their
@@ -179,7 +180,7 @@ const config: ForgeConfig = {
 				"provider: github",
 				`owner: ${owner}`,
 				`repo: ${name}`,
-				"updaterCacheDirName: agent-orchestrator-updater",
+				"updaterCacheDirName: x-robot-ai-updater",
 				"",
 			].join("\n");
 			writeFileSync("app-update.yml", yml);

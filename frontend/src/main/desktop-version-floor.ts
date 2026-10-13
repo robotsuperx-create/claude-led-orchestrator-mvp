@@ -1,8 +1,8 @@
 import { app, dialog, shell } from "electron";
 import semver from "semver";
+import { PRODUCT_REPO_SLUG } from "../shared/brand";
 
-const FLOOR_URL =
-  "https://raw.githubusercontent.com/Untrivial-ai/agent-orchestrator/main/desktop-version-floor.json";
+const FLOOR_URL = `https://raw.githubusercontent.com/${PRODUCT_REPO_SLUG}/main/desktop-version-floor.json`;
 
 const FETCH_TIMEOUT_MS = 10_000;
 
@@ -12,8 +12,7 @@ type Floor = {
   downloadUrl?: string;
 };
 
-const DEFAULT_DOWNLOAD_URL =
-  "https://github.com/Untrivial-ai/agent-orchestrator/releases/latest";
+const DEFAULT_DOWNLOAD_URL = `https://github.com/${PRODUCT_REPO_SLUG}/releases/latest`;
 
 function usableVersion(v: string | null | undefined): string | null {
   const trimmed = v?.trim();

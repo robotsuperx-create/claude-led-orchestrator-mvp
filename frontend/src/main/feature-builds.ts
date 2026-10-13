@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import type { UpdateSettings } from "./update-settings";
+import { PRODUCT_REPO } from "../shared/brand";
 
 const GITHUB_API = "https://api.github.com";
 
 // Default when the baked app-update.yml cannot be read (dev, or a malformed
 // bundle). Matches forge.config.ts DEFAULT_RELEASE_REPO.
-const DEFAULT_REPO = { owner: "Untrivial-ai", repo: "agent-orchestrator" } as const;
+const DEFAULT_REPO = PRODUCT_REPO;
 
 // Resolve the GitHub repo the app updates from by reading the same bundled
 // app-update.yml that electron-updater uses. Both are baked from AO_RELEASE_REPO

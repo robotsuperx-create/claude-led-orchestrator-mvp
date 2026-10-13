@@ -1007,7 +1007,9 @@ const configuredLoginShell = process.platform === "darwin" ? (os.userInfo().shel
 function telemetryOverrides(): Record<string, string> {
 	return {
 		AO_TELEMETRY_EVENTS: process.env.AO_TELEMETRY_EVENTS ?? "on",
-		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
+		// X-ROBOT-AI exports nothing unless its owner configures their own
+		// PostHog/Sentry through these variables; no data goes to upstream AO.
+		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? "off",
 		AO_TELEMETRY_POSTHOG_KEY: process.env.AO_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
 		AO_TELEMETRY_POSTHOG_HOST: process.env.AO_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
 		// Daemon-side Sentry (5xx + panics with Go stacks). Stamped on the daemon
