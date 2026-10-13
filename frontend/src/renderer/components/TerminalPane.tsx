@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { RotateCcw } from "lucide-react";
+import { BRAND_NAME } from "../../shared/brand";
 import {
 	createContext,
 	useCallback,
@@ -1253,7 +1254,7 @@ function AttachedTerminal({
 		!showEndedStatePreview &&
 		!cloudRevealedRef.current;
 	const showEndedState = showEndedStatePreview && !isBoxComingUp && !session?.cloud;
-	const emptyStateTitle = session ? t("terminal.startingSession") : "Agent Orchestrator";
+	const emptyStateTitle = session ? t("terminal.startingSession") : BRAND_NAME;
 	const emptyStateMessage = session
 		? session.kind === "orchestrator"
 			? t("terminal.preparingOrchestrator")

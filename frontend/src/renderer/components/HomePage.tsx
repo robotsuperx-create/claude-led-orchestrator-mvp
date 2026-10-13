@@ -18,6 +18,7 @@ import {
 	type WorkspaceSummary,
 } from "../types/workspace";
 import { CreateProjectFlow } from "./CreateProjectFlow";
+import { XRobotMark, XRobotWordmark } from "./BrandMark";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { GitHubOnboardingNotice } from "./GitHubOnboardingNotice";
 import { NAV_ROW_HIGHLIGHT_HOST_CLASS, NavRowHighlight } from "./NavRowHighlight";
@@ -40,7 +41,7 @@ import { Badge } from "./ui/badge";
  *   is not a project: it never appears in Recent projects or counts toward
  *   the heading — the grid's standalone action and the sidebar own it.
  */
-const GITHUB_REPOSITORY_URL = "https://github.com/Untrivial-ai/agent-orchestrator";
+const GITHUB_REPOSITORY_URL = "https://github.com/robotsuperx-create/claude-led-orchestrator-mvp";
 const RECENT_PROJECT_LIMIT = 3;
 const HOME_BUTTON_CLASS =
 	"flex w-full items-center gap-3 rounded-lg bg-[var(--color-bg-import-card)] px-4 py-3 text-left transition-[scale] duration-fast ease-out hover:bg-interactive-hover hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transform-none";
@@ -197,9 +198,16 @@ export function HomePage() {
 	}
 
 	return (
-		<div className="flex min-h-full items-center justify-center px-6 py-16">
+		<div className="xr-cosmos flex min-h-full items-center justify-center px-6 py-16">
 			<div className="w-full max-w-[640px]">
 				<div className="space-y-6">
+					<div className="flex items-center gap-4 px-3 pb-2" data-testid="home-brand">
+						<XRobotMark glow className="size-14 shrink-0" />
+						<div className="min-w-0">
+							<p className="text-[28px] leading-8"><XRobotWordmark /></p>
+							<p className="mt-1 text-sm text-muted-foreground">{t("home.brandTagline")}</p>
+						</div>
+					</div>
 					<section className="space-y-3 px-3">
 						<div className="flex items-baseline justify-between gap-4">
 							<h1 className={HOME_SECTION_TITLE_CLASS}>{recentProjects.length === 0 ? t("home.getStarted") : t("home.jumpBack")}</h1>

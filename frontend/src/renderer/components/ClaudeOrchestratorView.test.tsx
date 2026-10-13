@@ -133,6 +133,21 @@ describe("ClaudeOrchestratorView", () => {
 		expect(screen.queryByRole("button", { name: "Cancel run" })).not.toBeInTheDocument();
 	});
 
+	it("shows mission control with one satellite per live run and the run tally", async () => {
+		mocks.list.mockResolvedValue(ok([
+			{ runId: RUN_A, state: "executing", title: "One" },
+			{ runId: RUN_B, state: "validating", title: "Two" },
+			{ runId: RUN_NEW, state: "held", title: "Three" },
+		]));
+		renderView();
+		const mission = await screen.findByTestId("claude-orchestrator-mission");
+		await waitFor(() => expect(within(mission).getAllByTestId("orbit-satellite")).toHaveLength(2));
+		expect(within(mission).getByRole("img", { name: "Active runs: 2" })).toBeInTheDocument();
+		expect(within(mission).getByTestId("mission-active")).toHaveTextContent("2/2");
+		expect(within(mission).getByTestId("mission-held")).toHaveTextContent("1");
+		expect(within(mission).getByTestId("mission-done")).toHaveTextContent("0");
+	});
+
 	it("cancels an active run after confirmation", async () => {
 		mocks.list.mockResolvedValue(ok([{ runId: RUN_A, state: "validating", title: "Refactor the parser" }]));
 		mocks.cancel.mockResolvedValue(ok({ runId: RUN_A, state: "canceled", title: "" }));

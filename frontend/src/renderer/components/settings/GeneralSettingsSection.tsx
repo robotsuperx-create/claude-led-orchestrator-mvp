@@ -122,6 +122,7 @@ function TerminalShellRows() {
 }
 
 const COLOR_THEME_OPTIONS = [
+	{ value: "x-robot", label: "X-ROBOT-AI" },
 	{ value: "orchestrate", label: "Orchestrate" },
 	{ value: "github", label: "GitHub" },
 	{ value: "catppuccin", label: "Catppuccin" },

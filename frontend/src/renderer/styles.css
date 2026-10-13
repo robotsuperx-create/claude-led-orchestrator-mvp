@@ -5863,3 +5863,169 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 		animation: none;
 	}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   X-ROBOT-AI brand surfaces
+   The space identity lives on brand surfaces only: the sidebar backdrop,
+   home, startup, and the Orchestrator's mission-control header. Working
+   surfaces (terminal, board cards, dialogs, settings) stay calm, and status
+   colors keep their meaning. Everything here is inert outside the x-robot
+   palette and under reduced motion.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Zero specificity so a positioned host (e.g. the fixed startup screen) keeps its own position. */
+:where(.xr-cosmos) {
+	position: relative;
+	isolation: isolate;
+}
+
+:root[data-style-theme="x-robot"] .xr-cosmos::before,
+:root[data-style-theme="x-robot"] .xr-cosmos::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+}
+
+/* Nebula wash + a sparse, tiled starfield. */
+:root[data-style-theme="x-robot"] .xr-cosmos::before {
+	background:
+		radial-gradient(circle at 33.1% 16.5%, var(--brand-star) 0 0.74px, transparent 1.44px) 0 0 / 640px 560px,
+		radial-gradient(circle at 9.0% 53.4%, var(--brand-star) 0 0.61px, transparent 1.31px) 0 0 / 640px 560px,
+		radial-gradient(circle at 7.6% 50.7%, var(--brand-star) 0 0.47px, transparent 1.17px) 0 0 / 640px 560px,
+		radial-gradient(circle at 43.6% 8.7%, var(--brand-star) 0 0.49px, transparent 1.19px) 0 0 / 640px 560px,
+		radial-gradient(circle at 42.8% 81.4%, var(--brand-star) 0 0.51px, transparent 1.21px) 0 0 / 640px 560px,
+		radial-gradient(circle at 23.4% 62.2%, var(--brand-star) 0 0.88px, transparent 1.58px) 0 0 / 640px 560px,
+		radial-gradient(circle at 57.4% 40.1%, var(--brand-star) 0 0.89px, transparent 1.59px) 0 0 / 640px 560px,
+		radial-gradient(circle at 6.5% 84.4%, var(--brand-star) 0 0.58px, transparent 1.28px) 0 0 / 640px 560px,
+		radial-gradient(circle at 15.8% 13.3%, var(--brand-star) 0 0.59px, transparent 1.29px) 0 0 / 640px 560px,
+		radial-gradient(circle at 80.3% 19.3%, var(--brand-star) 0 0.6px, transparent 1.3px) 0 0 / 470px 410px,
+		radial-gradient(circle at 63.3% 37.8%, var(--brand-star) 0 0.59px, transparent 1.29px) 0 0 / 470px 410px,
+		radial-gradient(circle at 8.0% 7.7%, var(--brand-star) 0 0.47px, transparent 1.17px) 0 0 / 470px 410px,
+		radial-gradient(circle at 67.3% 43.0%, var(--brand-star) 0 0.51px, transparent 1.21px) 0 0 / 470px 410px,
+		radial-gradient(circle at 58.2% 45.5%, var(--brand-star) 0 0.5px, transparent 1.2px) 0 0 / 470px 410px,
+		radial-gradient(circle at 78.3% 69.1%, var(--brand-star) 0 0.49px, transparent 1.19px) 0 0 / 470px 410px,
+		radial-gradient(60% 55% at 14% 8%, color-mix(in oklab, var(--brand-nebula-violet) 24%, transparent), transparent 70%),
+		radial-gradient(55% 50% at 92% 96%, color-mix(in oklab, var(--brand-nebula-teal) 16%, transparent), transparent 70%);
+	opacity: 0.85;
+}
+
+/* Quiet variant for compact brand panels with text: nebula only, no stars. */
+:root[data-style-theme="x-robot"] .xr-cosmos--quiet::before {
+	background:
+		radial-gradient(70% 90% at 8% 0%, color-mix(in oklab, var(--brand-nebula-violet) 26%, transparent), transparent 70%),
+		radial-gradient(60% 90% at 100% 100%, color-mix(in oklab, var(--brand-nebula-teal) 18%, transparent), transparent 70%);
+}
+
+:root[data-style-theme="x-robot"] .xr-cosmos--quiet::after {
+	display: none;
+}
+
+/* A second star layer that twinkles slowly. */
+:root[data-style-theme="x-robot"] .xr-cosmos::after {
+	background:
+		radial-gradient(circle at 55% 25%, var(--brand-plasma) 0 0.8px, transparent 1.6px) 0 0 / 330px 290px,
+		radial-gradient(circle at 15% 75%, var(--brand-star) 0 1px, transparent 1.8px) 0 0 / 470px 420px;
+	animation: xr-twinkle 7s ease-in-out infinite;
+}
+
+:root[data-style-theme="x-robot"][data-theme="light"] .xr-cosmos::before {
+	opacity: 0.45;
+}
+
+:root[data-style-theme="x-robot"][data-theme="light"] .xr-cosmos::after {
+	opacity: 0.35;
+	animation: none;
+}
+
+@keyframes xr-twinkle {
+	0%,
+	100% {
+		opacity: 0.25;
+	}
+	50% {
+		opacity: 0.9;
+	}
+}
+
+/* Faint stars behind the sidebar chrome. */
+:root[data-style-theme="x-robot"] [data-slot="sidebar-inner"] {
+	background-image:
+		radial-gradient(circle at 65.8% 7.8%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.61px, transparent 1.31px),
+		radial-gradient(circle at 64.1% 97.3%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.65px, transparent 1.35px),
+		radial-gradient(circle at 29.3% 39.0%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.6px, transparent 1.3px),
+		radial-gradient(circle at 4.2% 46.3%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.45px, transparent 1.15px),
+		radial-gradient(circle at 13.2% 7.7%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.63px, transparent 1.33px),
+		radial-gradient(circle at 14.4% 25.8%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.52px, transparent 1.22px),
+		radial-gradient(circle at 85.7% 9.7%, color-mix(in oklab, var(--brand-star) 50%, transparent) 0 0.53px, transparent 1.23px),
+		radial-gradient(120% 40% at 0% 0%, color-mix(in oklab, var(--brand-nebula-violet) 12%, transparent), transparent 70%);
+	background-size: 240px 420px, 240px 420px, 240px 420px, 240px 420px, 240px 420px, 240px 420px, 240px 420px, 100% 100%;
+}
+
+:root[data-style-theme="x-robot"][data-theme="light"] [data-slot="sidebar-inner"] {
+	background-image: radial-gradient(120% 40% at 0% 0%, color-mix(in oklab, var(--brand-nebula-violet) 8%, transparent), transparent 70%);
+	background-size: 100% 100%;
+	background-repeat: no-repeat;
+}
+
+/* Wordmark: plasma-to-nebula gradient type in the x-robot palette. */
+:root[data-style-theme="x-robot"] .xr-wordmark {
+	background: linear-gradient(90deg, var(--brand-nebula-teal), var(--brand-plasma) 45%, var(--brand-nebula-violet));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+}
+
+.xr-mark {
+	display: block;
+	object-fit: contain;
+}
+
+:root[data-style-theme="x-robot"] .xr-mark--glow {
+	filter: drop-shadow(0 0 6px color-mix(in oklab, var(--brand-plasma) 45%, transparent));
+}
+
+/* Orbits: spinning rings with satellites, used by startup and mission control. */
+.xr-orbit-spin {
+	transform-box: view-box;
+	transform-origin: center;
+	animation: xr-orbit 22s linear infinite;
+}
+
+.xr-orbit-spin--reverse {
+	animation-duration: 34s;
+	animation-direction: reverse;
+}
+
+@keyframes xr-orbit {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.xr-core-pulse {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: xr-core 3.2s ease-in-out infinite;
+}
+
+@keyframes xr-core {
+	0%,
+	100% {
+		opacity: 0.55;
+		transform: scale(0.92);
+	}
+	50% {
+		opacity: 0.95;
+		transform: scale(1.08);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root[data-style-theme="x-robot"] .xr-cosmos::after,
+	.xr-orbit-spin,
+	.xr-core-pulse {
+		animation: none;
+	}
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScrollArea } from "radix-ui";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Check, ChevronRight, Copy, LoaderCircle, Plus, RefreshCw, TriangleAlert, Workflow, X } from "lucide-react";
+import { Check, ChevronRight, Copy, LoaderCircle, Plus, RefreshCw, TriangleAlert, Orbit, X } from "lucide-react";
 import {
 	CLAUDE_ORCHESTRATOR_ACTIVE_STAGES,
 	CLAUDE_ORCHESTRATOR_MAX_RETRIES,
@@ -30,6 +30,7 @@ import {
 	onboardingFormLabelClass,
 } from "../lib/onboarding-ui";
 import { cn } from "../lib/utils";
+import { OrbitField, XRobotMark, XRobotWordmark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TopbarButton, topbarProjectLabelClass } from "./TopbarButton";
 import { Button } from "./ui/button";
@@ -95,7 +96,7 @@ export function ClaudeOrchestratorView() {
 			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pr-2">
 				<div className="flex min-w-0 items-center gap-2">
 					<h1 className={showPageTitle ? cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5") : "sr-only"}>
-						{showPageTitle ? <Workflow className="size-icon-md" aria-hidden="true" /> : null}
+						{showPageTitle ? <Orbit className="size-icon-md" aria-hidden="true" /> : null}
 						{t("orchestrator.title")}
 					</h1>
 					{!showPageTitle ? <p className="truncate text-xs text-muted-foreground">{t("orchestrator.description")}</p> : null}
@@ -120,7 +121,7 @@ export function ClaudeOrchestratorView() {
 							{info.isLoading ? <p role="status" className="px-3 py-8 text-center text-sm text-muted-foreground">{t("orchestrator.loading")}</p> : null}
 							{infoError ? <DaemonUnavailable onRetry={() => void info.refetch()} /> : null}
 							{info.data && !enabled ? <OrchestratorDisabled /> : null}
-							{enabled && info.data ? <ConfigurationLine info={info.data} /> : null}
+							{enabled && info.data ? <MissionControl info={info.data} runs={runList} /> : null}
 							{enabled && runsError ? (
 								<p role="alert" className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{t(`orchestrator.error.${runsError}`)}</p>
 							) : null}
@@ -165,10 +166,54 @@ export function ClaudeOrchestratorView() {
 	);
 }
 
+/**
+ * The mission-control header: Claude at the core, one satellite per live run
+ * in its semantic status color, and the run tally. Counts come straight from
+ * the run list; nothing here invents state.
+ */
+function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: ClaudeOrchestratorRun[] }) {
+	const { t } = useTranslation();
+	const live = runs.filter((run) => !isTerminalClaudeOrchestratorState(run.state));
+	const tally = [
+		{ key: "active", label: t("orchestrator.mission.active"), value: `${live.length}/${info.maxActiveRuns}`, tone: "bg-status-working" },
+		{ key: "done", label: t("orchestrator.mission.done"), value: String(runs.filter((run) => run.state === "completed").length), tone: "bg-status-ready" },
+		{ key: "held", label: t("orchestrator.mission.held"), value: String(runs.filter((run) => run.state === "held").length), tone: "bg-status-in-review" },
+		{ key: "failed", label: t("orchestrator.mission.failed"), value: String(runs.filter((run) => run.state === "failed").length), tone: "bg-status-exited" },
+	];
+	return (
+		<section className="xr-cosmos xr-cosmos--quiet mb-4 flex flex-col items-center gap-5 overflow-hidden rounded-lg px-5 py-5 sm:flex-row" data-testid="claude-orchestrator-mission">
+			<div className="relative grid size-36 shrink-0 place-items-center">
+				<OrbitField
+					className="absolute inset-0 size-full"
+					label={t("orchestrator.mission.orbitLabel", { count: live.length })}
+					satellites={live.map((run) => ({ id: run.runId, tone: run.state === "validating" ? "validating" : "working" }))}
+				/>
+				<XRobotMark glow className="relative size-12" />
+			</div>
+			<div className="min-w-0 flex-1">
+				<h2 className="text-[21px] leading-7"><XRobotWordmark /></h2>
+				<p className="mt-0.5 text-sm text-muted-foreground">{t("orchestrator.mission.subtitle")}</p>
+				<dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+					{tally.map((item) => (
+						<div key={item.key} className="flex items-center gap-1.5 text-xs">
+							<span aria-hidden="true" className={cn("inline-block size-1.5 rounded-full", item.tone)} />
+							<dt className="text-muted-foreground">{item.label}</dt>
+							<dd className="font-medium tabular-nums text-foreground" data-testid={`mission-${item.key}`}>{item.value}</dd>
+						</div>
+					))}
+				</dl>
+				<div className="mt-3">
+					<ConfigurationLine info={info} />
+				</div>
+			</div>
+		</section>
+	);
+}
+
 function ConfigurationLine({ info }: { info: ClaudeOrchestratorInfo }) {
 	const { t } = useTranslation();
 	return (
-		<p className="mb-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground" data-testid="claude-orchestrator-configuration">
+		<p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground" data-testid="claude-orchestrator-configuration">
 			<span className="font-medium text-foreground">{info.repository}</span>
 			<span aria-hidden="true">·</span>
 			<span>{t("orchestrator.config.planner")} <span className="font-mono text-[11px]">{info.plannerModel}</span></span>
@@ -198,7 +243,7 @@ function OrchestratorDisabled() {
 	return (
 		<div className="grid min-h-64 place-items-center p-8 text-center" data-testid="claude-orchestrator-disabled">
 			<div className="max-w-md">
-				<Workflow className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden="true" />
+				<Orbit className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden="true" />
 				<h2 className="text-[17px] font-medium">{t("orchestrator.disabled.title")}</h2>
 				<p className="mt-1 text-sm text-muted-foreground">{t("orchestrator.disabled.description")}</p>
 				<p className="mt-3 font-mono text-[11px] text-muted-foreground">{RUNBOOK_PATH}</p>
@@ -212,7 +257,7 @@ function EmptyRuns({ onCreate }: { onCreate: () => void }) {
 	return (
 		<div className="grid min-h-64 place-items-center p-8 text-center">
 			<div>
-				<Workflow className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden="true" />
+				<Orbit className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden="true" />
 				<h2 className="text-[17px] font-medium">{t("orchestrator.empty.title")}</h2>
 				<p className="mt-1 text-sm text-muted-foreground">{t("orchestrator.empty.description")}</p>
 				<Button className="mt-4" onClick={onCreate}>{t("orchestrator.empty.action")}</Button>

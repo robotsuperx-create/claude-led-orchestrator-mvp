@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
+	readStoredThemeStyle,
 	runThemeTransition,
+	themeStyleStorageKey,
 } from "./theme";
 
 describe("runThemeTransition", () => {
@@ -65,6 +67,17 @@ describe("runThemeTransition", () => {
 		expect(document.documentElement.dataset.themeTransition).toBe("active");
 		await new Promise((resolve) => requestAnimationFrame(resolve));
 		expect(document.documentElement.dataset.themeTransition).toBeUndefined();
+	});
+});
+
+describe("readStoredThemeStyle", () => {
+	afterEach(() => window.localStorage.removeItem(themeStyleStorageKey));
+
+	it("defaults to the X-ROBOT-AI palette and keeps an explicit choice", () => {
+		window.localStorage.removeItem(themeStyleStorageKey);
+		expect(readStoredThemeStyle()).toBe("x-robot");
+		window.localStorage.setItem(themeStyleStorageKey, "orchestrate");
+		expect(readStoredThemeStyle()).toBe("orchestrate");
 	});
 });
 

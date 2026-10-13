@@ -17,7 +17,7 @@ import {
 	AlertTriangle,
 	Archive,
 	CalendarClock,
-	Workflow,
+	Orbit,
 	ChevronRight,
 	Download,
 	Folder,
@@ -122,9 +122,9 @@ import {
 	useSidebar,
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { XRobotMark, XRobotWordmark } from "./BrandMark";
 import { OrchestratorIcon } from "./icons";
 import { Badge } from "./ui/badge";
-import aoLogo from "../../../assets/ao-mascot.png";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store";
 import { useKeybindingsStore } from "../stores/keybindings-store";
@@ -927,12 +927,12 @@ export function Sidebar({
 							"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
 						)}
 					>
-						<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[1.5px] object-contain" />
+						<XRobotMark glow className="h-6 w-6" />
 					</span>
 					<span
 						className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
 					>
-						Agent Orchestrator
+						<XRobotWordmark />
 					</span>
 					{isNightly && (
 						<span className="sidebar-expanded-chrome shrink-0 rounded-full bg-purple-subtle px-1.5 py-0.5 text-micro font-semibold leading-none text-purple-accent group-data-[collapsible=icon]:hidden">
@@ -1010,7 +1010,7 @@ export function Sidebar({
 							onClick={selection.goOrchestrator}
 							tooltip={isCollapsed ? t("orchestrator.title") : undefined}
 						>
-							<Workflow aria-hidden="true" />
+							<Orbit aria-hidden="true" />
 							<span className="sidebar-expanded-chrome group-data-[collapsible=icon]:hidden">{t("orchestrator.title")}</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>

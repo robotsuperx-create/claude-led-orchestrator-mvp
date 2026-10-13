@@ -37,6 +37,15 @@ Use these files to inspect the approved references. They show current behavior a
 
 When a referenced file and this guide disagree, follow this guide for new work and log a targeted migration rather than spreading the discrepancy.
 
+## X-ROBOT-AI brand layer (approved exception)
+
+The product ships as **X-ROBOT-AI**, built on Agent Orchestrator (Apache-2.0; keep the attribution in About and `NOTICE`). Its owner asked for a distinctive deep-space identity. That identity is an approved, bounded exception to the "no gradients, glow, or texture" rule in §2 and §13:
+
+- **Default palette:** `x-robot` in `tokens.css` (deep space dark, stellar day light). Earlier palettes stay selectable in Settings. Status colors are untouched and keep their meaning.
+- **Brand surfaces only:** the sidebar backdrop, the sidebar brand, Home, the startup screen, and the Mission control header may use `.xr-cosmos` (nebula and starfield), `.xr-cosmos--quiet` (nebula only, for panels with text), `.xr-wordmark`, `.xr-mark--glow`, and `OrbitField`. Primitives live in `components/BrandMark.tsx` and the brand section of `styles.css`.
+- **Never** on working surfaces: terminal, session view, board cards, dialogs, menus, or settings content. Never over live terminal content.
+- Every brand effect is inert outside the `x-robot` palette and stops under reduced motion. Orbit satellites carry semantic status colors and stand for real runs only.
+
 ## 1. Product and reader
 
 - **Reader:** an engineer coordinating several coding-agent sessions, often while switching among repositories, terminals, pull requests, and reviews.
@@ -423,4 +432,5 @@ Approve only when the answer to every applicable check is yes. Otherwise classif
 | 2026-09-04 | Only trustworthy user-facing data belongs below an agent name | The model catalog's `binaryVersion` is an internal cache fingerprint, so it must not be presented as a CLI version. |
 | 2026-09-16 | Home: quiet Star-us link; 2×2 action grid with standalone in-grid; recent rows use NavRowHighlight | Rejected accent CTAs, Connect Mobile on home, and flat hover washes — keep home minimal and aligned with sidebar row chrome. |
 | 2026-09-16 | Brand mark clicks to home with no hover/focus fill | Separate home affordance and sidebar focus wash on the brand were rejected. |
+| 2026-10-13 | X-ROBOT-AI brand layer: deep-space palette as default, cosmic treatment on brand surfaces only | Owner's product identity; bounded so working surfaces stay calm and status stays truthful. |
 | 2026-09-16 | Resize grips: fixed 80vh hover pill on center-pane border; clamp to panel min/max ∩ CSS max-width | Rejected always-on/`::after`/inset grips and unclamped pointer-following (inspector flew past both limits). |

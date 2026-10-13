@@ -2,6 +2,7 @@ export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";
 
 export type ThemeStyle =
+	| "x-robot"
 	| "orchestrate"
 	| "github"
 	| "catppuccin"
@@ -11,6 +12,9 @@ export type ThemeStyle =
 	| "nord"
 	| "gruvbox"
 	| "solarized";
+
+/** X-ROBOT-AI's own palette is the default; the earlier palettes stay selectable. */
+export const DEFAULT_THEME_STYLE: ThemeStyle = "x-robot";
 
 export const themeStorageKey = "ao.theme";
 export const themeStyleStorageKey = "ao.theme-style";
@@ -45,6 +49,7 @@ export function readStoredThemeStyle(): ThemeStyle {
 	try {
 		const stored = getLocalStorage()?.getItem(themeStyleStorageKey);
 		if (
+			stored === "x-robot" ||
 			stored === "orchestrate" ||
 			stored === "github" ||
 			stored === "catppuccin" ||
@@ -60,7 +65,7 @@ export function readStoredThemeStyle(): ThemeStyle {
 	} catch {
 		// ignore
 	}
-	return "orchestrate";
+	return DEFAULT_THEME_STYLE;
 }
 
 export function applyDocumentTheme(theme: Theme): void {

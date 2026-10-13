@@ -257,7 +257,7 @@ describe("ShellTopbar route identity", () => {
 			</QueryClientProvider>,
 		);
 
-		expect(screen.getByTestId("orchestrator-topbar-label")).toHaveTextContent("Orchestrator");
+		expect(screen.getByTestId("orchestrator-topbar-label")).toHaveTextContent("Mission control");
 		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
 	});
 });

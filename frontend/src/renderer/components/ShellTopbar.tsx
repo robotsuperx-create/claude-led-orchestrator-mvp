@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { Archive, CalendarClock, Workflow, Folder, LayoutDashboard, Plus } from "lucide-react";
+import { Archive, CalendarClock, Orbit, Folder, LayoutDashboard, Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { NotificationCenter } from "./NotificationCenter";
@@ -195,7 +195,7 @@ export function ShellTopbar({
 				) : isOrchestratorRoute ? (
 					<div className="inline-flex min-w-0 items-center gap-1.5" data-testid="orchestrator-topbar-label">
 						<span className={cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5")}>
-							<Workflow aria-hidden="true" className="size-icon-md" />
+							<Orbit aria-hidden="true" className="size-icon-md" />
 							{t("orchestrator.title")}
 						</span>
 					</div>
