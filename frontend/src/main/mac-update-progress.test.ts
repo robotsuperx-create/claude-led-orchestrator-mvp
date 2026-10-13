@@ -24,7 +24,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { vi.useRealTimers(); await rm(root, { recursive: true, force: true }); });
 
-const appPath = "/Applications/Agent Orchestrator.app";
+const appPath = "/Applications/X-ROBOT-AI.app";
 function start() {
 	return startMacUpdateProgress({ stateDir: root, resourcesPath: path.join(root, "resources"), appPath, version: "2.0.0" });
 }
@@ -55,7 +55,7 @@ it("acknowledges only the new process running the expected version and bundle", 
 	const options = { stateDir: root, appPath, version: "2.0.0", pid: process.pid + 1 };
 	expect(await acknowledgeMacUpdateRestart({ ...options, pid: process.pid })).toBe(false);
 	expect(await acknowledgeMacUpdateRestart({ ...options, version: "1.0.0" })).toBe(false);
-	expect(await acknowledgeMacUpdateRestart({ ...options, appPath: "/Downloads/Agent Orchestrator.app" })).toBe(false);
+	expect(await acknowledgeMacUpdateRestart({ ...options, appPath: "/Downloads/X-ROBOT-AI.app" })).toBe(false);
 	expect(await acknowledgeMacUpdateRestart(options)).toBe(true);
 	const complete = JSON.parse(await readFile(path.join(await attemptPath(), "complete.json"), "utf8"));
 	expect(complete).toMatchObject({ version: "2.0.0", appPath, pid: process.pid + 1, parentPID: process.pid });

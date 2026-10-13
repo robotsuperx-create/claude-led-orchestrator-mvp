@@ -5,7 +5,7 @@ export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 fail() { echo "Agent Orchestrator repair: $*" >&2; exit 1; }
 @@ROOT_CHECK@@
 [ "${3:-}" = / ] || fail 'Install only on the startup volume.'
-app='/Applications/Agent Orchestrator.app'
+app='/Applications/X-ROBOT-AI.app'
 [ ! -L /Applications ] && [ ! -L "$app" ] || fail 'The destination must not be a symbolic link.'
 [ ! -e "$app" ] || [ -d "$app" ] || fail 'The destination is not an application bundle.'
 # sysctl identifies Apple Silicon even when Installer runs under Rosetta.
@@ -32,7 +32,7 @@ while IFS= read -r process; do
     *.app/Contents/*/ShipIt)
       owner="${process%%.app/Contents/*}.app/Contents/Info.plist"
       owner_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$owner" 2>/dev/null || true)
-      [ "$owner_id" != dev.agent-orchestrator.desktop ] || fail 'AO updater is running. Restart your Mac and run this installer before opening AO.'
+      [ "$owner_id" != ai.xrobot.desktop ] || fail 'AO updater is running. Restart your Mac and run this installer before opening AO.'
       ;;
   esac
 done <<< "$processes"
@@ -40,7 +40,7 @@ if [ -e "$app" ]; then
   [ ! -L "$app/Contents" ] && [ ! -L "$app/Contents/Info.plist" ] || fail 'The existing bundle metadata must not be a symbolic link.'
   plist="$app/Contents/Info.plist"
   id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist") || fail 'Cannot read the existing bundle identity.'
-  [ "$id" = dev.agent-orchestrator.desktop ] || fail 'Refusing to replace an unrelated application.'
+  [ "$id" = ai.xrobot.desktop ] || fail 'Refusing to replace an unrelated application.'
   old=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist") || fail 'Cannot read the existing version.'
   build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist") || fail 'Cannot read the existing build.'
   [ "$old" = "$build" ] || fail 'Unrecognized version/build combination; refusing replacement.'

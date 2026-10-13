@@ -10,7 +10,7 @@ import MakerAppImage from "./maker-appimage";
 const makeOptions = {
 	dir: "/tmp/app/Agent Orchestrator-linux-x64",
 	makeDir: "/tmp/app/make",
-	appName: "Agent Orchestrator",
+	appName: "X-ROBOT-AI",
 	targetPlatform: "linux" as const,
 	targetArch: "x64" as const,
 	forgeConfig: {} as never,
@@ -37,7 +37,7 @@ describe("MakerAppImage", () => {
 			},
 		];
 		const maker = new MakerAppImage(
-			{ appId: "dev.agent-orchestrator.desktop", protocols },
+			{ appId: "ai.xrobot.desktop", protocols },
 			["linux"],
 		);
 		await maker.prepareConfig(makeOptions.targetArch);
@@ -53,7 +53,7 @@ describe("MakerAppImage", () => {
 	// the same as "0.0.0", so a looser check would stay green on a regression. See
 	// the rationale in maker-appimage.ts.
 	it("pins the appimage toolset so the artifact does not need libfuse2 (#4006)", async () => {
-		const maker = new MakerAppImage({ appId: "dev.agent-orchestrator.desktop" }, ["linux"]);
+		const maker = new MakerAppImage({ appId: "ai.xrobot.desktop" }, ["linux"]);
 		await maker.prepareConfig(makeOptions.targetArch);
 		await maker.make(makeOptions);
 

@@ -85,11 +85,11 @@ describe("decideRelocation", () => {
 describe("installedBundlePath", () => {
 	it("maps any running bundle to the same name under /Applications", () => {
 		expect(
-			installedBundlePath("/Users/x/Downloads/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Users/x/Downloads/X-ROBOT-AI.app"),
+		).toBe("/Applications/X-ROBOT-AI.app");
 		expect(
-			installedBundlePath("/Volumes/Agent Orchestrator/Agent Orchestrator.app"),
-		).toBe("/Applications/Agent Orchestrator.app");
+			installedBundlePath("/Volumes/Agent Orchestrator/X-ROBOT-AI.app"),
+		).toBe("/Applications/X-ROBOT-AI.app");
 	});
 });
 
@@ -99,7 +99,7 @@ describe("readBundleVersion", () => {
 
 	beforeEach(async () => {
 		dir = await mkdtemp(path.join(os.tmpdir(), "ao-relocation-"));
-		bundle = path.join(dir, "Agent Orchestrator.app");
+		bundle = path.join(dir, "X-ROBOT-AI.app");
 		await mkdir(path.join(bundle, "Contents"), { recursive: true });
 	});
 

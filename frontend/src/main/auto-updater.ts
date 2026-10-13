@@ -2645,7 +2645,7 @@ export async function setMacDifferentialUpdates(
 // with nothing yet installed in /Applications.
 export function getMacInstallBlocker(): string | undefined {
   if (process.platform !== "darwin") return undefined;
-  // .../Agent Orchestrator.app/Contents/MacOS/<binary> -> the .app bundle root
+  // .../X-ROBOT-AI.app/Contents/MacOS/<binary> -> the .app bundle root
   const bundle = path.resolve(process.execPath, "..", "..", "..");
   // Everything below assumes that shape. Under `npm start`, and in tests,
   // execPath is a bare node/electron binary and this resolves to some unrelated
@@ -2656,7 +2656,7 @@ export function getMacInstallBlocker(): string | undefined {
     return (
       "macOS is running Agent Orchestrator from a temporary read-only location " +
       "because it was opened straight from where it was downloaded. Quit the app, " +
-      "move Agent Orchestrator.app into /Applications, reopen it from there, and " +
+      "move X-ROBOT-AI.app into /Applications, reopen it from there, and " +
       "then restart to update."
     );
   }
@@ -2671,7 +2671,7 @@ export function getMacInstallBlocker(): string | undefined {
     return (
       "The update can't be installed because Agent Orchestrator's location isn't " +
       `writable: ${path.dirname(bundle)}. Fix that folder's permissions, or move ` +
-      "Agent Orchestrator.app somewhere you can write to, reopen it, and then " +
+      "X-ROBOT-AI.app somewhere you can write to, reopen it, and then " +
       "restart to update."
     );
   }

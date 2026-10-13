@@ -505,7 +505,7 @@ describe("startAutoUpdates", () => {
       updaterEvents.get("update-downloaded")?.({ version: "2.1.0" });
       await flushMicrotasks();
       const failure = new Error(
-        "ditto: Could not lstat /Users/test/Library/Caches/dev.agent-orchestrator.desktop.ShipIt/update.abc/Agent Orchestrator.app/Contents/Resources/acp-runtime/node_modules/.bin/node-which: No such file or directory",
+        "ditto: Could not lstat /Users/test/Library/Caches/ai.xrobot.desktop.ShipIt/update.abc/X-ROBOT-AI.app/Contents/Resources/acp-runtime/node_modules/.bin/node-which: No such file or directory",
       );
       updaterEvents.get("error")?.(failure);
       nativeAutoUpdater.emit("error", failure);
@@ -3374,17 +3374,17 @@ function stubProcess(platform: NodeJS.Platform, execPath: string): () => void {
 // filesystem rather than a stub. Returns the exec path inside it.
 function makeBundle(): { root: string; bundle: string; execPath: string } {
   const root = mkdtempSync(nodePath.join(os.tmpdir(), "ao-updater-perm-"));
-  const bundle = nodePath.join(root, "Agent Orchestrator.app");
+  const bundle = nodePath.join(root, "X-ROBOT-AI.app");
   mkdirSync(nodePath.join(bundle, "Contents", "MacOS"), { recursive: true });
   return {
     root,
     bundle,
-    execPath: nodePath.join(bundle, "Contents", "MacOS", "agent-orchestrator"),
+    execPath: nodePath.join(bundle, "Contents", "MacOS", "x-robot-ai"),
   };
 }
 
 const TRANSLOCATED_EXEC_PATH =
-  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/Agent Orchestrator.app/Contents/MacOS/agent-orchestrator";
+  "/private/var/folders/hg/vkmz93d1T/T/AppTranslocation/0AC4-11EE/d/X-ROBOT-AI.app/Contents/MacOS/x-robot-ai";
 
 describe("quitAndInstallUpdate", () => {
   afterEach(() => {
@@ -4025,7 +4025,7 @@ describe("channel downgrade safety", () => {
 // so the retry never re-downloads and never re-verifies.
 describe("staged install rejection", () => {
   const rejection = new Error(
-    "Code signature at URL file:///Users/x/Library/Caches/dev.agent-orchestrator.desktop.ShipIt/" +
+    "Code signature at URL file:///Users/x/Library/Caches/ai.xrobot.desktop.ShipIt/" +
       "update.M9ZvE0X/Agent%20Orchestrator.app/ did not pass validation: " +
       "code failed to satisfy specified code requirement(s)",
   );
@@ -4294,7 +4294,7 @@ describe("staged install rejection", () => {
     updaterEvents.get("error")?.(
       new Error(
         "Code signature at URL file:///Users/graycup/Library/Caches/" +
-          "dev.agent-orchestrator.desktop.ShipIt/update.lmaIGgc/Agent%20Orchestrator.app/ " +
+          "ai.xrobot.desktop.ShipIt/update.lmaIGgc/Agent%20Orchestrator.app/ " +
           "did not pass validation: code object is not signed at all",
       ),
     );
@@ -4318,7 +4318,7 @@ describe("staged install rejection", () => {
     updaterEvents.get("error")?.(
       new Error(
         "Failed to get static code for bundle file:///Users/x/Library/Caches/" +
-          "dev.agent-orchestrator.desktop.ShipIt/update.M9ZvE0X/Agent%20Orchestrator.app/",
+          "ai.xrobot.desktop.ShipIt/update.M9ZvE0X/Agent%20Orchestrator.app/",
       ),
     );
 
@@ -4341,7 +4341,7 @@ describe("staged install rejection", () => {
     updaterEvents.get("error")?.(
       new Error(
         "EACCES: permission denied, open '/Users/x/Library/Caches/" +
-          "dev.agent-orchestrator.desktop.ShipIt/ShipItState.plist'",
+          "ai.xrobot.desktop.ShipIt/ShipItState.plist'",
       ),
     );
 

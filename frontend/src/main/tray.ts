@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { app, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 import { catalogFor, type MessageKey, type PluralMessageKey } from "../renderer/i18n/messages";
+import { BRAND_NAME } from "../shared/brand";
 import type { AppLocale } from "../shared/ui-locale";
 import type { TrayAttentionState, TrayAttentionZone, TrayOpenSessionTarget, TraySessionEntry } from "../shared/tray";
 
@@ -67,7 +68,7 @@ export function createTrayController(options: TrayControllerOptions): TrayContro
 	const render = () => {
 		const count = sessions.length;
 		tray.setTitle(count > 0 ? String(count) : "");
-		tray.setToolTip(count > 0 ? tPlural("tray.attentionTooltip", count) : "Agent Orchestrator");
+		tray.setToolTip(count > 0 ? tPlural("tray.attentionTooltip", count) : BRAND_NAME);
 
 		const items: MenuItemConstructorOptions[] = [];
 		if (count === 0) {
