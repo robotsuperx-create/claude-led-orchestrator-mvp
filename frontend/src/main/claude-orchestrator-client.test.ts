@@ -123,4 +123,38 @@ describe("ClaudeOrchestratorClient", () => {
 		]);
 		expect(await client.approve("../x")).toEqual({ ok: false, error: "not_found" });
 	});
+
+	it("publishes through its own route and keeps only safe review links", async () => {
+		const { client, fetcher } = clientWith(() => jsonResponse(200, {
+			runId: RUN_ID, state: "completed", pullRequestUrl: "https://github.com/acme/app/pull/7",
+			compareUrl: "javascript:alert(1)", usage: { inputTokens: 10, outputTokens: 2, calls: 1, costUsd: 0.01, extra: "x" },
+		}));
+		const result = await client.publish(RUN_ID);
+		expect(result).toEqual({ ok: true, value: {
+			runId: RUN_ID, state: "completed", title: "",
+			pullRequestUrl: "https://github.com/acme/app/pull/7",
+			usage: { inputTokens: 10, outputTokens: 2, calls: 1, costUsd: 0.01 },
+		} });
+		const [url, init] = fetcher.mock.calls[0];
+		expect(url).toBe(`${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/publish`);
+		expect(init.method).toBe("POST");
+		expect(init.body).toBeUndefined();
+	});
+
+	it("explains why a publish failed using only the daemon's error code", async () => {
+		const cases: Array<[number, unknown, string]> = [
+			[502, { code: "NO_REMOTE", message: "remote https://user:secret@x" }, "no_remote"],
+			[502, { code: "PUBLISH_FAILED", message: "secret" }, "publish_failed"],
+			[409, { code: "RUN_HAS_NO_CHANGES" }, "no_changes"],
+			[404, { code: "PUBLISH_UNAVAILABLE" }, "not_found"],
+		];
+		for (const [status, body, error] of cases) {
+			const { client } = clientWith(() => jsonResponse(status, body));
+			expect(await client.publish(RUN_ID)).toEqual({ ok: false, error });
+		}
+		const { client, fetcher } = clientWith(() => jsonResponse(200, {}));
+		expect(await client.publish("../runs")).toEqual({ ok: false, error: "not_found" });
+		expect(fetcher).not.toHaveBeenCalled();
+	});
 });
+

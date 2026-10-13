@@ -89,7 +89,9 @@ export function useClaudeOrchestratorPlan(runId: string, enabled: boolean) {
 		queryFn: () => unwrap((bridge) => bridge.plan(runId)),
 		enabled,
 		retry: false,
-		staleTime: Number.POSITIVE_INFINITY,
+		// A revised plan for the same run replaces the first one, so never
+		// treat a cached plan as current once the review screen remounts.
+		staleTime: 0,
 	});
 }
 
@@ -98,6 +100,19 @@ export function useDecideClaudeOrchestratorPlan() {
 	const client = useQueryClient();
 	return useMutation<ClaudeOrchestratorRun, ClaudeOrchestratorError, { runId: string; approve: boolean }>({
 		mutationFn: ({ runId, approve }) => unwrap((bridge) => (approve ? bridge.approve(runId) : bridge.reject(runId))),
+		onSettled: () => void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs }),
+	});
+}
+
+/** Pushes a finished run's branch and opens a pull request. Never merges. */
+export function usePublishClaudeOrchestratorRun() {
+	const client = useQueryClient();
+	return useMutation<ClaudeOrchestratorRun, ClaudeOrchestratorError, string>({
+		mutationFn: (runId) => unwrap((bridge) => bridge.publish(runId)),
+		onSuccess: (run) => {
+			client.setQueryData<ClaudeOrchestratorRun[]>(claudeOrchestratorQueryKeys.runs, (current = []) =>
+				current.map((item) => (item.runId === run.runId ? { ...item, ...run } : item)));
+		},
 		onSettled: () => void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs }),
 	});
 }

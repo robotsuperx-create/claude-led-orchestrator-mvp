@@ -16,9 +16,12 @@ type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
 
 const BASE_PATH = "/internal/claude-orchestrator";
 const REQUEST_TIMEOUT_MS = 5_000;
+// Publishing pushes a branch and opens a pull request over the network.
+const PUBLISH_TIMEOUT_MS = 150_000;
 
 const DISABLED_INFO: ClaudeOrchestratorInfo = {
 	enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0,
+	plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false,
 };
 
 /**
@@ -92,6 +95,19 @@ export class ClaudeOrchestratorClient {
 		return this.decide(runId, "reject");
 	}
 
+	/** Pushes a finished run's own branch and opens a pull request. Never merges. */
+	async publish(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const response = await this.request("POST", `${BASE_PATH}/runs/${runId}/publish`, undefined, PUBLISH_TIMEOUT_MS);
+		if (!response.ok) {
+			if (response.error === "already_finished") return { ok: false, error: "no_changes" };
+			if (response.error === "failed") return { ok: false, error: response.code === "NO_REMOTE" ? "no_remote" : "publish_failed" };
+			return { ok: false, error: response.error };
+		}
+		const run = parseClaudeOrchestratorRun(response.body);
+		return run && run.runId === runId ? { ok: true, value: run } : { ok: false, error: "failed" };
+	}
+
 	private async decide(runId: unknown, decision: "approve" | "reject"): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
 		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
 		const response = await this.request("POST", `${BASE_PATH}/runs/${runId}/${decision}`);
@@ -100,7 +116,12 @@ export class ClaudeOrchestratorClient {
 		return run && run.runId === runId ? { ok: true, value: run } : { ok: false, error: "failed" };
 	}
 
-	private async request(method: "GET" | "POST", pathname: string, body?: object): Promise<{ ok: true; body: unknown } | { ok: false; error: ClaudeOrchestratorErrorCode }> {
+	private async request(
+		method: "GET" | "POST",
+		pathname: string,
+		body?: object,
+		timeoutMs = REQUEST_TIMEOUT_MS,
+	): Promise<{ ok: true; body: unknown } | { ok: false; error: ClaudeOrchestratorErrorCode; code?: string }> {
 		const base = this.origin();
 		if (!base) return { ok: false, error: "daemon_unavailable" };
 		let parsed: URL;
@@ -113,7 +134,7 @@ export class ClaudeOrchestratorClient {
 			return { ok: false, error: "daemon_unavailable" };
 		}
 		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		try {
 			const response = await this.fetcher(`${parsed.origin}${pathname}`, {
 				method,
@@ -121,13 +142,23 @@ export class ClaudeOrchestratorClient {
 				headers: body ? { "content-type": "application/json" } : undefined,
 				body: body ? JSON.stringify(body) : undefined,
 			});
-			if (!response.ok) return { ok: false, error: errorForStatus(response.status) };
+			if (!response.ok) return { ok: false, error: errorForStatus(response.status), code: await errorCode(response) };
 			return { ok: true, body: await response.json() };
 		} catch {
 			return { ok: false, error: "daemon_unavailable" };
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+}
+
+/** The daemon's machine-readable error code; its message is never read. */
+async function errorCode(response: Response): Promise<string | undefined> {
+	try {
+		const body = (await response.json()) as { code?: unknown };
+		return typeof body.code === "string" && /^[A-Z_]{1,64}$/.test(body.code) ? body.code : undefined;
+	} catch {
+		return undefined;
 	}
 }
 

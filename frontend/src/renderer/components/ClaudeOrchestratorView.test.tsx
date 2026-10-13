@@ -11,6 +11,7 @@ const RUN_NEW = "claude-run-cccccccccccccccccccccccccccccccc";
 
 const enabledInfo: ClaudeOrchestratorInfo = {
 	enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2,
+	plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true,
 };
 
 const mocks = vi.hoisted(() => ({
@@ -22,13 +23,16 @@ const mocks = vi.hoisted(() => ({
 	plan: vi.fn(),
 	approve: vi.fn(),
 	reject: vi.fn(),
+	publish: vi.fn(),
 	writeText: vi.fn(async () => undefined),
+	openExternal: vi.fn(async () => undefined),
 }));
 
 vi.mock("../lib/bridge", () => ({
 	aoBridge: {
-		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel, plan: mocks.plan, approve: mocks.approve, reject: mocks.reject },
+		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel, plan: mocks.plan, approve: mocks.approve, reject: mocks.reject, publish: mocks.publish },
 		clipboard: { writeText: mocks.writeText },
+		app: { openExternal: mocks.openExternal },
 	},
 }));
 vi.mock("../lib/platform", async (importOriginal) => ({
@@ -47,6 +51,7 @@ describe("ClaudeOrchestratorView", () => {
 	beforeEach(() => {
 		for (const mock of Object.values(mocks)) mock.mockReset();
 		mocks.writeText.mockResolvedValue(undefined);
+		mocks.openExternal.mockResolvedValue(undefined);
 		mocks.info.mockResolvedValue(ok(enabledInfo));
 		mocks.list.mockResolvedValue(ok([]));
 	});
@@ -216,5 +221,50 @@ describe("ClaudeOrchestratorView", () => {
 		await screen.findAllByTestId("claude-orchestrator-run");
 		await waitFor(() => expect(screen.getByRole("button", { name: "New run" })).toBeDisabled());
 		expect(screen.getByRole("button", { name: "New run" })).toHaveAttribute("title", "2 runs are active. Wait for one to finish.");
+	});
+
+	it("shows a run's usage against its budget and why a spent budget stopped it", async () => {
+		mocks.list.mockResolvedValue(ok([
+			{ runId: RUN_A, state: "failed", title: "Big refactor", usage: { inputTokens: 1_950_000, outputTokens: 60_000, calls: 22, costUsd: 6.75, budgetTokens: 2_000_000, exhausted: true } },
+		] satisfies ClaudeOrchestratorRun[]));
+		renderView();
+		expect(await screen.findByText("Budget 2M tokens per run")).toBeInTheDocument();
+		await userEvent.click(await screen.findByRole("button", { name: /Big refactor/ }));
+		const usage = await screen.findByTestId("claude-orchestrator-usage");
+		expect(usage).toHaveTextContent("2M in · 60K out · 22 calls");
+		expect(usage).toHaveTextContent("about $6.75");
+		expect(within(usage).getByRole("meter")).toHaveAttribute("aria-valuenow", "100");
+		expect(screen.getByTestId("claude-orchestrator-outcome")).toHaveTextContent("used up its model budget");
+	});
+
+	it("publishes a finished run only after confirmation and links the pull request", async () => {
+		const branch = `ao/claude-orchestrator/${RUN_A}`;
+		const finished: ClaudeOrchestratorRun = { runId: RUN_A, state: "completed", title: "Add retries", branch, commit: "4e7a1c2f90", recommendation: "merge", replans: 1 };
+		mocks.list.mockResolvedValue(ok([finished]));
+		mocks.publish.mockResolvedValue(ok({ ...finished, pullRequestUrl: "https://github.com/acme/app/pull/7" }));
+		renderView();
+		await userEvent.click(await screen.findByRole("button", { name: /Add retries/ }));
+		expect(screen.getByText("Plan revisions")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Publish for review" }));
+		expect(mocks.publish).not.toHaveBeenCalled();
+		const dialog = await screen.findByRole("dialog");
+		expect(dialog).toHaveTextContent(branch);
+		expect(dialog).toHaveTextContent("This pushes the run's branch to your Git remote and opens a pull request.");
+		mocks.list.mockResolvedValue(ok([{ ...finished, pullRequestUrl: "https://github.com/acme/app/pull/7" }]));
+		await userEvent.click(within(dialog).getByRole("button", { name: "Push and open pull request" }));
+		expect(mocks.publish).toHaveBeenCalledWith(RUN_A);
+		await userEvent.click(await screen.findByRole("button", { name: "Open pull request" }));
+		expect(mocks.openExternal).toHaveBeenCalledWith("https://github.com/acme/app/pull/7");
+		expect(screen.queryByRole("button", { name: "Publish for review" })).not.toBeInTheDocument();
+	});
+
+	it("does not offer publishing when the daemon cannot publish or nothing changed", async () => {
+		mocks.info.mockResolvedValue(ok({ ...enabledInfo, canPublish: false }));
+		mocks.list.mockResolvedValue(ok([
+			{ runId: RUN_A, state: "completed", title: "Add retries", branch: `ao/claude-orchestrator/${RUN_A}`, commit: "4e7a1c2f90", recommendation: "merge" },
+		] satisfies ClaudeOrchestratorRun[]));
+		renderView();
+		await userEvent.click(await screen.findByRole("button", { name: /Add retries/ }));
+		expect(screen.queryByRole("button", { name: "Publish for review" })).not.toBeInTheDocument();
 	});
 });

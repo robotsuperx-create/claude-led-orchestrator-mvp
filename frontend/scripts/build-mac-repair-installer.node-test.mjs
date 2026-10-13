@@ -131,7 +131,7 @@ test('notarization rejection and canonical verifier failure fail closed', async 
 test('native macOS packaging produces a fixed atomic bundle replacement and executable guards without installing', { skip: process.platform !== 'darwin' }, async (t) => {
   const dir = await fixture(t), app = path.join(dir, 'X-ROBOT-AI.app');
   await mkdir(path.join(app, 'Contents/MacOS'), { recursive: true });
-  await writeFile(path.join(app, 'Contents/Info.plist'), `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${metadata.id}</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${version}</string><key>CFBundleExecutable</key><string>agent-orchestrator</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`);
+  await writeFile(path.join(app, 'Contents/Info.plist'), `<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>${metadata.id}</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${version}</string><key>CFBundleExecutable</key><string>x-robot-ai</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`);
   await writeFile(path.join(app, 'Contents/MacOS/x-robot-ai'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   const output = path.join(dir, 'fixture.unsigned.pkg');
   await buildRepairInstaller({ app, output, unsignedForTesting: true, dataDir: dir }, (c, a) => {

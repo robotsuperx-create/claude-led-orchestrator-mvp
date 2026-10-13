@@ -17,6 +17,7 @@ export type ClaudeOrchestratorBridge = {
 	plan: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorPlan>>;
 	approve: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	reject: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
+	publish: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 };
 
 const unavailable = async () => ({ ok: false as const, error: "daemon_unavailable" as const });
@@ -24,7 +25,7 @@ const unavailable = async () => ({ ok: false as const, error: "daemon_unavailabl
 /** Used outside Electron when no preview data is wanted (tests, plain web). */
 export const unavailableClaudeOrchestratorBridge: ClaudeOrchestratorBridge = {
 	info: unavailable, list: unavailable, start: unavailable, status: unavailable, cancel: unavailable,
-	plan: unavailable, approve: unavailable, reject: unavailable,
+	plan: unavailable, approve: unavailable, reject: unavailable, publish: unavailable,
 };
 
 // Preview-only stage timing: each stage lasts this long after the run starts.
@@ -51,9 +52,9 @@ const previewPlan = (runId: string): ClaudeOrchestratorPlan => ({
 export function createClaudeOrchestratorPreview(now: () => number = Date.now): ClaudeOrchestratorBridge {
 	const base = now();
 	const runs: PreviewRun[] = [
-		{ runId: "claude-run-3f1c0a9b8e7d6c5b4a39281706f5e4d3", state: "held", title: "Migrate the settings form to the shared select primitive", branch: "ao/claude-orchestrator/claude-run-3f1c0a9b8e7d6c5b4a39281706f5e4d3", commit: "9c41e07b2d", recommendation: "hold", createdAt: new Date(base - 26 * 60_000).toISOString(), updatedAt: new Date(base - 19 * 60_000).toISOString(), startedAt: 0 },
-		{ runId: "claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d", state: "completed", title: "Add retry with backoff to the GitHub client and cover it with tests", branch: "ao/claude-orchestrator/claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d", commit: "4e7a1c2f90", recommendation: "merge", createdAt: new Date(base - 95 * 60_000).toISOString(), updatedAt: new Date(base - 81 * 60_000).toISOString(), startedAt: 0 },
-		{ runId: "claude-run-1b3d5f7a9c2e4a6c8e0b2d4f6a8c0e2a", state: "failed", title: "Upgrade the date library across the renderer", createdAt: new Date(base - 3 * 3_600_000).toISOString(), updatedAt: new Date(base - 3 * 3_600_000 + 4 * 60_000).toISOString(), startedAt: 0 },
+		{ runId: "claude-run-3f1c0a9b8e7d6c5b4a39281706f5e4d3", state: "held", title: "Migrate the settings form to the shared select primitive", branch: "ao/claude-orchestrator/claude-run-3f1c0a9b8e7d6c5b4a39281706f5e4d3", commit: "9c41e07b2d", recommendation: "hold", replans: 1, usage: { inputTokens: 184_200, outputTokens: 31_900, calls: 14, costUsd: 1.03, budgetTokens: 2_000_000 }, createdAt: new Date(base - 26 * 60_000).toISOString(), updatedAt: new Date(base - 19 * 60_000).toISOString(), startedAt: 0 },
+		{ runId: "claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d", state: "completed", title: "Add retry with backoff to the GitHub client and cover it with tests", branch: "ao/claude-orchestrator/claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d", commit: "4e7a1c2f90", recommendation: "merge", usage: { inputTokens: 96_400, outputTokens: 18_250, calls: 8, costUsd: 0.56, budgetTokens: 2_000_000 }, pullRequestUrl: "https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/12", createdAt: new Date(base - 95 * 60_000).toISOString(), updatedAt: new Date(base - 81 * 60_000).toISOString(), startedAt: 0 },
+		{ runId: "claude-run-1b3d5f7a9c2e4a6c8e0b2d4f6a8c0e2a", state: "failed", title: "Upgrade the date library across the renderer", usage: { inputTokens: 2_000_400, outputTokens: 12_100, calls: 21, costUsd: 6.18, budgetTokens: 2_000_000, exhausted: true }, createdAt: new Date(base - 3 * 3_600_000).toISOString(), updatedAt: new Date(base - 3 * 3_600_000 + 4 * 60_000).toISOString(), startedAt: 0 },
 	];
 	const snapshot = (run: PreviewRun): ClaudeOrchestratorRun => {
 		if (run.awaiting && now() - run.startedAt >= PREVIEW_STAGE_MS) {
@@ -68,13 +69,16 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 				run.commit ??= run.runId.slice(-10);
 				run.recommendation = "merge";
 			}
+			const elapsed = Math.max(0, now() - run.startedAt);
+			const calls = Math.min(8, 1 + Math.floor(elapsed / PREVIEW_STAGE_MS));
+			run.usage = { inputTokens: calls * 11_800, outputTokens: calls * 2_300, calls, costUsd: Math.round(calls * 7) / 100, budgetTokens: 2_000_000 };
 		}
 		const { startedAt: _startedAt, canceled: _canceled, awaiting: _awaiting, ...visible } = run;
 		return { ...visible };
 	};
 	const find = (runId: string) => runs.find((run) => run.runId === runId);
 	return {
-		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2 } }),
+		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2, plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true } }),
 		list: async () => ({ ok: true, value: runs.map(snapshot) }),
 		start: async (input) => {
 			const runId = `claude-run-${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
@@ -110,6 +114,14 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 			// Continue through the remaining stages from "planning".
 			run.awaiting = false;
 			run.startedAt = now() - PREVIEW_STAGE_MS;
+			return { ok: true, value: snapshot(run) };
+		},
+		publish: async (runId) => {
+			const run = find(runId);
+			if (!run) return { ok: false, error: "not_found" };
+			snapshot(run);
+			if ((run.state !== "completed" && run.state !== "held") || !run.commit) return { ok: false, error: "no_changes" };
+			run.pullRequestUrl ??= `https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/${13 + runs.indexOf(run)}`;
 			return { ok: true, value: snapshot(run) };
 		},
 		reject: async (runId) => {

@@ -35,6 +35,29 @@ export type ClaudeOrchestratorInfo = {
 	workerMode: ClaudeOrchestratorWorkerMode;
 	sandboxed: boolean;
 	maxActiveRuns: number;
+	/** "claude" or "local": who plans and reviews. */
+	plannerProvider: string;
+	/** Each run's token budget; 0 means no limit. */
+	budgetTokens: number;
+	/** Each run's cost budget in US dollars; 0 means no limit. */
+	budgetUsd: number;
+	/** How many times Claude may revise a plan after failures. */
+	maxReplans: number;
+	/** Finished runs can be pushed and opened as a pull request. */
+	canPublish: boolean;
+};
+
+/** A run's model usage. Agent sessions bill through their own harness. */
+export type ClaudeOrchestratorUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	calls: number;
+	/** Estimated cost in US dollars; absent when a provider has no price. */
+	costUsd?: number;
+	budgetTokens?: number;
+	budgetUsd?: number;
+	/** The run stopped because its budget was used up. */
+	exhausted?: boolean;
 };
 
 export type ClaudeOrchestratorRun = {
@@ -48,6 +71,13 @@ export type ClaudeOrchestratorRun = {
 	interrupted?: boolean;
 	createdAt?: string;
 	updatedAt?: string;
+	usage?: ClaudeOrchestratorUsage;
+	/** How many times Claude revised the plan after failures. */
+	replans?: number;
+	/** The pull request opened for this run. */
+	pullRequestUrl?: string;
+	/** Open this to create the pull request by hand. */
+	compareUrl?: string;
 };
 
 export type ClaudeOrchestratorStartInput = { task: string; maxRetries: number; approvePlan?: boolean };
@@ -72,6 +102,9 @@ export type ClaudeOrchestratorErrorCode =
 	| "not_found"
 	| "already_finished"
 	| "plan_not_ready"
+	| "no_changes"
+	| "no_remote"
+	| "publish_failed"
 	| "failed";
 
 export type ClaudeOrchestratorResult<T> = { ok: true; value: T } | { ok: false; error: ClaudeOrchestratorErrorCode };
@@ -116,6 +149,40 @@ function isoTime(value: unknown): string | undefined {
 	return value.startsWith("0001-") ? undefined : value;
 }
 
+function count(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER ? value : undefined;
+}
+
+function parseUsage(value: unknown): ClaudeOrchestratorUsage | undefined {
+	const candidate = record(value);
+	if (!candidate) return undefined;
+	const usage: ClaudeOrchestratorUsage = {
+		inputTokens: Math.floor(count(candidate.inputTokens) ?? 0),
+		outputTokens: Math.floor(count(candidate.outputTokens) ?? 0),
+		calls: Math.floor(count(candidate.calls) ?? 0),
+	};
+	const cost = count(candidate.costUsd);
+	if (cost !== undefined) usage.costUsd = cost;
+	const budgetTokens = count(candidate.budgetTokens);
+	if (budgetTokens) usage.budgetTokens = Math.floor(budgetTokens);
+	const budgetUsd = count(candidate.budgetUsd);
+	if (budgetUsd) usage.budgetUsd = budgetUsd;
+	if (candidate.exhausted === true) usage.exhausted = true;
+	return usage;
+}
+
+/** Only plain https review links without credentials are kept. */
+function reviewUrl(value: unknown): string | undefined {
+	if (typeof value !== "string" || value.length > 2048) return undefined;
+	try {
+		const url = new URL(value);
+		if (url.protocol !== "https:" || url.username || url.password) return undefined;
+		return url.toString();
+	} catch {
+		return undefined;
+	}
+}
+
 /** Rebuilds a run from allowlisted fields only; anything else is dropped. */
 export function parseClaudeOrchestratorRun(value: unknown): ClaudeOrchestratorRun | null {
 	const candidate = record(value);
@@ -131,6 +198,13 @@ export function parseClaudeOrchestratorRun(value: unknown): ClaudeOrchestratorRu
 	if (typeof candidate.commit === "string" && COMMIT_PATTERN.test(candidate.commit)) run.commit = candidate.commit;
 	if (candidate.recommendation === "merge" || candidate.recommendation === "hold") run.recommendation = candidate.recommendation;
 	if (candidate.interrupted === true) run.interrupted = true;
+	const usage = parseUsage(candidate.usage);
+	if (usage) run.usage = usage;
+	if (typeof candidate.replans === "number" && Number.isInteger(candidate.replans) && candidate.replans > 0) run.replans = Math.min(candidate.replans, 10);
+	const pullRequestUrl = reviewUrl(candidate.pullRequestUrl);
+	if (pullRequestUrl) run.pullRequestUrl = pullRequestUrl;
+	const compareUrl = reviewUrl(candidate.compareUrl);
+	if (compareUrl) run.compareUrl = compareUrl;
 	const createdAt = isoTime(candidate.createdAt);
 	const updatedAt = isoTime(candidate.updatedAt);
 	if (createdAt) run.createdAt = createdAt;
@@ -166,6 +240,11 @@ export function parseClaudeOrchestratorInfo(value: unknown): ClaudeOrchestratorI
 		workerMode: candidate.workerMode === "agents" ? "agents" : "model",
 		sandboxed: candidate.sandboxed === true,
 		maxActiveRuns,
+		plannerProvider: candidate.plannerProvider === "local" ? "local" : "claude",
+		budgetTokens: Math.floor(count(candidate.budgetTokens) ?? 0),
+		budgetUsd: count(candidate.budgetUsd) ?? 0,
+		maxReplans: Math.min(Math.floor(count(candidate.maxReplans) ?? 0), 10),
+		canPublish: candidate.canPublish === true,
 	};
 }
 

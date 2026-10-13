@@ -357,6 +357,7 @@ const api = {
 		plan: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:plan", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorPlan>>,
 		approve: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:approve", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 		reject: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:reject", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		publish: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:publish", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 	},
 	daemon: {
 		getStatus: () => ipcRenderer.invoke("daemon:getStatus") as Promise<DaemonStatus>,

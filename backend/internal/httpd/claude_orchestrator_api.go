@@ -114,7 +114,8 @@ type ClaudeOrchestratorUsage struct {
 }
 
 func displayUsage(usage *ports.RunUsage) *ClaudeOrchestratorUsage {
-	if usage == nil {
+	// A run that made no metered call has nothing to show.
+	if usage == nil || (usage.Calls == 0 && !usage.Exhausted) {
 		return nil
 	}
 	shown := &ClaudeOrchestratorUsage{
