@@ -1,6 +1,6 @@
 import type { AoBridge } from "../../preload";
 import { coerceUiSettings, DEFAULT_UI_SETTINGS } from "../../shared/ui-locale";
-import { createClaudeOrchestratorPreview, unavailableClaudeOrchestratorBridge } from "./claude-orchestrator-preview";
+import { createClaudeOrchestratorPreview, createClaudeOrchestratorSettingsPreview, unavailableClaudeOrchestratorBridge, unavailableClaudeOrchestratorSettingsBridge } from "./claude-orchestrator-preview";
 import { usesPreviewWorkspaceData } from "./preview-mode";
 export type { FeatureBuild } from "../../main/feature-builds";
 
@@ -67,6 +67,7 @@ export const aoBridge: AoBridge =
 			readText: async () => (navigator.clipboard?.readText ? navigator.clipboard.readText() : ""),
 		},
 		claudeOrchestrator: usesPreviewWorkspaceData ? createClaudeOrchestratorPreview() : unavailableClaudeOrchestratorBridge,
+		claudeOrchestratorSettings: usesPreviewWorkspaceData ? createClaudeOrchestratorSettingsPreview() : unavailableClaudeOrchestratorSettingsBridge,
 		daemon: {
 			getStatus: async () => ({
 				state: "stopped",

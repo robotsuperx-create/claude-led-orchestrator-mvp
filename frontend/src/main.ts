@@ -44,6 +44,7 @@ import { initMainSentry, sanitizeRendererCapture } from "./main/sentry-main";
 import { TelemetryPolicyAuthority, resolveDesktopDataDir } from "./main/telemetry-policy-file";
 import { DaemonTelemetryPolicyClient } from "./main/daemon-telemetry-policy-client";
 import { ClaudeOrchestratorClient } from "./main/claude-orchestrator-client";
+import { ClaudeOrchestratorSettingsStore } from "./main/claude-orchestrator-settings";
 import { DesktopTelemetryController } from "./main/desktop-telemetry-controller";
 import { AgentSwitchVisibilityController } from "./main/agent-switch-observability";
 import { readUpdateSettings, type UpdateSettings, type UpdateStatus } from "./main/update-settings";
@@ -2020,6 +2021,25 @@ ipcMain.handle("claudeOrchestrator:plan", (event, runId: unknown) => isTrustedSh
 ipcMain.handle("claudeOrchestrator:approve", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.approve(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.reject(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:publish", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.publish(runId) : untrustedOrchestratorCaller);
+
+// Mission control settings: saved owner-only under the AO data dir and read
+// by the daemon at start, so a save restarts the daemon. API keys are written
+// to that file but never sent back to the renderer.
+const claudeOrchestratorSettings = new ClaudeOrchestratorSettingsStore(() => desktopDataDir);
+const untrustedSettingsCaller = { ok: false, error: "unavailable" } as const;
+ipcMain.handle("claudeOrchestratorSettings:get", (event) => isTrustedShellSender(event) ? claudeOrchestratorSettings.get() : untrustedSettingsCaller);
+ipcMain.handle("claudeOrchestratorSettings:save", async (event, input: unknown) => {
+	if (!isTrustedShellSender(event)) return untrustedSettingsCaller;
+	const result = await claudeOrchestratorSettings.save(input);
+	if (result.ok) {
+		try {
+			await restartDaemon();
+		} catch (error) {
+			reportDaemonRestartFailure(error);
+		}
+	}
+	return result;
+});
 
 ipcMain.handle("daemon:getStatus", () => refreshDaemonStatus());
 ipcMain.handle("daemon:start", () => startDaemon());

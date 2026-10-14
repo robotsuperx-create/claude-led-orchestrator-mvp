@@ -161,6 +161,10 @@ if (typeof window !== "undefined") {
 			reject: async () => ({ ok: false, error: "disabled" }),
 			publish: async () => ({ ok: false, error: "disabled" }),
 		},
+		claudeOrchestratorSettings: {
+			get: async () => ({ ok: false, error: "unavailable" }),
+			save: async () => ({ ok: false, error: "unavailable" }),
+		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),
 			start: async () => ({ state: "starting" }),

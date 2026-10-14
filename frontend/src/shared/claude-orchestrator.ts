@@ -45,6 +45,8 @@ export type ClaudeOrchestratorInfo = {
 	maxReplans: number;
 	/** Finished runs can be pushed and opened as a pull request. */
 	canPublish: boolean;
+	/** Why the orchestrator is off when its saved settings need fixing. */
+	configError?: string;
 };
 
 /** A run's model usage. Agent sessions bill through their own harness. */
@@ -245,6 +247,7 @@ export function parseClaudeOrchestratorInfo(value: unknown): ClaudeOrchestratorI
 		budgetUsd: count(candidate.budgetUsd) ?? 0,
 		maxReplans: Math.min(Math.floor(count(candidate.maxReplans) ?? 0), 10),
 		canPublish: candidate.canPublish === true,
+		...(boundedText(candidate.configError, 1000) ? { configError: candidate.configError as string } : {}),
 	};
 }
 

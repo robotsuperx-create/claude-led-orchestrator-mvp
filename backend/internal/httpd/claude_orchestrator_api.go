@@ -94,6 +94,9 @@ type ClaudeOrchestratorInfo struct {
 	MaxReplans   int     `json:"maxReplans"`
 	// CanPublish is true when runs can be pushed for review.
 	CanPublish bool `json:"canPublish"`
+	// ConfigError explains why the orchestrator is off when its saved
+	// settings need fixing. It names settings, never their values.
+	ConfigError string `json:"configError,omitempty"`
 }
 
 // ClaudeOrchestratorRunPublisher pushes one run branch for review.

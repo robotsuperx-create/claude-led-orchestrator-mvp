@@ -267,4 +267,16 @@ describe("ClaudeOrchestratorView", () => {
 		await userEvent.click(await screen.findByRole("button", { name: /Add retries/ }));
 		expect(screen.queryByRole("button", { name: "Publish for review" })).not.toBeInTheDocument();
 	});
+
+	it("says why saved settings turned it off and opens its settings", async () => {
+		const reason = "claude orchestrator is enabled but required configuration is missing: AO_CLAUDE_ORCHESTRATOR_WORKER_COMMANDS";
+		mocks.info.mockResolvedValue(ok({ ...enabledInfo, enabled: false, configError: reason }));
+		renderView();
+		expect(await screen.findByText("Mission control needs a fix")).toBeInTheDocument();
+		expect(screen.getByRole("alert")).toHaveTextContent(reason);
+		await userEvent.click(screen.getByRole("button", { name: "Open Mission control settings" }));
+		const { useUiStore } = await import("../stores/ui-store");
+		expect(JSON.stringify(useUiStore.getState())).toContain("missionControl");
+	});
 });
+

@@ -30,6 +30,20 @@ type claudeOrchestratorBuildDeps struct {
 	Author    ports.CodeAuthor
 }
 
+// claudeOrchestratorConfigErrorMaxRunes bounds the reason shown in the app.
+const claudeOrchestratorConfigErrorMaxRunes = 600
+
+// disabledClaudeOrchestratorConfig turns the orchestrator off after its saved
+// settings failed to load, keeping the reason for Mission control. Reasons
+// name settings, never their values.
+func disabledClaudeOrchestratorConfig(cause error) config.ClaudeOrchestratorConfig {
+	reason := cause.Error()
+	if runes := []rune(reason); len(runes) > claudeOrchestratorConfigErrorMaxRunes {
+		reason = string(runes[:claudeOrchestratorConfigErrorMaxRunes]) + "…"
+	}
+	return config.ClaudeOrchestratorConfig{FromSettingsFile: true, ConfigError: reason}
+}
+
 // claudeOrchestratorManagedRoot is where per-run worktrees are created. It is
 // under the daemon data dir so all AO state stays beneath ~/.ao.
 func claudeOrchestratorManagedRoot(cfg config.Config) string {

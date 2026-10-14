@@ -24,6 +24,7 @@ import {
 	useStartClaudeOrchestratorRun,
 } from "../hooks/useClaudeOrchestrator";
 import { aoBridge } from "../lib/bridge";
+import { useUiStore } from "../stores/ui-store";
 import { hidesShellTopbar } from "../lib/platform";
 import {
 	centeredOnboardingDialogClass,
@@ -140,7 +141,7 @@ export function ClaudeOrchestratorView() {
 						<div className="p-4">
 							{info.isLoading ? <p role="status" className="px-3 py-8 text-center text-sm text-muted-foreground">{t("orchestrator.loading")}</p> : null}
 							{infoError ? <DaemonUnavailable onRetry={() => void info.refetch()} /> : null}
-							{info.data && !enabled ? <OrchestratorDisabled /> : null}
+							{info.data && !enabled ? <OrchestratorDisabled configError={info.data.configError} /> : null}
 							{enabled && info.data ? <MissionControl info={info.data} runs={runList} /> : null}
 							{enabled && runsError ? (
 								<p role="alert" className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{t(`orchestrator.error.${runsError}`)}</p>
@@ -272,14 +273,19 @@ function DaemonUnavailable({ onRetry }: { onRetry: () => void }) {
 	);
 }
 
-function OrchestratorDisabled() {
+function OrchestratorDisabled({ configError }: { configError?: string }) {
 	const { t } = useTranslation();
+	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	return (
 		<div className="grid min-h-64 place-items-center p-8 text-center" data-testid="claude-orchestrator-disabled">
 			<div className="max-w-md">
 				<Orbit className="mx-auto mb-3 size-8 text-muted-foreground" aria-hidden="true" />
-				<h2 className="text-[17px] font-medium">{t("orchestrator.disabled.title")}</h2>
-				<p className="mt-1 text-sm text-muted-foreground">{t("orchestrator.disabled.description")}</p>
+				<h2 className="text-[17px] font-medium">{t(configError ? "orchestrator.disabled.needsFixTitle" : "orchestrator.disabled.title")}</h2>
+				<p className="mt-1 text-sm text-muted-foreground">{t(configError ? "orchestrator.disabled.needsFixDescription" : "orchestrator.disabled.settingsDescription")}</p>
+				{configError ? (
+					<p role="alert" dir="ltr" className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-start font-mono text-[11px] leading-4 text-destructive">{configError}</p>
+				) : null}
+				<Button className="mt-4" onClick={() => openGlobalSettings("missionControl")}>{t("orchestrator.disabled.openSettings")}</Button>
 				<p className="mt-3 font-mono text-[11px] text-muted-foreground">{RUNBOOK_PATH}</p>
 			</div>
 		</div>

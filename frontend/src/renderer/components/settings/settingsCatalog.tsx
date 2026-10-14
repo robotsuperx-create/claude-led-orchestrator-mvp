@@ -1,4 +1,4 @@
-import { BadgeCheck, Bot, CircleHelp, Globe2, Keyboard, RefreshCw, Server, Settings2, Smartphone, type LucideIcon } from "lucide-react";
+import { BadgeCheck, Bot, CircleHelp, Globe2, Keyboard, Orbit, RefreshCw, Server, Settings2, Smartphone, type LucideIcon } from "lucide-react";
 import { lazy, type ReactNode } from "react";
 import type { TFunction } from "i18next";
 import type { GlobalSettingsSection } from "../../stores/ui-store";
@@ -10,6 +10,7 @@ import { ConnectMobileContent } from "./ConnectMobileContent";
 import { GeneralSettingsSection } from "./GeneralSettingsSection";
 import { HarnessSettingsSection } from "./HarnessSettingsSection";
 import { KeyboardShortcutsContent } from "./KeyboardShortcutsContent";
+import { MissionControlSettingsSection } from "./MissionControlSettingsSection";
 import { MobileDevicesSection } from "./MobileDevicesSection";
 import { ReportProblemContent } from "./ReportProblemContent";
 import { RemoteHostsSettings } from "./RemoteHostsSettings";
@@ -48,6 +49,12 @@ const globalSettingsCatalog: SettingsCatalogItem[] = [
 		icon: Settings2,
 		label: (t) => t("settings.general"),
 		render: (_t, titleHidden) => <GeneralSettingsSection titleHidden={titleHidden} />,
+	},
+	{
+		id: "missionControl",
+		icon: Orbit,
+		label: (t) => t("settings.missionControl"),
+		render: (_t, titleHidden) => <MissionControlSettingsSection titleHidden={titleHidden} />,
 	},
 	{
 		id: "harness",

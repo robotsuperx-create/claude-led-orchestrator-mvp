@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -254,6 +255,16 @@ func mountMobileDevices(r chi.Router, c *controllers.MobileDevicesController) {
 // and explicit per-run opt-in. The separate LAN listener blocks /internal paths.
 func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, publisher ClaudeOrchestratorRunPublisher, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) {
 	if !cfg.FeatureEnabled || service == nil {
+		if strings.TrimSpace(cfg.ConfigError) != "" {
+			// Off because the saved settings need fixing: report only that.
+			r.Get("/internal/claude-orchestrator", func(w http.ResponseWriter, req *http.Request) {
+				if !localControlRequest(req) {
+					writeClaudeOrchestratorAPIError(w, req, http.StatusForbidden, "LOCAL_CONTROL_REQUIRED", "This endpoint is available only to local callers")
+					return
+				}
+				envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorInfo{Enabled: false, ConfigError: cfg.ConfigError})
+			})
+		}
 		return
 	}
 	modelOf := func(provider ports.ModelProvider) string {

@@ -184,7 +184,12 @@ func Run() error {
 	}
 	if cfg.ClaudeOrchestrator.FeatureEnabled {
 		if err := validateClaudeOrchestratorConfig(cfg.ClaudeOrchestrator); err != nil {
-			return err
+			if !cfg.ClaudeOrchestrator.FromSettingsFile {
+				return err
+			}
+			// Settings saved from the app must never stop the daemon: turn the
+			// orchestrator off and tell Mission control what to fix.
+			cfg.ClaudeOrchestrator = disabledClaudeOrchestratorConfig(err)
 		}
 	}
 
@@ -245,7 +250,13 @@ func Run() error {
 	}
 	claudeOrchestrator, err = newClaudeOrchestratorWiring(cfg, claudeOrchestratorBuildDeps{Worktrees: orchestratorWorktrees})
 	if err != nil {
-		return err
+		if !cfg.ClaudeOrchestrator.FromSettingsFile {
+			return err
+		}
+		cfg.ClaudeOrchestrator = disabledClaudeOrchestratorConfig(err)
+		if claudeOrchestrator, err = newClaudeOrchestratorWiring(cfg, claudeOrchestratorBuildDeps{}); err != nil {
+			return err
+		}
 	}
 	defer func() { _ = claudeOrchestrator.Close(context.Background()) }()
 	if _, err := store.RequeueClaimedReports(context.Background()); err != nil {

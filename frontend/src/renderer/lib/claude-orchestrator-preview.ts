@@ -1,3 +1,4 @@
+import type { ClaudeOrchestratorSettingsResult, ClaudeOrchestratorSettingsUpdate, ClaudeOrchestratorSettingsView } from "../../shared/claude-orchestrator-settings";
 import type {
 	ClaudeOrchestratorInfo,
 	ClaudeOrchestratorPlan,
@@ -132,6 +133,46 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 			run.state = "canceled";
 			run.updatedAt = new Date(now()).toISOString();
 			return { ok: true, value: snapshot(run) };
+		},
+	};
+}
+
+/** The settings bridge surface (matches preload's shape). */
+export type ClaudeOrchestratorSettingsBridge = {
+	get: () => Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>;
+	save: (update: ClaudeOrchestratorSettingsUpdate) => Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>;
+};
+
+export const unavailableClaudeOrchestratorSettingsBridge: ClaudeOrchestratorSettingsBridge = {
+	get: async () => ({ ok: false, error: "unavailable" }),
+	save: async () => ({ ok: false, error: "unavailable" }),
+};
+
+/** In-memory settings for the browser preview build only. */
+export function createClaudeOrchestratorSettingsPreview(): ClaudeOrchestratorSettingsBridge {
+	const values: ClaudeOrchestratorSettingsView["values"] = {
+		AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED: "on",
+		AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT: "/demo/agent-orchestrator",
+		AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL: "https://api.anthropic.com/v1",
+		AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL: "claude-opus-5-5",
+		AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1",
+		AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL: "deepseek-chat",
+		AO_CLAUDE_ORCHESTRATOR_WORKER_COMMANDS: JSON.stringify([{ name: "go-1", argv: ["go", "test", "./..."] }]),
+		AO_CLAUDE_ORCHESTRATOR_VALIDATOR_COMMANDS: JSON.stringify([{ name: "go-1", argv: ["go", "vet", "./..."] }, { name: "go-2", argv: ["go", "test", "./..."] }]),
+	};
+	const secretsSet: ClaudeOrchestratorSettingsView["secretsSet"] = { AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY: true };
+	const view = (): ClaudeOrchestratorSettingsView => ({ values: { ...values }, secretsSet: { ...secretsSet }, fromEnvironment: [] });
+	return {
+		get: async () => ({ ok: true, value: view() }),
+		save: async (update) => {
+			for (const [key, value] of Object.entries(update.values) as Array<[keyof typeof values, string]>) {
+				if (value === "") delete values[key];
+				else values[key] = value;
+			}
+			for (const [key, value] of Object.entries(update.secrets ?? {}) as Array<[keyof typeof secretsSet, string | null]>) {
+				secretsSet[key] = value !== null;
+			}
+			return { ok: true, value: view() };
 		},
 	};
 }
