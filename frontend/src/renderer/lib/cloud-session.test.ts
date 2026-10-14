@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { isCloudSignInConfigured } from "./cloud-session";
 
 describe("isCloudSignInConfigured", () => {
-  it("is configured by default via the baked WorkOS client id", () => {
-    // The client id ships as a baked default, so with no explicit argument
-    // sign-in is always configured; the cloud offering toggle is the real gate.
-    expect(isCloudSignInConfigured(undefined)).toBe(true);
+  it("is off by default: X-ROBOT-AI ships no upstream WorkOS client id", () => {
+    // Agent Orchestrator's cloud sign-in is not offered; an owner who runs
+    // their own WorkOS project configures VITE_WORKOS_CLIENT_ID.
+    expect(isCloudSignInConfigured(undefined)).toBe(false);
+    expect(isCloudSignInConfigured("client_owner")).toBe(true);
   });
 
   it("treats an explicitly blank client ID as not configured", () => {

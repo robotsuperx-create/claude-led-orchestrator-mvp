@@ -1,10 +1,15 @@
 import { useMemo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import { prepareDesktopReleaseNotes } from "../lib/desktop-release-notes";
+import { PRODUCT_REPO_SLUG } from "../../shared/brand";
 import { ProductExternalLink } from "./ProductExternalLink";
 
-const AO_RELEASE_LINK_PATTERN =
-	/^https:\/\/github\.com\/Untrivial-ai\/agent-orchestrator\/(?:pull\/\d+|commit\/[0-9a-f]{7,40}|compare\/v\d+\.\d+\.\d+(?:-nightly\.\d{12})?\.\.\.v\d+\.\d+\.\d+(?:-nightly\.\d{12})?)$/i;
+// Links in release notes are trusted only when they point at this product's
+// own repository.
+const AO_RELEASE_LINK_PATTERN = new RegExp(
+	`^https:\\/\\/github\\.com\\/${PRODUCT_REPO_SLUG.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}\\/(?:pull\\/\\d+|commit\\/[0-9a-f]{7,40}|compare\\/v\\d+\\.\\d+\\.\\d+(?:-nightly\\.\\d{12})?\\.\\.\\.v\\d+\\.\\d+\\.\\d+(?:-nightly\\.\\d{12})?)$`,
+	"i",
+);
 
 const releaseNoteComponents: Components = {
 	h3: ({ children }) => (

@@ -5,17 +5,17 @@ it("removes contributor handles and the comparison footer while retaining linked
 	const notes = [
 		"### Added",
 		"",
-		"- Add useful workflows by @person in [#123](https://github.com/Untrivial-ai/agent-orchestrator/pull/123)",
-		"- Update dependencies by @dependabot[bot] in [#124](https://github.com/Untrivial-ai/agent-orchestrator/pull/124)",
+		"- Add useful workflows by @person in [#123](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/123)",
+		"- Update dependencies by @dependabot[bot] in [#124](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/124)",
 		"",
-		"**Full Changelog**: https://github.com/Untrivial-ai/agent-orchestrator/compare/v0.13.0...v0.13.1",
+		"**Full Changelog**: https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/compare/v0.13.0...v0.13.1",
 	].join("\n");
 
 	expect(prepareDesktopReleaseNotes(notes)).toBe([
 		"### Added",
 		"",
-		"- Add useful workflows [#123](https://github.com/Untrivial-ai/agent-orchestrator/pull/123)",
-		"- Update dependencies [#124](https://github.com/Untrivial-ai/agent-orchestrator/pull/124)",
+		"- Add useful workflows [#123](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/123)",
+		"- Update dependencies [#124](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/124)",
 	].join("\n"));
 });
 
@@ -28,7 +28,7 @@ it("removes contributor handles from generated nightly changes", () => {
 	const notes = [
 		"**Changes in this nightly**",
 		"",
-		"- Add durable scheduled automations by @person in [#4459](https://github.com/Untrivial-ai/agent-orchestrator/pull/4459)",
+		"- Add durable scheduled automations by @person in [#4459](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/4459)",
 		"",
 		"**Build details**",
 	].join("\n");
@@ -36,7 +36,7 @@ it("removes contributor handles from generated nightly changes", () => {
 	expect(prepareDesktopReleaseNotes(notes)).toBe([
 		"**Changes in this nightly**",
 		"",
-		"- Add durable scheduled automations [#4459](https://github.com/Untrivial-ai/agent-orchestrator/pull/4459)",
+		"- Add durable scheduled automations [#4459](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/4459)",
 		"",
 		"**Build details**",
 	].join("\n"));
