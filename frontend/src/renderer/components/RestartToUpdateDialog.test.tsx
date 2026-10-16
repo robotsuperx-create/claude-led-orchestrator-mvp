@@ -80,9 +80,9 @@ it("shows stable notes without contributor handles and retains linked PR numbers
 		releaseNotes: [
 			"### Added",
 			"",
-			"- Add useful workflows by @person in [#123](https://github.com/Untrivial-ai/agent-orchestrator/pull/123)",
+			"- Add useful workflows by @person in [#123](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/123)",
 			"",
-			"**Full Changelog**: https://github.com/Untrivial-ai/agent-orchestrator/compare/v0.13.0...v0.13.1",
+			"**Full Changelog**: https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/compare/v0.13.0...v0.13.1",
 		].join("\n"),
 	});
 
@@ -90,23 +90,23 @@ it("shows stable notes without contributor handles and retains linked PR numbers
 	expect(screen.queryByText(/@person|v0\.13\.0\.\.\.v0\.13\.1|View changelog/)).toBeNull();
 	expect(screen.getByRole("link", { name: "#123" })).toHaveAttribute(
 		"href",
-		"https://github.com/Untrivial-ai/agent-orchestrator/pull/123",
+		"https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/123",
 	);
 });
 
 it("renders complete nightly changes without contributor handles or formatting syntax", async () => {
 	useUiStore.setState({ updateInstallPromptOpen: true });
-	const commitUrl = "https://github.com/Untrivial-ai/agent-orchestrator/commit/5994692db97410cb36e8c6725fc7789905d04dae";
+	const commitUrl = "https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/commit/5994692db97410cb36e8c6725fc7789905d04dae";
 	renderDialog({
 		state: "downloaded",
 		version: "0.13.2-nightly.202609271025",
 		releaseNotes: [
 			"**Changes in this nightly**",
 			"",
-			"- Add durable scheduled automations by @Vaibhaav-Tiwari in [#4459](https://github.com/Untrivial-ai/agent-orchestrator/pull/4459)",
-			"- Remove Last updated line from model picker by @nikhilachale in [#5930](https://github.com/Untrivial-ai/agent-orchestrator/pull/5930)",
-			"- Pass terminal theme hints to every agent by @AgentWrapper in [#5934](https://github.com/Untrivial-ai/agent-orchestrator/pull/5934)",
-			"- Revert: simplify pull request summary cards (#4383) by @AgentWrapper in [#5943](https://github.com/Untrivial-ai/agent-orchestrator/pull/5943)",
+			"- Add durable scheduled automations by @Vaibhaav-Tiwari in [#4459](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/4459)",
+			"- Remove Last updated line from model picker by @nikhilachale in [#5930](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/5930)",
+			"- Pass terminal theme hints to every agent by @AgentWrapper in [#5934](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/5934)",
+			"- Revert: simplify pull request summary cards (#4383) by @AgentWrapper in [#5943](https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/5943)",
 			"",
 			"**Build details**",
 			"",
@@ -123,11 +123,11 @@ it("renders complete nightly changes without contributor handles or formatting s
 	expect(screen.getByText("2026-09-27 10:25 UTC").closest("code")).not.toBeNull();
 	expect(screen.getByRole("link", { name: "#4459" })).toHaveAttribute(
 		"href",
-		"https://github.com/Untrivial-ai/agent-orchestrator/pull/4459",
+		"https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/4459",
 	);
 	expect(screen.getByRole("link", { name: "#5943" })).toHaveAttribute(
 		"href",
-		"https://github.com/Untrivial-ai/agent-orchestrator/pull/5943",
+		"https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/5943",
 	);
 	expect(screen.getByRole("link", { name: "5994692" })).toHaveAttribute("href", commitUrl);
 	expect(screen.getByText(/may be unstable/).closest("blockquote")).not.toBeNull();
@@ -151,7 +151,7 @@ it("renders unrelated release-note links as plain text", async () => {
 
 it("links the generated nightly comparison without allowing arbitrary compare URLs", async () => {
 	useUiStore.setState({ updateInstallPromptOpen: true });
-	const comparisonUrl = "https://github.com/Untrivial-ai/agent-orchestrator/compare/v0.13.1...v0.13.2-nightly.202609271025";
+	const comparisonUrl = "https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/compare/v0.13.1...v0.13.2-nightly.202609271025";
 	renderDialog({
 		state: "downloaded",
 		version: "0.13.2-nightly.202609271025",

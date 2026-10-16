@@ -1,3 +1,4 @@
+import type { ClaudeOrchestratorSettingsResult, ClaudeOrchestratorSettingsUpdate, ClaudeOrchestratorSettingsView } from "./shared/claude-orchestrator-settings";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { CLOSE_SHELL_TERMINAL_SHORTCUT_CHANNEL, FOCUS_TERMINAL_SHORTCUT_CHANNEL, KEYBOARD_SHORTCUTS_HELP_CHANNEL, NEXT_SESSION_SHORTCUT_CHANNEL, NEXT_TAB_SHORTCUT_CHANNEL, NEW_SESSION_SHORTCUT_CHANNEL, NEW_SHELL_TERMINAL_SHORTCUT_CHANNEL, OPEN_SETTINGS_SHORTCUT_CHANNEL, PREVIOUS_SESSION_SHORTCUT_CHANNEL, PREVIOUS_TAB_SHORTCUT_CHANNEL, SET_CLOSE_SHELL_TERMINAL_SHORTCUT_ENABLED_CHANNEL, SET_TERMINAL_FOCUSED_CHANNEL, TERMINAL_FONT_SIZE_SHORTCUT_CHANNEL, type KeybindingOverrides } from "./shared/shortcuts";
 import {
@@ -21,6 +22,7 @@ import {
 	type TrayOpenSessionTarget,
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
+import type { ClaudeOrchestratorInfo, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorStartInput } from "./shared/claude-orchestrator";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
 import type { RemoteHealth } from "./main/remote-request";
@@ -345,6 +347,22 @@ const api = {
 	clipboard: {
 		writeText: (text: string) => ipcRenderer.invoke("clipboard:writeText", text) as Promise<void>,
 		readText: () => ipcRenderer.invoke("clipboard:readText") as Promise<string>,
+	},
+	claudeOrchestrator: {
+		info: () => ipcRenderer.invoke("claudeOrchestrator:info") as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorInfo>>,
+		list: () => ipcRenderer.invoke("claudeOrchestrator:list") as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun[]>>,
+		// Only the two allowlisted fields cross the bridge.
+		start: (input: ClaudeOrchestratorStartInput) => ipcRenderer.invoke("claudeOrchestrator:start", { task: input.task, maxRetries: input.maxRetries, ...(input.approvePlan === true ? { approvePlan: true } : {}) }) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		status: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:status", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		cancel: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:cancel", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		plan: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:plan", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorPlan>>,
+		approve: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:approve", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		reject: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:reject", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+		publish: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:publish", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+	},
+	claudeOrchestratorSettings: {
+		get: () => ipcRenderer.invoke("claudeOrchestratorSettings:get") as Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>,
+		save: (update: ClaudeOrchestratorSettingsUpdate) => ipcRenderer.invoke("claudeOrchestratorSettings:save", update) as Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>,
 	},
 	daemon: {
 		getStatus: () => ipcRenderer.invoke("daemon:getStatus") as Promise<DaemonStatus>,

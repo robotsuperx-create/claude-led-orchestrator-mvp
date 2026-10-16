@@ -708,7 +708,7 @@ describe("GlobalSettingsForm", () => {
 		expect(screen.queryByLabelText("Report preview")).not.toBeInTheDocument();
 
 		expect(screen.getByRole("button", { name: /copy & create github issue/i })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /copy & open discord/i })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /copy & open discord/i })).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: /copy & open email/i })).toBeInTheDocument();
 		expect(screen.getByLabelText("What happened?")).toHaveClass("resize-none");
 		await user.click(screen.getByRole("button", { name: /copy & create github issue/i }));
@@ -725,14 +725,14 @@ describe("GlobalSettingsForm", () => {
 		expect(copied).not.toContain("## Type");
 		expect(copied).not.toContain("Generated locally by AO");
 		expect(openExternal).toHaveBeenCalledWith(
-			expect.stringContaining("https://github.com/Untrivial-ai/agent-orchestrator/issues/new"),
+			expect.stringContaining("https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/issues/new"),
 		);
 		expect(open).not.toHaveBeenCalled();
 		expect(screen.getByLabelText("Title")).toHaveValue("");
 		expect(screen.getByLabelText("What happened?")).toHaveValue("");
 	});
 
-	it("opens Discord support and lets Windows users choose an email provider", async () => {
+	it("offers no upstream support channels and lets Windows users choose an email provider", async () => {
 		const user = userEvent.setup();
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		getVersion.mockRejectedValue(new Error("version unavailable"));
@@ -742,28 +742,16 @@ describe("GlobalSettingsForm", () => {
 		await user.type(await screen.findByLabelText("Title"), "Need help with setup");
 		await user.type(screen.getByLabelText("What happened?"), "The setup flow stalls after the first prompt.");
 
-		expect(screen.getByRole("button", { name: /copy & open discord/i })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /copy & open email/i })).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: /copy & open discord/i }));
-		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-		expect(writeText.mock.calls[0][0]).toContain("**AO feedback**");
-		expect(screen.getByText("Discord draft copied.")).toBeInTheDocument();
-		expect(screen.getByLabelText("Title")).toHaveValue("");
-		expect(screen.getByLabelText("What happened?")).toHaveValue("");
-
-		expect(screen.getByRole("button", { name: /copy & open email/i })).toBeDisabled();
-		await user.type(screen.getByLabelText("Title"), "Need help with setup");
-		expect(screen.queryByText("Discord draft copied.")).not.toBeInTheDocument();
-		await user.type(screen.getByLabelText("What happened?"), "The setup flow stalls after the first prompt.");
+		expect(screen.queryByRole("button", { name: /discord/i })).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /copy & open email/i }));
 		await user.click(await screen.findByRole("menuitem", { name: "Gmail" }));
 
-		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
 		expect(writeText.mock.calls[0][0]).toContain("Daemon: unknown");
-		expect(writeText.mock.calls[1][0]).toContain("To: prasad@untrivial.ai");
-		expect(writeText.mock.calls[1][0]).toContain("AO feedback");
-		expect(openExternal).toHaveBeenCalledWith("https://discord.gg/WjKNa7EbB8");
+		expect(writeText.mock.calls[0][0]).toContain("X-ROBOT-AI feedback");
+		expect(writeText.mock.calls[0][0]).not.toContain("untrivial.ai");
 		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("https://mail.google.com/mail/"));
+		expect(openExternal).not.toHaveBeenCalledWith(expect.stringContaining("untrivial"));
 		expect(open).not.toHaveBeenCalled();
 	});
 
@@ -777,7 +765,7 @@ describe("GlobalSettingsForm", () => {
 		await user.click(screen.getByRole("button", { name: /copy & open email/i }));
 
 		await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:prasad@untrivial.ai"));
+		expect(openExternal).toHaveBeenCalledWith(expect.stringContaining("mailto:?"));
 		expect(screen.queryByRole("menuitem", { name: "Gmail" })).not.toBeInTheDocument();
 	});
 

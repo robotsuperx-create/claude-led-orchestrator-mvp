@@ -824,13 +824,13 @@ export function CommandPalette() {
 											{Icon ? <Icon strokeWidth={1.75} aria-hidden="true" /> : null}
 											<span className="min-w-0 flex-1 truncate">{item.title}</span>
 											{pendingId === item.id ? (
-												<Loader2 className="ml-auto size-3.5 animate-spin text-[var(--color-text-command-muted)]" aria-hidden="true" />
+												<Loader2 className="ms-auto size-3.5 animate-spin text-[var(--color-text-command-muted)]" aria-hidden="true" />
 											) : item.disabled && item.disabledReason ? (
-												<span className="ml-auto text-control text-[var(--color-text-command-muted)]">
+												<span className="ms-auto text-control text-[var(--color-text-command-muted)]">
 													{item.disabledReason}
 												</span>
 											) : item.subtitle ? (
-												<span className="ml-auto max-w-command-subtitle truncate text-control text-[var(--color-text-command-muted)]">
+												<span className="ms-auto max-w-command-subtitle truncate text-control text-[var(--color-text-command-muted)]">
 													{item.subtitle}
 												</span>
 											) : null}

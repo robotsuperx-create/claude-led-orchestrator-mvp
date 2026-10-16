@@ -64,7 +64,7 @@ export function ConversationBranchNavigator({
 				<TooltipContent side="bottom">{t("chat.branch.next")}</TooltipContent>
 			</Tooltip>
 		) : null}
-		{error ? <span role="alert" className="ml-1 truncate text-destructive">{error}</span> : null}
+		{error ? <span role="alert" className="ms-1 truncate text-destructive">{error}</span> : null}
 	</div>
 	);
 }

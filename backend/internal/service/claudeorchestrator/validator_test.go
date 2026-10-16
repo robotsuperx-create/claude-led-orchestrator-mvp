@@ -172,6 +172,7 @@ func TestValidatorUsesConfiguredSandboxForWorktree(t *testing.T) {
 		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test", "./..."}}},
 		time.Second, runner, sandbox, "ao/worker:v1",
 		ports.SandboxResourceLimits{MemoryBytes: 256 << 20, NanoCPUs: 1_000_000_000, PIDs: 128},
+		ValidatorWorkspace{Worktrees: &workerRuntimeWorktreeFake{}, ProjectRoot: worktree},
 	)
 	if err != nil {
 		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
@@ -202,6 +203,7 @@ func TestValidatorSandboxRequiresWorktreePath(t *testing.T) {
 		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test"}}},
 		time.Second, CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil }),
 		sandbox, "ao/worker:v1", ports.SandboxResourceLimits{MemoryBytes: 1, NanoCPUs: 1, PIDs: 1},
+		ValidatorWorkspace{Worktrees: &workerRuntimeWorktreeFake{}, ProjectRoot: t.TempDir()},
 	)
 	if err != nil {
 		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
@@ -211,5 +213,105 @@ func TestValidatorSandboxRequiresWorktreePath(t *testing.T) {
 	}
 	if len(sandbox.requests) != 0 {
 		t.Fatalf("sandbox calls = %d, want 0", len(sandbox.requests))
+	}
+}
+
+// A worktree path that the worktree manager does not recognize as a registered
+// worktree of the project must never be bind-mounted into the sandbox, even
+// though it is absolute and present in subtask metadata.
+func TestValidatorSandboxRejectsUnregisteredWorktree(t *testing.T) {
+	projectRoot := t.TempDir()
+	outside := t.TempDir() // e.g. a home or credentials directory
+	sandbox := &validatorSandboxFake{}
+	worktrees := &workerRuntimeWorktreeFake{statusErr: errors.New("worktree: path is not a registered worktree of project root")}
+	validator, err := NewValidatorWithSandbox(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test"}}},
+		time.Second, CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil }),
+		sandbox, "ao/worker:v1", ports.SandboxResourceLimits{MemoryBytes: 1, NanoCPUs: 1, PIDs: 1},
+		ValidatorWorkspace{Worktrees: worktrees, ProjectRoot: projectRoot},
+	)
+	if err != nil {
+		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
+	}
+	_, err = validator.Check(context.Background(), ports.ValidationRequest{
+		Results: []ports.CollectedTaskResult{{Task: ports.PlannedSubtask{
+			Metadata: map[string]string{ports.SubtaskMetadataKeyWorktreePath: outside},
+		}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not a registered worktree") {
+		t.Fatalf("Check() error = %v, want unregistered worktree rejection", err)
+	}
+	if len(sandbox.requests) != 0 {
+		t.Fatalf("sandbox calls = %d, want 0: an unverified path must never be mounted", len(sandbox.requests))
+	}
+	if worktrees.statusRequest.ProjectRoot != filepath.Clean(projectRoot) || worktrees.statusRequest.Path != filepath.Clean(outside) {
+		t.Fatalf("Status request = %+v, want the configured root and the candidate path", worktrees.statusRequest)
+	}
+}
+
+func TestValidatorSandboxRejectsWorktreeManagerPathMismatch(t *testing.T) {
+	requested := t.TempDir()
+	sandbox := &validatorSandboxFake{}
+	worktrees := &workerRuntimeWorktreeFake{statusResult: ports.WorktreeStatusResult{Path: t.TempDir()}}
+	validator, err := NewValidatorWithSandbox(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test"}}},
+		time.Second, CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil }),
+		sandbox, "ao/worker:v1", ports.SandboxResourceLimits{MemoryBytes: 1, NanoCPUs: 1, PIDs: 1},
+		ValidatorWorkspace{Worktrees: worktrees, ProjectRoot: requested},
+	)
+	if err != nil {
+		t.Fatalf("NewValidatorWithSandbox() error = %v", err)
+	}
+	_, err = validator.Check(context.Background(), ports.ValidationRequest{
+		Results: []ports.CollectedTaskResult{{Task: ports.PlannedSubtask{
+			Metadata: map[string]string{ports.SubtaskMetadataKeyWorktreePath: requested},
+		}}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "different path") {
+		t.Fatalf("Check() error = %v, want path mismatch rejection", err)
+	}
+	if len(sandbox.requests) != 0 {
+		t.Fatalf("sandbox calls = %d, want 0", len(sandbox.requests))
+	}
+}
+
+func TestNewValidatorWithSandboxRequiresWorktreeBoundary(t *testing.T) {
+	_, err := NewValidatorWithSandbox(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test"}}},
+		time.Second, CommandRunnerFunc(func(context.Context, []string) (CommandOutput, error) { return CommandOutput{}, nil }),
+		&validatorSandboxFake{}, "ao/worker:v1", ports.SandboxResourceLimits{MemoryBytes: 1, NanoCPUs: 1, PIDs: 1},
+		ValidatorWorkspace{},
+	)
+	if err == nil {
+		t.Fatal("NewValidatorWithSandbox() without a worktree manager must fail closed")
+	}
+}
+
+// Host-executed validation must run in the verified task worktree, not in the
+// daemon's own working directory.
+func TestValidatorInWorkspaceRunsCommandsInVerifiedWorktree(t *testing.T) {
+	worktree := t.TempDir()
+	runner := &workerRuntimeRunnerFake{}
+	worktrees := &workerRuntimeWorktreeFake{}
+	validator, err := NewValidatorInWorkspace(
+		[]ValidationCommand{{Name: "checks", Argv: []string{"go", "test", "./..."}}},
+		time.Second, runner, ValidatorWorkspace{Worktrees: worktrees, ProjectRoot: worktree},
+	)
+	if err != nil {
+		t.Fatalf("NewValidatorInWorkspace() error = %v", err)
+	}
+	result, err := validator.Check(context.Background(), ports.ValidationRequest{
+		Results: []ports.CollectedTaskResult{{Task: ports.PlannedSubtask{
+			Metadata: map[string]string{ports.SubtaskMetadataKeyWorktreePath: worktree},
+		}}},
+	})
+	if err != nil || !result.Passed {
+		t.Fatalf("Check() = %+v, %v; want passed", result, err)
+	}
+	if worktrees.statusCalls != 1 {
+		t.Fatalf("Status calls = %d, want 1", worktrees.statusCalls)
+	}
+	if len(runner.calls) != 1 || runner.calls[0].directory != filepath.Clean(worktree) {
+		t.Fatalf("runner calls = %+v, want one call in %q", runner.calls, worktree)
 	}
 }

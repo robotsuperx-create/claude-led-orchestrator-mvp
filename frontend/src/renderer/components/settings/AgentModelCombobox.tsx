@@ -294,7 +294,7 @@ export function AgentModelCombobox({
 						{showSearch && (
 							<div className="relative min-w-0 flex-1">
 								<Search
-									className="pointer-events-none absolute left-3.5 top-1/2 size-icon-sm -translate-y-1/2 text-settings-muted"
+									className="pointer-events-none absolute start-3.5 top-1/2 size-icon-sm -translate-y-1/2 text-settings-muted"
 									aria-hidden="true"
 								/>
 								<input
@@ -389,7 +389,7 @@ export function AgentModelCombobox({
 											aria-current={tuning && item.id === effectiveModel ? true : undefined}
 										>
 											<span className="truncate text-settings-label">{item.label}</span>
-											{tuning && item.id === effectiveModel && <Check className="ml-auto size-icon-sm shrink-0" aria-hidden="true" />}
+											{tuning && item.id === effectiveModel && <Check className="ms-auto size-icon-sm shrink-0" aria-hidden="true" />}
 										</DropdownMenuItem>
 									) : (
 										<DropdownMenuItem
@@ -495,7 +495,7 @@ export function AgentModelCombobox({
 											setMenuOpen(false);
 										}} className="gap-3 text-xs">
 										{effortLabel(effort)}
-										{effort === effectiveEffort && <Check className="ml-auto size-icon-sm shrink-0" aria-hidden="true" />}
+										{effort === effectiveEffort && <Check className="ms-auto size-icon-sm shrink-0" aria-hidden="true" />}
 									</OptionMenuItem>
 								))}
 							</OptionMenuSubContent>

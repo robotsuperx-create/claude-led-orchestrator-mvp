@@ -3,8 +3,11 @@ package sandboxrunner
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -246,4 +249,30 @@ func indexOf(values []string, value string) int {
 		}
 	}
 	return -1
+}
+
+func TestBuildDockerCommandRunsAsHostUserOnLinuxBeforeImage(t *testing.T) {
+	request := validRequest(t)
+	args, err := BuildDockerCommand(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	userIndex := indexOf(args, "--user")
+	if runtime.GOOS != "linux" {
+		if userIndex >= 0 {
+			t.Fatalf("--user set on %s: %q", runtime.GOOS, args)
+		}
+		return
+	}
+	want := strconv.Itoa(os.Getuid()) + ":" + strconv.Itoa(os.Getgid())
+	if userIndex < 0 || userIndex+1 >= len(args) || args[userIndex+1] != want {
+		t.Fatalf("Docker argv %q, want --user %s", args, want)
+	}
+	// Options must precede the image; anything after it is the command.
+	if imageIndex := indexOf(args, request.RootFS); imageIndex < 0 || userIndex > imageIndex {
+		t.Fatalf("--user placed after the image: %q", args)
+	}
+	if !strings.Contains(strings.Join(args, " "), "/tmp:rw,nosuid,nodev,size=1g") {
+		t.Fatalf("tmpfs for build caches missing: %q", args)
+	}
 }

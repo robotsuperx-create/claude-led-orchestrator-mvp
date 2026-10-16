@@ -565,14 +565,14 @@ export function ConnectMobileContent({ active }: { active: boolean }) {
 									<button
 										type="button"
 										aria-label={copied ? t("mobile.passwordCopied") : t("mobile.copyPassword")}
-										className="ml-1.5 inline-flex size-5 items-center justify-center align-middle text-settings-muted transition-colors hover:text-settings-label"
+										className="ms-1.5 inline-flex size-5 items-center justify-center align-middle text-settings-muted transition-colors hover:text-settings-label"
 										onClick={() => void copyPassword()}
 									>
 										{copied ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
 									</button>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<span className="ml-0.5 inline-flex align-middle">
+											<span className="ms-0.5 inline-flex align-middle">
 												<button
 													type="button"
 													aria-label={t("mobile.regenerate")}

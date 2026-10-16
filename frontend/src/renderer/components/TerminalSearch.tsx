@@ -142,7 +142,7 @@ export function TerminalSearch({ onClose, onReturnFocus, open, searchAddon }: Te
 	return (
 		<div
 			aria-label={t("terminal.search")}
-			className="absolute right-3 top-2 z-20 flex h-9 w-[22rem] max-w-[calc(100%-1.5rem)] items-center gap-0.5 rounded-md border border-border bg-surface/95 px-1 shadow-lg backdrop-blur-sm"
+			className="absolute end-3 top-2 z-20 flex h-9 w-[22rem] max-w-[calc(100%-1.5rem)] items-center gap-0.5 rounded-md border border-border bg-surface/95 px-1 shadow-lg backdrop-blur-sm"
 			data-testid="terminal-search"
 			onKeyDown={(event) => {
 				event.stopPropagation();

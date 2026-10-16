@@ -137,8 +137,8 @@ export function ReviewerSelect({
 			<OptionMenuTrigger
 				ref={management.triggerRef}
 				className={cn(
-					"w-auto min-w-0 max-w-full justify-between gap-2 px-2 text-left",
-					contentAlign === "end" && "justify-end text-right",
+					"w-auto min-w-0 max-w-full justify-between gap-2 px-2 text-start",
+					contentAlign === "end" && "justify-end text-end",
 					triggerClassName,
 				)}
 				aria-label={reviewerAriaLabel}
@@ -146,7 +146,7 @@ export function ReviewerSelect({
 			>
 				<span className="flex min-w-0 items-center gap-2">
 					{effectiveHarness ? <AgentAvatar provider={effectiveHarness} className="size-icon-lg shrink-0" /> : null}
-					<span className={cn("min-w-0 truncate", contentAlign === "end" && "text-right")}>{triggerLabel}</span>
+					<span className={cn("min-w-0 truncate", contentAlign === "end" && "text-end")}>{triggerLabel}</span>
 					{needsSetup && <span className="text-xs text-muted-foreground">{t("agentSelector.needsSetup")}</span>}
 				</span>
 			</OptionMenuTrigger>

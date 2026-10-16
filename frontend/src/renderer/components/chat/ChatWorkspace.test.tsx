@@ -543,7 +543,7 @@ describe("ChatWorkspace timeline", () => {
 		expect(screen.getByLabelText("Chat")).toHaveAttribute("data-session-role", "orchestrator");
 		expect(screen.getByTestId("session-workspace-topbar")).toBeInTheDocument();
 		const actionRegion = screen.getByTestId("session-action-region");
-		expect(actionRegion).toHaveClass("pl-2", "pr-3");
+		expect(actionRegion).toHaveClass("ps-2", "pe-3");
 		expect(actionRegion).not.toHaveClass("px-3");
 		expect(screen.getByRole("tab", { name: "Orchestrator · Codex · Working" })).toBeInTheDocument();
 
@@ -1688,7 +1688,7 @@ describe("ChatWorkspace timeline", () => {
 		expect(relay).toBeGreaterThan(answer);
 
 		const relayCard = screen.getByText(/Checks failed on the base branch/).parentElement;
-		expect(relayCard).toHaveClass("border-l-logo-accent/60");
+		expect(relayCard).toHaveClass("border-s-logo-accent/60");
 		expect(relayCard?.querySelector("svg")).toHaveClass("text-logo-accent");
 	});
 
@@ -3389,7 +3389,7 @@ describe("ChatWorkspace reviewer tabs", () => {
 		};
 		const view = render(<ChatWorkspace {...common} reviewerTerminal={reviewerTerminal} />);
 		expect(screen.getByTestId("chat-reviewer-terminal")).toBeInTheDocument();
-		expect(screen.getByTestId("chat-reviewer-terminal")).not.toHaveClass("pl-2");
+		expect(screen.getByTestId("chat-reviewer-terminal")).not.toHaveClass("ps-2");
 
 		view.rerender(<ChatWorkspace {...common} reviewerTerminal={undefined} />);
 
@@ -3564,7 +3564,7 @@ describe("ChatWorkspace shell tabs", () => {
 			/>,
 		);
 		expect(screen.getByTestId("chat-shell-terminal")).toBeInTheDocument();
-		expect(screen.getByTestId("chat-shell-terminal")).not.toHaveClass("pl-2");
+		expect(screen.getByTestId("chat-shell-terminal")).not.toHaveClass("ps-2");
 		expect(screen.getByTestId("chat-conversation-panel")).toHaveAttribute("hidden");
 		expect(screen.getByTestId("chat-conversation-panel")).toHaveAttribute("inert");
 

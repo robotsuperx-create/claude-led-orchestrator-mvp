@@ -58,13 +58,13 @@ describe("resolveDaemonLaunch", () => {
 			resolveDaemonLaunch(
 				{},
 				true,
-				"/Applications/Agent Orchestrator.app/Contents/Resources",
+				"/Applications/X-ROBOT-AI.app/Contents/Resources",
 				"/app",
 				"/Users/alice",
 				"darwin",
 			),
 		).toEqual({
-			command: "/Applications/Agent Orchestrator.app/Contents/Resources/daemon/ao",
+			command: "/Applications/X-ROBOT-AI.app/Contents/Resources/daemon/ao",
 			args: ["daemon"],
 			cwd: "/Users/alice/.ao",
 			shell: false,

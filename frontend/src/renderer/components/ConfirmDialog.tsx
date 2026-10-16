@@ -97,7 +97,7 @@ export function ConfirmDialog({
 					</button>
 				</DialogClose>
 
-				<div className={cn(settingsDialogHeaderClass, "p-5 pr-12")}>
+				<div className={cn(settingsDialogHeaderClass, "p-5 pe-12")}>
 					<DialogTitle className="settings-dialog-title text-base">{title}</DialogTitle>
 					<DialogDescription asChild>
 						<div className="text-control leading-5 text-settings-muted">{description}</div>

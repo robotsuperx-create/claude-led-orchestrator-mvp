@@ -11,6 +11,7 @@ import (
 // ClaudeOrchestratorSCMWriteAction identifies one externally visible SCM write.
 type ClaudeOrchestratorSCMWriteAction string
 
+// Source-control write actions the orchestrator may request.
 const (
 	ClaudeOrchestratorSCMCreateBranch ClaudeOrchestratorSCMWriteAction = "create_branch"
 	ClaudeOrchestratorSCMPush         ClaudeOrchestratorSCMWriteAction = "push"
@@ -27,6 +28,7 @@ type ClaudeOrchestratorSCMWriteApproval struct {
 // ClaudeOrchestratorSCMWriteRejectionReason describes why a write was denied.
 type ClaudeOrchestratorSCMWriteRejectionReason string
 
+// Reasons a source-control write is rejected.
 const (
 	ClaudeOrchestratorSCMWritesDisabled         ClaudeOrchestratorSCMWriteRejectionReason = "writes_disabled"
 	ClaudeOrchestratorSCMApprovalRequired       ClaudeOrchestratorSCMWriteRejectionReason = "explicit_approval_required"
@@ -185,7 +187,7 @@ func (ClaudeOrchestratorSCMCredential) MarshalText() ([]byte, error) {
 
 // ErrClaudeOrchestratorSCMWriteRejected is the stable sentinel wrapped by typed
 // write-rejection errors.
-var ErrClaudeOrchestratorSCMWriteRejected = errors.New("Claude orchestrator SCM write rejected")
+var ErrClaudeOrchestratorSCMWriteRejected = errors.New("claude orchestrator SCM write rejected")
 
 // Unwrap supports errors.Is checks without discarding the typed rejection.
 func (e *ClaudeOrchestratorSCMWriteRejectedError) Unwrap() error {

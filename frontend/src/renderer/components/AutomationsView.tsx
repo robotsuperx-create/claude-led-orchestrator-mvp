@@ -86,7 +86,7 @@ export function AutomationsView() {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col bg-background">
-			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pr-2">
+			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pe-2">
 				<div className="flex min-w-0 items-center gap-2">
 					<h1 className={showPageTitle ? cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5") : "sr-only"}>{showPageTitle ? <CalendarClock className="size-icon-md" aria-hidden="true" /> : null}{t("automations.title")}</h1>
 					{!showPageTitle ? <p className="truncate text-xs text-muted-foreground">{t("automations.description")}</p> : null}
@@ -111,7 +111,7 @@ export function AutomationsView() {
 					</div>
 					<div className="overflow-hidden rounded-lg border border-border bg-background">
 						<div className="hidden grid-cols-[minmax(0,1fr)_180px_160px_132px] items-center gap-4 border-b border-border bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground lg:grid" aria-hidden="true">
-							<span>{t("automations.field.name")}</span><span>{t("automations.field.schedule")}</span><span>{t("automations.nextRun")}</span><span className="text-right">{t("automations.status")}</span>
+							<span>{t("automations.field.name")}</span><span>{t("automations.field.schedule")}</span><span>{t("automations.nextRun")}</span><span className="text-end">{t("automations.status")}</span>
 						</div>
 						{visibleAutomations.map((item) => (
 							<AutomationCard key={item.id} item={item} projectName={workspaces.find((workspace) => workspace.id === item.projectId)?.name ?? item.projectId} busy={update.isPending} expanded={expanded === item.id} onExpand={() => setExpanded(expanded === item.id ? null : item.id)} onEdit={() => setEditTarget(item)} onDelete={() => setDeleteTarget(item)} onToggle={async (enabled) => { setActionError(null); try { await update.mutateAsync({ id: item.id, body: { enabled } }); } catch (error) { setActionError(error instanceof Error ? error.message : t("automations.updateError")); } }} />
@@ -162,12 +162,12 @@ function AutomationCard({ item, projectName, busy, expanded, onExpand, onEdit, o
 	const historyId = `automation-history-${item.id}`;
 	return <article className="group border-b border-border last:border-b-0">
 		<div className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors motion-reduce:transition-none lg:grid-cols-[minmax(0,1fr)_180px_160px_132px]", expanded ? "bg-muted/30" : "hover:bg-muted/20")}>
-			<button type="button" className="flex min-w-0 items-center gap-2.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={t(expanded ? "automations.runs.hide" : "automations.runs.show", { name: item.displayName })} aria-expanded={expanded} aria-controls={historyId} onClick={onExpand}>
+			<button type="button" className="flex min-w-0 items-center gap-2.5 rounded-sm text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={t(expanded ? "automations.runs.hide" : "automations.runs.show", { name: item.displayName })} aria-expanded={expanded} aria-controls={historyId} onClick={onExpand}>
 				<ChevronRight aria-hidden="true" className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none", expanded && "rotate-90")} />
 				<div className="min-w-0"><h2 className="truncate text-[13px] font-medium leading-5 text-foreground">{item.displayName}</h2><p className="truncate text-[11px] leading-5 text-muted-foreground">{projectName}</p></div>
 			</button>
-			<div className="col-start-1 flex items-start gap-2 pl-6 text-xs lg:col-start-auto lg:pl-0"><CalendarClock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /><div><p className="capitalize">{scheduleLabel}{clockTime ? ` · ${clockTime}` : ""}</p></div></div>
-			<div className="col-start-1 pl-6 text-xs lg:col-start-auto lg:pl-0"><span className="mr-2 text-muted-foreground lg:hidden">{t("automations.nextRun")}</span><span className={cn("tabular-nums", !item.enabled && "text-muted-foreground")}>{item.enabled ? displayTime(item.nextRunAt, i18n.resolvedLanguage) : t("automations.paused")}</span>{item.latestRun ? <p className="mt-1 text-[11px] capitalize text-muted-foreground">{item.latestRun.status}</p> : null}</div>
+			<div className="col-start-1 flex items-start gap-2 ps-6 text-xs lg:col-start-auto lg:ps-0"><CalendarClock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /><div><p className="capitalize">{scheduleLabel}{clockTime ? ` · ${clockTime}` : ""}</p></div></div>
+			<div className="col-start-1 ps-6 text-xs lg:col-start-auto lg:ps-0"><span className="me-2 text-muted-foreground lg:hidden">{t("automations.nextRun")}</span><span className={cn("tabular-nums", !item.enabled && "text-muted-foreground")}>{item.enabled ? displayTime(item.nextRunAt, i18n.resolvedLanguage) : t("automations.paused")}</span>{item.latestRun ? <p className="mt-1 text-[11px] capitalize text-muted-foreground">{item.latestRun.status}</p> : null}</div>
 			<div className="col-start-2 row-start-1 row-span-3 flex items-center justify-end gap-1 lg:col-start-auto lg:row-start-auto lg:row-span-1">
 				<Button variant="ghost" size="icon-sm" className="text-muted-foreground lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={t("automations.edit.aria", { name: item.displayName })} onClick={onEdit}><Pencil className="size-3.5" /></Button>
 				<Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={t("automations.delete.aria", { name: item.displayName })} onClick={onDelete}><Trash2 className="size-3.5" /></Button>
@@ -177,11 +177,11 @@ function AutomationCard({ item, projectName, busy, expanded, onExpand, onEdit, o
 		{item.latestRun?.errorMessage ? <p role="alert" className="mx-4 mb-3 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{item.latestRun.errorMessage}</p> : null}
 		<AnimatePresence initial={false}>
 			{expanded ? <motion.div id={historyId} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.18, ease: "easeOut" }} className="overflow-hidden">
-				<div className="border-t border-border bg-muted/10 px-4 py-4 pl-10">
+				<div className="border-t border-border bg-muted/10 px-4 py-4 ps-10">
 					<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{t("automations.timezone", { timezone: item.timezone })}</span><span>{t("automations.agent")}: <span className="text-foreground">{item.harness || t("automations.projectDefault")} · {item.kind}</span></span><span>{t("automations.latestState")}: <span className="capitalize">{item.latestRun?.status ?? t("automations.neverRun")}</span></span></div>
 					<p className="mb-1 text-[11px] font-medium text-muted-foreground">{t("automations.field.prompt")}</p><p className="mb-4 whitespace-pre-wrap text-xs leading-5 text-foreground">{item.prompt}</p>
 					<h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium"><History className="size-3.5 text-muted-foreground" aria-hidden="true" />{t("automations.runs.title")}</h3>
-					{runs.isLoading ? <p role="status" className="text-xs text-muted-foreground">{t("automations.runs.loading")}</p> : runs.error ? <p role="alert" className="text-xs text-destructive">{runs.error.message}</p> : runs.data?.length ? <div className="divide-y divide-border">{runs.data.map((run) => <div key={run.id} className="flex items-center justify-between gap-3 py-2 text-xs"><div><span className="font-medium capitalize">{run.status}</span><span className="ml-3 text-[11px] text-muted-foreground">{displayTime(run.scheduledFor, i18n.resolvedLanguage)}</span>{run.errorMessage ? <p className="mt-1 text-xs text-destructive">{run.errorMessage}</p> : null}</div>{run.sessionId ? <Button variant="outline" size="sm" onClick={() => void navigate({ to: "/sessions/$sessionId", params: { sessionId: run.sessionId! } })}>{t("automations.runs.openSession")}</Button> : null}</div>)}</div> : <p className="flex items-center gap-2 py-3 text-xs text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" />{t("automations.runs.empty")}</p>}
+					{runs.isLoading ? <p role="status" className="text-xs text-muted-foreground">{t("automations.runs.loading")}</p> : runs.error ? <p role="alert" className="text-xs text-destructive">{runs.error.message}</p> : runs.data?.length ? <div className="divide-y divide-border">{runs.data.map((run) => <div key={run.id} className="flex items-center justify-between gap-3 py-2 text-xs"><div><span className="font-medium capitalize">{run.status}</span><span className="ms-3 text-[11px] text-muted-foreground">{displayTime(run.scheduledFor, i18n.resolvedLanguage)}</span>{run.errorMessage ? <p className="mt-1 text-xs text-destructive">{run.errorMessage}</p> : null}</div>{run.sessionId ? <Button variant="outline" size="sm" onClick={() => void navigate({ to: "/sessions/$sessionId", params: { sessionId: run.sessionId! } })}>{t("automations.runs.openSession")}</Button> : null}</div>)}</div> : <p className="flex items-center gap-2 py-3 text-xs text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" />{t("automations.runs.empty")}</p>}
 				</div>
 			</motion.div> : null}
 		</AnimatePresence>
@@ -364,10 +364,10 @@ function AutomationFormDialog({
 					</button>
 				</DialogClose>
 				{/* Match New Task / project onboarding: title padding only, no header band or hairline. */}
-				<DialogTitle className="settings-dialog-title px-4 pr-12 pt-3">
+				<DialogTitle className="settings-dialog-title px-4 pe-12 pt-3">
 					{t(editing ? "automations.edit" : "automations.create")}
 				</DialogTitle>
-				<DialogDescription className="px-4 pr-12 pt-1 text-[13px] leading-5 text-muted-foreground">
+				<DialogDescription className="px-4 pe-12 pt-1 text-[13px] leading-5 text-muted-foreground">
 					{t(editing ? "automations.edit.description" : "automations.create.description")}
 				</DialogDescription>
 				<form className="flex min-h-0 flex-1 flex-col" noValidate onSubmit={(event) => void submit(event)}>

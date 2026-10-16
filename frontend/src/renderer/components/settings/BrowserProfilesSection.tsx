@@ -129,7 +129,7 @@ export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean 
 				<SettingsRow label={t("settings.browserProfiles.create")}>
 					{/* One field with its submit embedded at the trailing edge. */}
 					<form
-						className="flex h-control-form w-52 min-w-0 items-center gap-1 rounded-md border border-(--color-border-settings-input) bg-(--color-bg-settings-input) pl-3 pr-1"
+						className="flex h-control-form w-52 min-w-0 items-center gap-1 rounded-md border border-(--color-border-settings-input) bg-(--color-bg-settings-input) ps-3 pe-1"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void create();
@@ -261,7 +261,7 @@ function BrowserProfileRow({
 				{renaming ? (
 					<input
 						aria-label={t("settings.browserProfiles.renameInput", { profile: profile.name })}
-						className="-ml-2 h-control-md w-full max-w-52 rounded-md border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-2 text-sm text-settings-label outline-none"
+						className="-ms-2 h-control-md w-full max-w-52 rounded-md border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-2 text-sm text-settings-label outline-none"
 						data-settings-inline-edit=""
 						maxLength={64}
 						onBlur={() => {

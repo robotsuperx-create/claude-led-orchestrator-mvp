@@ -182,7 +182,7 @@ export function CloudHarnessLoginPanel({ agent, onClose }: { agent: CloudHarness
 						</p>
 					) : null}
 					{agent === "claude-code" && credentialType === "oauth_token" ? (
-						<ol className={cn(hintClass, "list-decimal pl-4")}>
+						<ol className={cn(hintClass, "list-decimal ps-4")}>
 							{SETUP_TOKEN_STEPS.map((key) => (
 								<li key={key}>
 									<Trans

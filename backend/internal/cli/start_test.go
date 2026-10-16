@@ -173,16 +173,16 @@ func TestAssetName_PerOS(t *testing.T) {
 	}
 	switch runtime.GOOS {
 	case "darwin":
-		if got != "agent-orchestrator-darwin-arm64.zip" && got != "agent-orchestrator-darwin-x64.zip" {
+		if got != "x-robot-ai-darwin-arm64.zip" && got != "x-robot-ai-darwin-x64.zip" {
 			t.Fatalf("darwin assetName = %q", got)
 		}
 	case "windows":
-		if got != "agent-orchestrator-win32-x64.exe" {
-			t.Fatalf("windows assetName = %q, want agent-orchestrator-win32-x64.exe", got)
+		if got != "x-robot-ai-win32-x64.exe" {
+			t.Fatalf("windows assetName = %q, want x-robot-ai-win32-x64.exe", got)
 		}
 	case "linux":
-		if got != "agent-orchestrator-linux-x64.AppImage" {
-			t.Fatalf("linux assetName = %q, want agent-orchestrator-linux-x64.AppImage", got)
+		if got != "x-robot-ai-linux-x64.AppImage" {
+			t.Fatalf("linux assetName = %q, want x-robot-ai-linux-x64.AppImage", got)
 		}
 	}
 }
@@ -202,7 +202,7 @@ func TestRequireAMD64(t *testing.T) {
 
 func TestWindowsInstalledExe(t *testing.T) {
 	got := windowsInstalledExe("C:\\Users\\me\\AppData\\Local")
-	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "Agent Orchestrator", "agent-orchestrator.exe")
+	want := filepath.Join("C:\\Users\\me\\AppData\\Local", "Programs", "X-ROBOT-AI", "x-robot-ai.exe")
 	if got != want {
 		t.Fatalf("windowsInstalledExe = %q, want %q", got, want)
 	}
@@ -225,11 +225,11 @@ func TestKnownAppLocations_HostOS(t *testing.T) {
 
 func TestIsUsableBundle_RegularFileVsDir(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "agent-orchestrator.AppImage")
+	file := filepath.Join(dir, "x-robot-ai.AppImage")
 	if err := os.WriteFile(file, []byte("x"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	subdir := filepath.Join(dir, "Agent Orchestrator.app")
+	subdir := filepath.Join(dir, "X-ROBOT-AI.app")
 	if err := os.MkdirAll(subdir, 0o750); err != nil {
 		t.Fatal(err)
 	}
@@ -259,8 +259,8 @@ func TestDownloadURLUsesReleaseRepo(t *testing.T) {
 	releaseRepo = "owner/repo"
 	t.Cleanup(func() { releaseRepo = orig })
 
-	got := downloadURL("agent-orchestrator-darwin-arm64.zip")
-	want := "https://github.com/owner/repo/releases/latest/download/agent-orchestrator-darwin-arm64.zip"
+	got := downloadURL("x-robot-ai-darwin-arm64.zip")
+	want := "https://github.com/owner/repo/releases/latest/download/x-robot-ai-darwin-arm64.zip"
 	if got != want {
 		t.Fatalf("downloadURL = %q, want %q", got, want)
 	}
@@ -319,7 +319,7 @@ func TestOpenApp_ArgConstruction(t *testing.T) {
 		},
 	}.withDefaults()}
 
-	opened, err := c.openApp(context.Background(), "/Applications/Agent Orchestrator.app")
+	opened, err := c.openApp(context.Background(), "/Applications/X-ROBOT-AI.app")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +329,7 @@ func TestOpenApp_ArgConstruction(t *testing.T) {
 	if gotName != "open" {
 		t.Fatalf("command = %q, want open", gotName)
 	}
-	wantArgs := []string{"/Applications/Agent Orchestrator.app", "--args", "--installed-via=npm-bootstrap"}
+	wantArgs := []string{"/Applications/X-ROBOT-AI.app", "--args", "--installed-via=npm-bootstrap"}
 	if !reflect.DeepEqual(gotArgs, wantArgs) {
 		t.Fatalf("args = %v, want %v", gotArgs, wantArgs)
 	}
@@ -347,7 +347,7 @@ func TestOpenApp_DetachedSpawnOnWinLinux(t *testing.T) {
 		},
 	}.withDefaults()}
 
-	appPath := "/some/agent-orchestrator.AppImage"
+	appPath := "/some/x-robot-ai.AppImage"
 	opened, err := c.openApp(context.Background(), appPath)
 	if err != nil {
 		t.Fatal(err)
@@ -447,7 +447,7 @@ func TestDownload_NonTTYProgress(t *testing.T) {
 		t.Fatalf("non-TTY progress must not emit carriage returns, got %q", out)
 	}
 	// Start line: asset name, size, and repo are all present.
-	if !strings.Contains(out, "Downloading Agent Orchestrator (agent-orchestrator.zip, ") {
+	if !strings.Contains(out, "Downloading X-ROBOT-AI (agent-orchestrator.zip, ") {
 		t.Fatalf("missing start line in %q", out)
 	}
 	if !strings.Contains(out, "from owner/repo...") {
@@ -486,7 +486,7 @@ func TestDownload_NoContentLengthOmitsSize(t *testing.T) {
 	if strings.Contains(out, "~") {
 		t.Fatalf("size segment should be omitted without Content-Length, got %q", out)
 	}
-	if !strings.Contains(out, "Downloading Agent Orchestrator (asset.bin) from") {
+	if !strings.Contains(out, "Downloading X-ROBOT-AI (asset.bin) from") {
 		t.Fatalf("unexpected start line in %q", out)
 	}
 	if !strings.Contains(out, "Downloaded ") {

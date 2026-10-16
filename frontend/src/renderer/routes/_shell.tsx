@@ -1231,7 +1231,7 @@ function ShellLayout() {
 							aria-hidden="true"
 							data-slot="titlebar-drag-region"
 							className={cn(
-								"fixed top-0 left-0 z-chrome transition-[height] duration-200 ease-out motion-reduce:transition-none",
+								"fixed top-0 start-0 z-chrome transition-[height] duration-200 ease-out motion-reduce:transition-none",
 								sidebarHasLayout ? "w-(--ao-sidebar-w,var(--size-sidebar-default))" : "w-titlebar-content-offset",
 								isFullScreen ? "pointer-events-none h-0" : "h-traffic-light-clearance",
 							)}

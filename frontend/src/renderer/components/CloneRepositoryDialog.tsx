@@ -244,7 +244,7 @@ export default function CloneRepositoryDialog({
 						>
 							<ChevronLeft className="size-4" aria-hidden="true" />
 						</Button>
-						<div className="min-w-0 flex-1 pr-8">
+						<div className="min-w-0 flex-1 pe-8">
 							<Dialog.Title className="text-balance text-[18px] font-semibold text-[var(--color-text-import-title)]">
 								{t("createProject.cloneTitle")}
 							</Dialog.Title>
@@ -285,7 +285,7 @@ export default function CloneRepositoryDialog({
 												animate={{ opacity: 1, filter: "blur(0px)" }}
 												exit={{ opacity: 0, filter: "blur(2px)" }}
 												transition={{ duration: 0.15, ease: "easeOut" }}
-												className="absolute right-0 top-0 max-w-[65%] truncate overflow-hidden whitespace-nowrap text-right text-[12px] leading-5 text-destructive"
+												className="absolute end-0 top-0 max-w-[65%] truncate overflow-hidden whitespace-nowrap text-end text-[12px] leading-5 text-destructive"
 												role="alert"
 											>
 												{inlineRepositoryError}
@@ -301,7 +301,7 @@ export default function CloneRepositoryDialog({
 										autoComplete="off"
 										aria-describedby={`cloneRepositoryUrlHelp${inlineRepositoryError ? " cloneRepositoryUrlError" : ""}`}
 										aria-invalid={urlError || repositoryAccessError || duplicateError ? true : undefined}
-										className="bg-[var(--color-bg-import-card)] pl-10 pr-10 font-mono text-[13px]"
+										className="bg-[var(--color-bg-import-card)] ps-10 pe-10 font-mono text-[13px]"
 										disabled={disabled}
 										placeholder={t("createProject.cloneRepositoryUrlPlaceholder")}
 										spellCheck={false}
@@ -310,7 +310,7 @@ export default function CloneRepositoryDialog({
 										onBlur={() => setRepositoryFieldTouched(true)}
 									/>
 									{repositoryCheck === "checking" ? (
-										<LoaderCircle className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-label={t("createProject.cloneCheckingRepository", { defaultValue: "Checking repository" })} />
+										<LoaderCircle className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" aria-label={t("createProject.cloneCheckingRepository", { defaultValue: "Checking repository" })} />
 									) : null}
 									<RepositoryOwnerIcon owner={repositoryAvatar?.owner ?? null} avatarUrl={repositoryAvatar?.url ?? null} />
 								</div>
@@ -325,10 +325,10 @@ export default function CloneRepositoryDialog({
 								</Label>
 								<div className="flex h-control-form items-center overflow-hidden rounded-md border border-transparent bg-[var(--color-bg-import-card)] text-[13px] text-foreground">
 									<div className="relative min-w-0 flex-1">
-										<Folder className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-import-muted)]" aria-hidden="true" />
+										<Folder className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-import-muted)]" aria-hidden="true" />
 										<Input
 											id="cloneDestination"
-											className="border-transparent bg-transparent pl-10 font-mono text-[13px]"
+											className="border-transparent bg-transparent ps-10 font-mono text-[13px]"
 											aria-describedby={`cloneDestinationHelp${destinationError ? " cloneDestinationError" : ""}`}
 											aria-invalid={Boolean(destinationError)}
 											disabled={disabled || choosingDestination}
@@ -342,7 +342,7 @@ export default function CloneRepositoryDialog({
 									</div>
 									<button
 										aria-label={t("createProject.cloneChooseDestination")}
-										className="flex h-full shrink-0 items-center border-l border-border/60 px-4 text-foreground outline-none transition-colors hover:bg-foreground/10 focus-visible:bg-foreground/10 disabled:pointer-events-none disabled:opacity-50"
+										className="flex h-full shrink-0 items-center border-s border-border/60 px-4 text-foreground outline-none transition-colors hover:bg-foreground/10 focus-visible:bg-foreground/10 disabled:pointer-events-none disabled:opacity-50"
 										disabled={disabled || choosingDestination}
 										type="button"
 										onClick={() => void chooseDestination()}
@@ -398,7 +398,7 @@ function RepositoryOwnerIcon({
 	const showFallback = visible && (!avatarUrl || avatarState === "failed");
 
 	return (
-		<span className="pointer-events-none absolute left-3 top-1/2 z-10 flex size-4 -translate-y-1/2 items-center justify-center text-[var(--color-text-import-muted)]" aria-hidden="true">
+		<span className="pointer-events-none absolute start-3 top-1/2 z-10 flex size-4 -translate-y-1/2 items-center justify-center text-[var(--color-text-import-muted)]" aria-hidden="true">
 			<span className="relative block size-4">
 				{!visible ? <Link2 className="absolute inset-0 size-4" /> : null}
 				{avatarUrl ? (

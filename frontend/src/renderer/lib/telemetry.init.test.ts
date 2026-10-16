@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // initTelemetry memoizes its result in a module-scoped promise, so each test
 // resets the module registry and re-mocks the heavy boundaries (posthog, the
@@ -23,6 +23,12 @@ describe("initTelemetry recovery", () => {
 	beforeEach(() => {
 		vi.resetModules();
 		vi.clearAllMocks();
+		// X-ROBOT-AI ships no default PostHog key; these tests cover the path
+		// where the owner configured one.
+		vi.stubEnv("VITE_AO_POSTHOG_KEY", "phc_test");
+	});
+	afterEach(() => {
+		vi.unstubAllEnvs();
 	});
 
 	it("retries init after a transient thrown failure instead of caching it", async () => {

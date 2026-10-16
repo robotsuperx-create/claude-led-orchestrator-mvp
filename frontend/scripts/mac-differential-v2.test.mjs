@@ -52,7 +52,7 @@ describe("isolated macOS differential v2 release contract", () => {
     if (fault === "alias") a.zip.url = a.zip.url.replace("-2.0.0.zip", ".zip");
     if (fault === "legacy-map") a.blockmap.url = a.blockmap.url.replace(".aoblockmap", ".blockmap");
     if (fault === "other-release") a.blockmap.url = a.blockmap.url.replace("/v2.0.0/", "/v1.0.0/");
-    if (fault === "other-repo") a.blockmap.url = a.blockmap.url.replace("Untrivial-ai", "attacker");
+    if (fault === "other-repo") a.blockmap.url = a.blockmap.url.replace("robotsuperx-create", "attacker");
     if (fault === "duplicate-arch") payload.artifacts[1].arch = a.arch;
     if (fault === "bad-commit") payload.candidate.commit = "unknown";
     if (fault === "unknown-field") payload.allow = true;

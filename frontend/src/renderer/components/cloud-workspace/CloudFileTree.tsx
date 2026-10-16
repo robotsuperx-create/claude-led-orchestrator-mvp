@@ -41,7 +41,7 @@ function CloudTreeLevel(props: CloudFileTreeProps & { path: string; depth: numbe
 			) : (
 				<button
 					aria-selected={props.selectedPath === entry.path}
-					className={cn("flex h-7 w-full items-center gap-1.5 pr-2 text-left font-mono text-xs hover:bg-muted", props.selectedPath === entry.path && "bg-muted")}
+					className={cn("flex h-7 w-full items-center gap-1.5 pe-2 text-start font-mono text-xs hover:bg-muted", props.selectedPath === entry.path && "bg-muted")}
 					key={entry.path}
 					onClick={() => props.onOpenFile(entry.path)}
 					role="treeitem"
@@ -63,7 +63,7 @@ function CloudDirectory({ entry, ...props }: CloudFileTreeProps & { depth: numbe
 		<div>
 			<button
 				aria-expanded={expanded}
-				className="flex h-7 w-full items-center gap-1 pr-2 text-left font-mono text-xs hover:bg-muted"
+				className="flex h-7 w-full items-center gap-1 pe-2 text-start font-mono text-xs hover:bg-muted"
 				onClick={() => setExpanded((value) => !value)}
 				role="treeitem"
 				style={{ paddingLeft: `${6 + props.depth * 14}px` }}
@@ -92,7 +92,7 @@ function CloudFileSearchResults(props: CloudFileTreeProps & { filterText: string
 	return (
 		<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto py-1" role="tree">
 			{query.data?.results.map((file) => (
-				<button className="flex h-7 w-full items-center gap-1.5 px-2 text-left font-mono text-xs hover:bg-muted" key={file.path} onClick={() => props.onOpenFile(file.path)} role="treeitem" type="button">
+				<button className="flex h-7 w-full items-center gap-1.5 px-2 text-start font-mono text-xs hover:bg-muted" key={file.path} onClick={() => props.onOpenFile(file.path)} role="treeitem" type="button">
 					<File className="size-icon-sm text-passive" /><span className="min-w-0 flex-1 truncate">{file.path}</span>
 					{file.status !== "unmodified" ? <span className="text-2xs text-warning">{statusLabel[file.status]}</span> : null}
 				</button>

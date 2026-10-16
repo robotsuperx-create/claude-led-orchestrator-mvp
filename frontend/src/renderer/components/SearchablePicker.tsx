@@ -86,7 +86,7 @@ export function SearchablePicker({
 					aria-controls={open ? `${ariaLabel.replace(/\W+/g, "-").toLowerCase()}-options` : undefined}
 					disabled={disabled}
 					className={cn(
-						"flex h-control-form w-full items-center gap-2 rounded-md border border-border bg-[var(--color-bg-import-card)] px-3 text-left text-[13px] text-foreground outline-none transition-colors hover:border-foreground/30 focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+						"flex h-control-form w-full items-center gap-2 rounded-md border border-border bg-[var(--color-bg-import-card)] px-3 text-start text-[13px] text-foreground outline-none transition-colors hover:border-foreground/30 focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
 						className,
 					)}
 				>
@@ -128,7 +128,7 @@ export function SearchablePicker({
 							aria-selected={option.value === value}
 							aria-label={option.label}
 							onClick={() => { onChange(option.value); setOpen(false); }}
-							className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
+							className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-start text-[13px] text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
 						>
 							{option.private ? <Lock className="lucide-lock size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <span className="w-3.5 shrink-0" />}
 							<span className="min-w-0 flex-1">
@@ -145,7 +145,7 @@ export function SearchablePicker({
 							type="button"
 							disabled={action.disabled}
 							onClick={() => { setOpen(false); action.onSelect(); }}
-							className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[13px] text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent disabled:opacity-60"
+							className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-start text-[13px] text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:bg-accent disabled:opacity-60"
 						>
 							<Plus className="size-3.5 shrink-0" aria-hidden="true" />
 							<span className="min-w-0 flex-1 truncate">{action.label}</span>

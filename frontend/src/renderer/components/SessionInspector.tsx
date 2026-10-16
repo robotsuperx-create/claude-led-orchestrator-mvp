@@ -580,7 +580,7 @@ function UsageCostTelemetry({ usage }: { usage: SessionUsage }) {
 						{processedTokens === null ? t("inspector.usage.noUsageYet") : formatTelemetryTokenValue(processedTokens)}
 					</p>
 				</div>
-				<div className="min-w-0 text-right">
+				<div className="min-w-0 text-end">
 					<div className="flex items-center justify-end gap-1">
 						<p className="text-2xs text-settings-muted">{t("inspector.usage.estimatedCost")}</p>
 						<EstimatedCostInfo cost={usage.totals.estimatedCost} />
@@ -608,8 +608,8 @@ function UsageCostTelemetry({ usage }: { usage: SessionUsage }) {
 						className={`grid ${usageRowColumns(showsAgentCost)} items-center gap-2 px-1 pb-0.5 text-2xs text-settings-muted`}
 					>
 						<span>{t("inspector.usage.agent")}</span>
-						<span className="text-right">{t("inspector.usage.tokens")}</span>
-						{showsAgentCost ? <span className="text-right">{t("inspector.usage.cost")}</span> : null}
+						<span className="text-end">{t("inspector.usage.tokens")}</span>
+						{showsAgentCost ? <span className="text-end">{t("inspector.usage.cost")}</span> : null}
 					</div>
 					{usage.harnesses.map((harness, index) => (
 						<UsageProviderRow
@@ -662,7 +662,7 @@ function UsageAgentAttribution({ harness }: { harness: SessionUsage["harnesses"]
 						aria-controls={detailID}
 						aria-expanded={open}
 						aria-label={t("inspector.usage.providerDetails", { name: harnessName })}
-						className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left outline-none transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:ring-1 focus-visible:ring-ring"
+						className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-start outline-none transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:ring-1 focus-visible:ring-ring"
 						onClick={() => setOpen((current) => !current)}
 						type="button"
 					>
@@ -676,7 +676,7 @@ function UsageAgentAttribution({ harness }: { harness: SessionUsage["harnesses"]
 					{open ? (
 						<div
 							aria-label={t("inspector.usage.providerPeek", { name: harnessName })}
-							className="mx-1 my-0.5 border-l border-(--color-border-settings-input) py-0.5 pl-2"
+							className="mx-1 my-0.5 border-s border-(--color-border-settings-input) py-0.5 ps-2"
 							id={detailID}
 							role="region"
 						>
@@ -932,7 +932,7 @@ function UsageDisclosureRow({
 				aria-controls={detailID}
 				aria-expanded={open}
 				aria-label={detailsLabel}
-				className={`grid w-full ${usageRowColumns(showCost)} items-center gap-2 rounded-md px-1 py-1 text-left outline-none transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:ring-1 focus-visible:ring-ring`}
+				className={`grid w-full ${usageRowColumns(showCost)} items-center gap-2 rounded-md px-1 py-1 text-start outline-none transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:ring-1 focus-visible:ring-ring`}
 				onClick={() => setOpen((current) => !current)}
 				type="button"
 			>
@@ -946,7 +946,7 @@ function UsageDisclosureRow({
 					<span className="truncate" title={nameTitle}>{name}</span>
 				</span>
 				<span
-					className="text-right font-mono text-2xs text-settings-label"
+					className="text-end font-mono text-2xs text-settings-label"
 					title={processedTokens === null ? undefined : t("inspector.usage.processedTokensAria", { count: exactProcessed })}
 				>
 					{processedTokens === null ? "—" : formatTelemetryTokenValue(processedTokens)}
@@ -956,7 +956,7 @@ function UsageDisclosureRow({
 			{open ? (
 				<div
 					aria-label={regionLabel}
-					className="mx-1 mb-0.5 border-l border-(--color-border-settings-input) py-0.5 pl-2"
+					className="mx-1 mb-0.5 border-s border-(--color-border-settings-input) py-0.5 ps-2"
 					id={detailID}
 					role="region"
 				>
@@ -976,7 +976,7 @@ function UsageCostValue({ cost }: { cost: EstimatedCost | null }) {
 	const value = formatEstimatedCost(cost);
 	const label = value ?? t("inspector.usage.metricUnavailable", { label: t("inspector.usage.cost") });
 	return (
-		<span aria-label={label} className="text-right font-mono text-2xs text-settings-label" title={label}>
+		<span aria-label={label} className="text-end font-mono text-2xs text-settings-label" title={label}>
 			{value ?? t("usage.unavailable")}
 		</span>
 	);
@@ -1010,7 +1010,7 @@ function EstimatedCostInfo({ cost }: { cost: EstimatedCost | null }) {
 			</TooltipTrigger>
 			{/* Opens upward: the figure it explains sits directly under the heading,
 			    so a downward tooltip covers the very number the reader came for. */}
-			<TooltipContent className="max-w-64 text-left" side="top">
+			<TooltipContent className="max-w-64 text-start" side="top">
 				<p>{t(providerInfoKey)}</p>
 				{cost?.coverage === "partial" ? (
 					<p className="mt-1.5">{t("usage.estimatedCostInfoPartial")}</p>
@@ -2420,7 +2420,7 @@ function ReviewPanel({
 							<TooltipTrigger asChild>
 								<button
 									aria-label={notice}
-									className="mb-2 flex max-w-full shrink-0 items-start gap-1 self-start rounded-sm text-left text-2xs font-medium leading-normal text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+									className="mb-2 flex max-w-full shrink-0 items-start gap-1 self-start rounded-sm text-start text-2xs font-medium leading-normal text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
 									type="button"
 								>
 									<Info aria-hidden="true" className="mt-px size-icon-2xs shrink-0" />
@@ -2451,7 +2451,7 @@ function ReviewPanel({
 							mode={reviewerMode}
 							hostId={hostId}
 							projectId={session.workspaceId}
-							triggerClassName="review-run-agent-select ml-auto h-control-md w-auto min-w-0 max-w-[11rem] shrink-0 justify-end px-2 text-right text-xs"
+							triggerClassName="review-run-agent-select ms-auto h-control-md w-auto min-w-0 max-w-[11rem] shrink-0 justify-end px-2 text-end text-xs"
 							value={reviewerOverride}
 						/>
 					</div>

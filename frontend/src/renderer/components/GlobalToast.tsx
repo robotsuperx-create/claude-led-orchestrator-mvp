@@ -23,7 +23,7 @@ function GlobalToastStack({ placement, toasts }: { placement: NonNullable<Toast[
 	return (
 		<div
 			className={`pointer-events-none fixed z-[calc(var(--z-overlay)+1)] flex w-[min(360px,calc(100vw-24px))] items-stretch gap-2 ${
-				placement === "top-center" ? "left-1/2 top-12 max-h-[184px] -translate-x-1/2 flex-col overflow-y-auto overscroll-contain" : "right-3 bottom-3 flex-col-reverse"
+				placement === "top-center" ? "left-1/2 top-12 max-h-[184px] -translate-x-1/2 flex-col overflow-y-auto overscroll-contain" : "end-3 bottom-3 flex-col-reverse"
 			}`}
 			data-browser-native-overlay="true"
 			data-state="open"

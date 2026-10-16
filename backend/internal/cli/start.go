@@ -24,15 +24,13 @@ import (
 //
 // Mirrors how version.go's Version var is stamped by release tooling.
 //
-// Untrivial-ai is the org the repo was transferred to in July 2026. The old
-// AgentWrapper URLs still resolve only through GitHub's rename redirect, which
-// is not a contract: the same staleness that stranded the baked update feed
-// (#3523) would strand every `ao start` download the day that redirect stops.
-var releaseRepo = "Untrivial-ai/agent-orchestrator"
+// X-ROBOT-AI releases come from its own repository, never upstream AO, so
+// `ao start` can never download Agent Orchestrator in place of this product.
+var releaseRepo = "robotsuperx-create/claude-led-orchestrator-mvp"
 
 // appBundleName is the macOS bundle directory name produced by electron-forge
 // (spaced, per frontend/forge.config.ts).
-const appBundleName = "Agent Orchestrator.app"
+const appBundleName = "X-ROBOT-AI.app"
 
 // appStateFileName is the marker the desktop app writes under ~/.ao on every
 // launch (spec §5). `ao start` is a read-only consumer of it.
@@ -67,8 +65,8 @@ func newStartCommand(ctx *commandContext) *cobra.Command {
 	opts := startOptions{}
 	cmd := &cobra.Command{
 		Use:   "start",
-		Short: "Fetch (if needed) and open the Agent Orchestrator desktop app",
-		Long: "Fetch (if needed) and open the Agent Orchestrator desktop app.\n\n" +
+		Short: "Fetch (if needed) and open the X-ROBOT-AI desktop app",
+		Long: "Fetch (if needed) and open the X-ROBOT-AI desktop app.\n\n" +
 			"The desktop app now owns the daemon, state, and updates. `ao start` no\n" +
 			"longer runs a daemon: it resolves the installed app (or downloads the\n" +
 			"latest release), opens it, and exits.",
@@ -221,13 +219,13 @@ func knownAppLocations() []string {
 		}
 		// Per-machine fallback (if a user chose an all-users install).
 		if pf := os.Getenv("ProgramFiles"); pf != "" {
-			paths = append(paths, filepath.Join(pf, "Agent Orchestrator", "agent-orchestrator.exe"))
+			paths = append(paths, filepath.Join(pf, "X-ROBOT-AI", "x-robot-ai.exe"))
 		}
 		return paths
 	case "linux":
 		paths := []string{linuxAppImagePath()}
 		if home, err := os.UserHomeDir(); err == nil {
-			paths = append(paths, filepath.Join(home, "Applications", "agent-orchestrator.AppImage"))
+			paths = append(paths, filepath.Join(home, "Applications", "x-robot-ai.AppImage"))
 		}
 		return paths
 	default:
@@ -238,7 +236,7 @@ func knownAppLocations() []string {
 // windowsInstalledExe is the default per-user electron-builder NSIS install
 // target for the app exe under %LOCALAPPDATA%.
 func windowsInstalledExe(localAppData string) string {
-	return filepath.Join(localAppData, "Programs", "Agent Orchestrator", "agent-orchestrator.exe")
+	return filepath.Join(localAppData, "Programs", "X-ROBOT-AI", "x-robot-ai.exe")
 }
 
 // linuxAppImagePath is the stable location `ao start` downloads the AppImage to
@@ -249,12 +247,12 @@ func linuxAppImagePath() string {
 	if err != nil {
 		// Fall back to a bare filename so a misconfigured state dir surfaces as a
 		// clear "not found" rather than a panic; fetch will re-error on download.
-		return "agent-orchestrator.AppImage"
+		return "x-robot-ai.AppImage"
 	}
-	return filepath.Join(dir, "agent-orchestrator.AppImage")
+	return filepath.Join(dir, "x-robot-ai.AppImage")
 }
 
-const linuxDesktopEntryName = "agent-orchestrator-ao-app.desktop"
+const linuxDesktopEntryName = "x-robot-ai-ao-app.desktop"
 
 func linuxApplicationsDir() (string, error) {
 	// A URL-scheme handler is OS integration metadata, not AO runtime state.
@@ -294,7 +292,7 @@ func (c *commandContext) registerLinuxProtocolHandler(
 	}
 	entry := fmt.Sprintf(`[Desktop Entry]
 Type=Application
-Name=Agent Orchestrator
+Name=X-ROBOT-AI
 Exec=%s %%u
 Terminal=false
 NoDisplay=true
@@ -542,9 +540,9 @@ func (c *commandContext) download(ctx context.Context, w io.Writer, url, asset, 
 	// percentage is unknown and we report transferred bytes instead.
 	total := resp.ContentLength
 	if total > 0 {
-		_, _ = fmt.Fprintf(w, "Downloading Agent Orchestrator (%s, ~%s) from %s...\n", asset, humanBytes(total), releaseRepo)
+		_, _ = fmt.Fprintf(w, "Downloading X-ROBOT-AI (%s, ~%s) from %s...\n", asset, humanBytes(total), releaseRepo)
 	} else {
-		_, _ = fmt.Fprintf(w, "Downloading Agent Orchestrator (%s) from %s...\n", asset, releaseRepo)
+		_, _ = fmt.Fprintf(w, "Downloading X-ROBOT-AI (%s) from %s...\n", asset, releaseRepo)
 	}
 
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
@@ -629,9 +627,9 @@ func humanBytes(n int64) string {
 
 // assetName maps the current GOOS/GOARCH to the stable release asset name the
 // release pipeline publishes (spec §6.3, §8). The pipeline uses "x64" for amd64.
-//   - darwin: agent-orchestrator-darwin-{arm64,x64}.zip (signed bundle zip)
-//   - windows: agent-orchestrator-win32-x64.exe (NSIS installer, amd64 only)
-//   - linux: agent-orchestrator-linux-x64.AppImage (self-contained, amd64 only)
+//   - darwin: x-robot-ai-darwin-{arm64,x64}.zip (signed bundle zip)
+//   - windows: x-robot-ai-win32-x64.exe (NSIS installer, amd64 only)
+//   - linux: x-robot-ai-linux-x64.AppImage (self-contained, amd64 only)
 func assetName() (string, error) {
 	switch runtime.GOOS {
 	case "darwin":
@@ -639,17 +637,17 @@ func assetName() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("agent-orchestrator-darwin-%s.zip", arch), nil
+		return fmt.Sprintf("x-robot-ai-darwin-%s.zip", arch), nil
 	case "windows":
 		if _, err := requireAMD64(); err != nil {
 			return "", err
 		}
-		return "agent-orchestrator-win32-x64.exe", nil
+		return "x-robot-ai-win32-x64.exe", nil
 	case "linux":
 		if _, err := requireAMD64(); err != nil {
 			return "", err
 		}
-		return "agent-orchestrator-linux-x64.AppImage", nil
+		return "x-robot-ai-linux-x64.AppImage", nil
 	default:
 		return "", fmt.Errorf("ao start: no release asset for %s", runtime.GOOS)
 	}

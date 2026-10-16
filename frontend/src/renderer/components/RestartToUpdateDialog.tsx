@@ -164,14 +164,14 @@ function RestartToUpdateDialogBody() {
 									{t("update.restart.sessionsTitle", { count: atRisk.length })}
 								</span>
 							</p>
-							<ul className="mt-2 space-y-1 pl-6">
+							<ul className="mt-2 space-y-1 ps-6">
 								{atRisk.map((session) => (
 									<li key={session.id} className="truncate text-xs leading-4 text-settings-label">
 										{session.workspaceName} · {session.title}
 									</li>
 								))}
 							</ul>
-							<p className="mt-2 pl-6 text-xs leading-4 text-settings-muted">
+							<p className="mt-2 ps-6 text-xs leading-4 text-settings-muted">
 								{t("update.restart.sessionsBody")}
 							</p>
 						</div>

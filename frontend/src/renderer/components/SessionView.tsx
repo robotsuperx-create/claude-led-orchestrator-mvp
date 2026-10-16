@@ -327,7 +327,7 @@ function CloudPausedStatus() {
 			animate={{ opacity: 1, y: 0 }}
 			aria-live="polite"
 			className={cn(
-				"absolute right-3 top-3 z-20 flex h-7 items-center gap-2 rounded-sm border px-2.5",
+				"absolute end-3 top-3 z-20 flex h-7 items-center gap-2 rounded-sm border px-2.5",
 				"bg-background/92 font-mono text-[11px] tracking-tight shadow-sm backdrop-blur-sm",
 				"border-border/80 text-foreground",
 			)}
@@ -1789,7 +1789,7 @@ export function SessionView({ sessionId, cloudOrgId, projectId, hostId }: Sessio
 										{!isInspectorOpen && browserUnseen ? (
 											<span
 												aria-hidden="true"
-												className="pointer-events-none absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-primary ring-2 ring-background"
+												className="pointer-events-none absolute -end-0.5 -top-0.5 size-1.5 rounded-full bg-primary ring-2 ring-background"
 												data-testid="orchestrator-browser-unseen-indicator"
 											/>
 										) : null}

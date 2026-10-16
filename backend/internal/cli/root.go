@@ -175,8 +175,8 @@ func NewRootCommand(deps Deps) *cobra.Command {
 
 	root := &cobra.Command{
 		Use:           "ao",
-		Short:         "Agent Orchestrator",
-		Long:          "Agent Orchestrator manages the local daemon that supervises parallel coding-agent sessions.",
+		Short:         "X-ROBOT-AI (built on Agent Orchestrator)",
+		Long:          "X-ROBOT-AI manages the local daemon that supervises parallel coding-agent sessions.",
 		Version:       VersionString(),
 		SilenceUsage:  true,
 		SilenceErrors: true,

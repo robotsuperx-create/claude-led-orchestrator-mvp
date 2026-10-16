@@ -984,7 +984,7 @@ export function BrowserPanelView({
 							aria-selected={index === activeHistorySuggestion}
 							className={cn(
 								SETTINGS_MENU_ROW,
-								"flex w-full items-center gap-2.5 px-2.5 py-2 text-left",
+								"flex w-full items-center gap-2.5 px-2.5 py-2 text-start",
 								index === activeHistorySuggestion && "bg-settings-menu-selected text-settings-title",
 							)}
 							id={`${historyMenuId}-${index}`}
@@ -1290,12 +1290,12 @@ export function BrowserPanelView({
 									<span
 										aria-hidden="true"
 										className={cn(
-											"pointer-events-none absolute -right-0.5 -top-0.5 size-1.5 rounded-full",
+											"pointer-events-none absolute -end-0.5 -top-0.5 size-1.5 rounded-full",
 											status === "error" ? "bg-destructive" : "bg-status-needs-you",
 										)}
 									/>
 								) : agentStatusLabel ? (
-									<span aria-hidden="true" className="pointer-events-none absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
+									<span aria-hidden="true" className="pointer-events-none absolute -end-0.5 -top-0.5 size-1.5 rounded-full bg-accent" />
 								) : null}
 							</Button>
 					</span>
@@ -1317,7 +1317,7 @@ export function BrowserPanelView({
 										variant="ghost"
 									>
 										<Download aria-hidden="true" className="size-icon-base" />
-										{hasActiveDownload ? <span aria-hidden="true" className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-accent" /> : null}
+										{hasActiveDownload ? <span aria-hidden="true" className="absolute end-0.5 top-0.5 size-1.5 rounded-full bg-accent" /> : null}
 									</Button>
 							</DropdownMenuTrigger>
 						</BrowserControlTooltip>
@@ -1397,7 +1397,7 @@ export function BrowserPanelView({
 							{t("browser.deviceFit")}
 						</DropdownMenuItem>
 						<div className="my-1 h-px bg-border" role="separator" />
-						<div className="board-scrollbar flex max-h-72 flex-col gap-px overflow-y-auto pr-0.5">
+						<div className="board-scrollbar flex max-h-72 flex-col gap-px overflow-y-auto pe-0.5">
 							{DEVICE_PRESETS.map((preset) => {
 								const PresetIcon = preset.category === "tablet" ? Tablet : Smartphone;
 								return (
@@ -1425,7 +1425,7 @@ export function BrowserPanelView({
 							</span>
 							<span className="flex-1">{t("browser.deviceCustomWidth")}</span>
 							<Input
-								className="h-6 w-16 shrink-0 px-1.5 text-right font-mono text-caption"
+								className="h-6 w-16 shrink-0 px-1.5 text-end font-mono text-caption"
 								inputMode="numeric"
 								max={MAX_DEVICE_FRAME_WIDTH}
 								min={MIN_DEVICE_FRAME_WIDTH}

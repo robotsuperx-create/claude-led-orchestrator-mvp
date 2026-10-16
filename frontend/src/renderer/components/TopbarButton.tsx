@@ -26,9 +26,9 @@ const topbarButtonVariants = cva(
 				// The workspace handoff is one split control. Its joined edges and
 				// token-backed widths live beside the shared topbar rules in styles.css.
 				splitMain:
-					"topbar-control--split-main topbar-control--labeled h-control-lg gap-1.5 rounded-l-md border border-r-0 border-border text-sm font-semibold leading-none bg-raised text-muted-foreground hover:bg-surface hover:text-foreground",
+					"topbar-control--split-main topbar-control--labeled h-control-lg gap-1.5 rounded-s-md border border-e-0 border-border text-sm font-semibold leading-none bg-raised text-muted-foreground hover:bg-surface hover:text-foreground",
 				splitTrigger:
-					"topbar-control--split-trigger grid h-control-lg place-items-center rounded-r-md border border-border bg-raised text-muted-foreground hover:bg-surface hover:text-foreground data-[state=open]:bg-surface data-[state=open]:text-foreground",
+					"topbar-control--split-trigger grid h-control-lg place-items-center rounded-e-md border border-border bg-raised text-muted-foreground hover:bg-surface hover:text-foreground data-[state=open]:bg-surface data-[state=open]:text-foreground",
 			},
 		},
 		defaultVariants: { variant: "primary" },
@@ -49,7 +49,7 @@ export function TopbarActionError({ className, ...props }: React.HTMLAttributes<
 }
 
 export const topbarHeaderClass =
-	"center-panel-titlebar flex h-toolbar shrink-0 items-center gap-3 border-b border-border-strong pr-4 z-chrome";
+	"center-panel-titlebar flex h-toolbar shrink-0 items-center gap-3 border-b border-border-strong pe-4 z-chrome";
 
 export const topbarProjectLabelClass =
 	"text-brand font-semibold tracking-tight leading-none text-foreground whitespace-nowrap";

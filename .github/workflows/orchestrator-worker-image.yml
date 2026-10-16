@@ -1,0 +1,50 @@
+name: Orchestrator worker image
+
+on:
+  pull_request:
+    paths:
+      - "docker/orchestrator-worker/**"
+      - "backend/internal/service/sandboxrunner/**"
+      - ".github/workflows/orchestrator-worker-image.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docker/orchestrator-worker/**"
+      - "backend/internal/service/sandboxrunner/**"
+      - ".github/workflows/orchestrator-worker-image.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --pull -f docker/orchestrator-worker/Dockerfile -t ao/worker:ci .
+
+      # The same isolation flags the orchestrator's sandbox runner passes.
+      - name: Verify sandbox starts, network is blocked, and caches are writable
+        run: |
+          set -euo pipefail
+          workspace="$(mktemp -d)"
+          printf 'module example.invalid/probe\n\ngo 1.27\n' > "$workspace/go.mod"
+          printf 'package main\n\nfunc main() {}\n' > "$workspace/main.go"
+          run() {
+            docker run --rm --pull=never --network=none --read-only --cap-drop=ALL \
+              --security-opt=no-new-privileges:true --memory 512m --cpus 1 --pids-limit 128 \
+              --tmpfs /tmp:rw,nosuid,nodev,size=1g \
+              --mount "type=bind,src=$workspace,dst=/workspace" --workdir /workspace \
+              --user "$(id -u):$(id -g)" "$@"
+          }
+          test "$(run --entrypoint /bin/echo ao/worker:ci sandbox-ok)" = sandbox-ok
+          if run --entrypoint node ao/worker:ci -e "require('https').get('https://example.com',()=>process.exit(0)).on('error',()=>process.exit(1))"; then
+            echo "network is reachable from the sandbox" >&2; exit 1
+          fi
+          run --entrypoint go ao/worker:ci env GOCACHE GOTOOLCHAIN HOME | tee /dev/stderr | grep -qx local
+          run --entrypoint go ao/worker:ci vet ./...
+          run --entrypoint touch ao/worker:ci /workspace/written-by-sandbox
+          test "$(stat -c %u "$workspace/written-by-sandbox")" = "$(id -u)"

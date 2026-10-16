@@ -8,8 +8,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/modelgateway"
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
@@ -108,15 +111,60 @@ type GitLabConfig struct {
 	HostTokens map[string]string
 }
 
+// DefaultClaudeOrchestratorProviderTimeout bounds one model request when a
+// provider's *_TIMEOUT is unset. Planning and code generation are long calls.
+const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
+
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
 	FeatureEnabled   bool
 	ClaudeProvider   modelgateway.ProviderConfig
 	DeepSeekProvider modelgateway.ProviderConfig
-	Worker           ClaudeOrchestratorWorkerConfig
-	Validator        ClaudeOrchestratorValidatorConfig
+	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
+	// reached through its OpenAI-compatible endpoint.
+	LocalProvider modelgateway.ProviderConfig
+	// PlannerProvider plans and reviews runs: claude (default) or local.
+	PlannerProvider ports.ModelProvider
+	Worker          ClaudeOrchestratorWorkerConfig
+	Validator       ClaudeOrchestratorValidatorConfig
+	// Budget limits each run's model usage.
+	Budget ClaudeOrchestratorBudgetConfig
+	// MaxReplans is how many times Claude may revise a plan whose subtasks
+	// failed after their retries.
+	MaxReplans int
+	// PublishRemote is the Git remote a run branch is pushed to when a person
+	// publishes it for review (default origin).
+	PublishRemote string
+	// FromSettingsFile is true when any setting came from the file the
+	// desktop app saves rather than from the environment.
+	FromSettingsFile bool
+	// ConfigError explains why the orchestrator is off when its saved
+	// settings are incomplete or invalid. It names settings, never values.
+	ConfigError string
 }
+
+// ClaudeOrchestratorBudgetConfig limits each run's model usage. Zero values
+// mean no limit. Prices are US dollars per million tokens and only estimate
+// cost; a provider without a price is counted in tokens only.
+type ClaudeOrchestratorBudgetConfig struct {
+	MaxTokens  int64
+	MaxCostUSD float64
+	Prices     map[ports.ModelProvider]ClaudeOrchestratorPrice
+}
+
+// ClaudeOrchestratorPrice is one provider's price per million tokens.
+type ClaudeOrchestratorPrice struct {
+	InputUSDPerMTok  float64
+	OutputUSDPerMTok float64
+}
+
+// Run budget and re-planning defaults and ceilings.
+const (
+	DefaultClaudeOrchestratorRunTokenBudget = 2_000_000
+	DefaultClaudeOrchestratorMaxReplans     = 1
+	MaxClaudeOrchestratorReplans            = 3
+)
 
 // String keeps nested ProviderConfig API keys out of ordinary config formatting.
 func (c ClaudeOrchestratorConfig) String() string {
@@ -134,6 +182,8 @@ func (c ClaudeOrchestratorConfig) LogValue() slog.Value {
 		slog.Bool("feature_enabled", c.FeatureEnabled),
 		slog.Any("claude_provider", c.ClaudeProvider),
 		slog.Any("deepseek_provider", c.DeepSeekProvider),
+		slog.Any("local_provider", c.LocalProvider),
+		slog.String("planner_provider", string(c.PlannerProvider)),
 		slog.Int("worker_command_count", len(c.Worker.Commands)),
 		slog.Duration("worker_timeout", c.Worker.Timeout),
 		slog.Int("validator_command_count", len(c.Validator.Commands)),
@@ -150,15 +200,49 @@ type ClaudeOrchestratorCommandConfig struct {
 
 // ClaudeOrchestratorWorkerConfig configures the worker's fixed command allowlist.
 type ClaudeOrchestratorWorkerConfig struct {
-	ProjectRoot        string
-	Commands           []ClaudeOrchestratorCommandConfig
-	Timeout            time.Duration
-	SandboxEnabled     bool
-	SandboxImage       string
-	SandboxMemoryBytes int64
-	SandboxNanoCPUs    int64
-	SandboxPIDs        int64
+	ProjectRoot string
+	// WorktreePath optionally pins every run to one existing linked worktree
+	// of ProjectRoot. When empty (the default), each run gets its own new
+	// worktree and branch under the AO data directory. A model plan can never
+	// choose it.
+	WorktreePath string
+	// DefaultProvider writes code for subtasks whose plan names no provider.
+	DefaultProvider ports.ModelProvider
+	// Mode selects who writes the code: ClaudeOrchestratorWorkerModeModel (a
+	// model API call proposes file edits) or ClaudeOrchestratorWorkerModeAgents
+	// (each subtask runs in a real AO agent session).
+	Mode string
+	// AgentHarnesses maps a plan's provider to the AO agent harness used in
+	// agents mode.
+	AgentHarnesses map[ports.ModelProvider]domain.AgentHarness
+	// AgentProjectID optionally names the AO project for agent sessions. When
+	// empty, the registered project whose path is ProjectRoot is used.
+	AgentProjectID string
+	// MaxParallelSubtasks bounds how many independent subtasks run at once in
+	// agents mode. Model mode always runs one at a time, since model edits are
+	// applied straight into the shared run worktree.
+	MaxParallelSubtasks int
+	Commands            []ClaudeOrchestratorCommandConfig
+	Timeout             time.Duration
+	SandboxEnabled      bool
+	SandboxImage        string
+	SandboxMemoryBytes  int64
+	SandboxNanoCPUs     int64
+	SandboxPIDs         int64
 }
+
+// Parallel agent subtasks: the default, and a ceiling that keeps a run from
+// starting more agent sessions than one machine can sensibly host.
+const (
+	DefaultClaudeOrchestratorMaxParallelSubtasks = 3
+	MaxClaudeOrchestratorParallelSubtasks        = 8
+)
+
+// Worker modes.
+const (
+	ClaudeOrchestratorWorkerModeModel  = "model"
+	ClaudeOrchestratorWorkerModeAgents = "agents"
+)
 
 // ClaudeOrchestratorValidatorConfig configures the independent validation pass.
 type ClaudeOrchestratorValidatorConfig struct {
@@ -278,7 +362,13 @@ func (c Config) Addr() string {
 // AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED experimental orchestrator off|on (default off)
 // When on, explicit AO_CLAUDE_ORCHESTRATOR_CLAUDE_{BASE_URL,MODEL,API_KEY},
 // AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_{BASE_URL,MODEL,API_KEY},
-// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, *_WORKER_COMMANDS (JSON argv),
+// AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT, optional *_WORKER_WORKTREE_PATH
+// (default: a new worktree per run), optional *_WORKER_DEFAULT_PROVIDER
+// (claude|deepseek, default deepseek), optional *_WORKER_MODE (model|agents,
+// default model; agents hands each subtask to a real AO agent session using
+// *_AGENT_HARNESS_{CLAUDE,DEEPSEEK} and optional *_AGENT_PROJECT_ID, and makes
+// the DeepSeek API settings optional), optional per-provider *_TIMEOUT and
+// *_MAX_TOKENS, *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
 // read only by this daemon process and are never returned by HTTP APIs.
@@ -441,18 +531,6 @@ func Load() (Config, error) {
 		}
 		cfg.LocalOffering = v
 	}
-	if raw := os.Getenv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED"); strings.TrimSpace(raw) != "" {
-		v, err := parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", raw)
-		if err != nil {
-			return Config{}, err
-		}
-		cfg.ClaudeOrchestrator.FeatureEnabled = v
-	}
-	if cfg.ClaudeOrchestrator.FeatureEnabled {
-		if err := loadClaudeOrchestratorConfig(&cfg.ClaudeOrchestrator); err != nil {
-			return Config{}, err
-		}
-	}
 	// The control-plane URL is public client configuration (like the WorkOS
 	// client id), so it ships as a baked default and the env var is only a
 	// development override. Users never configure it; the Settings toggle is
@@ -483,6 +561,106 @@ func Load() (Config, error) {
 		cfg.StateDir = filepath.Dir(dataDir)
 	}
 
+	orchestrator, err := loadClaudeOrchestratorSection(dataDir)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.ClaudeOrchestrator = orchestrator
+
+	return cfg, nil
+}
+
+// ClaudeOrchestratorSettingsPath is where the desktop app saves Mission
+// control settings. It lives under the data dir, like all AO state.
+func ClaudeOrchestratorSettingsPath(dataDir string) string {
+	return filepath.Join(dataDir, "claude-orchestrator", "settings.json")
+}
+
+// claudeOrchestratorSettingsMaxBytes bounds the settings file.
+const claudeOrchestratorSettingsMaxBytes = 256 * 1024
+
+// claudeOrchestratorSettingPrefix is the only key namespace the file may set.
+const claudeOrchestratorSettingPrefix = "AO_CLAUDE_ORCHESTRATOR_"
+
+// readClaudeOrchestratorSettings loads the saved settings. A missing file is
+// not an error. Keys outside the orchestrator namespace are ignored.
+func readClaudeOrchestratorSettings(dataDir string) (map[string]string, error) {
+	data, err := os.ReadFile(ClaudeOrchestratorSettingsPath(dataDir))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, errors.New("the Mission control settings file could not be read")
+	}
+	if len(data) > claudeOrchestratorSettingsMaxBytes {
+		return nil, errors.New("the Mission control settings file is too large")
+	}
+	var file struct {
+		Version int               `json:"version"`
+		Values  map[string]string `json:"values"`
+	}
+	if err := json.Unmarshal(data, &file); err != nil || file.Version != 1 {
+		return nil, errors.New("the Mission control settings file is not valid")
+	}
+	values := make(map[string]string, len(file.Values))
+	for key, value := range file.Values {
+		if strings.HasPrefix(key, claudeOrchestratorSettingPrefix) {
+			values[key] = value
+		}
+	}
+	return values, nil
+}
+
+// claudeOrchestratorEnv reads a setting from the environment first, then from
+// the saved settings file, and remembers whether the file supplied anything.
+type claudeOrchestratorEnv struct {
+	file     map[string]string
+	usedFile bool
+}
+
+func (e *claudeOrchestratorEnv) get(name string) string {
+	if value := os.Getenv(name); strings.TrimSpace(value) != "" {
+		return value
+	}
+	if value, ok := e.file[name]; ok && strings.TrimSpace(value) != "" {
+		e.usedFile = true
+		return value
+	}
+	return ""
+}
+
+// loadClaudeOrchestratorSection reads the orchestrator settings. Invalid
+// environment settings stop the daemon as before, but a problem with settings
+// saved from the app only turns the orchestrator off and reports why, so the
+// app keeps working and the person can fix it from the same screen.
+func loadClaudeOrchestratorSection(dataDir string) (ClaudeOrchestratorConfig, error) {
+	var cfg ClaudeOrchestratorConfig
+	file, fileErr := readClaudeOrchestratorSettings(dataDir)
+	env := &claudeOrchestratorEnv{file: file}
+	err := func() error {
+		if raw := env.get("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED"); strings.TrimSpace(raw) != "" {
+			v, err := parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", raw)
+			if err != nil {
+				return err
+			}
+			cfg.FeatureEnabled = v
+		}
+		if !cfg.FeatureEnabled {
+			return nil
+		}
+		return loadClaudeOrchestratorConfig(&cfg, env.get)
+	}()
+	cfg.FromSettingsFile = env.usedFile
+	switch {
+	case err != nil && !env.usedFile:
+		return ClaudeOrchestratorConfig{}, err
+	case err != nil:
+		// Deliberately not an error: the app keeps running with the
+		// orchestrator off and shows ConfigError so it can be fixed.
+		return ClaudeOrchestratorConfig{FromSettingsFile: true, ConfigError: err.Error()}, nil //nolint:nilerr // reported via ConfigError
+	case fileErr != nil && !cfg.FeatureEnabled:
+		return ClaudeOrchestratorConfig{FromSettingsFile: true, ConfigError: fileErr.Error()}, nil
+	}
 	return cfg, nil
 }
 
@@ -497,52 +675,241 @@ func parseToggleEnv(name, raw string) (bool, error) {
 	}
 }
 
-func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig) error {
-	loadProvider := func(provider ports.ModelProvider, prefix string) modelgateway.ProviderConfig {
-		return modelgateway.ProviderConfig{
+func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(string) string) error {
+	loadProvider := func(provider ports.ModelProvider, prefix string) (modelgateway.ProviderConfig, error) {
+		providerConfig := modelgateway.ProviderConfig{
 			Provider:     provider,
-			BaseURL:      strings.TrimSpace(os.Getenv(prefix + "_BASE_URL")),
-			APIKey:       os.Getenv(prefix + "_API_KEY"),
-			DefaultModel: strings.TrimSpace(os.Getenv(prefix + "_MODEL")),
+			BaseURL:      strings.TrimSpace(getenv(prefix + "_BASE_URL")),
+			APIKey:       getenv(prefix + "_API_KEY"),
+			DefaultModel: strings.TrimSpace(getenv(prefix + "_MODEL")),
+			// Writing code takes far longer than the generic 30s client default.
+			Timeout: DefaultClaudeOrchestratorProviderTimeout,
 		}
+		timeout, err := parseOptionalPositiveDurationFrom(getenv, prefix+"_TIMEOUT")
+		if err != nil {
+			return providerConfig, err
+		}
+		if timeout > 0 {
+			providerConfig.Timeout = timeout
+		}
+		maxTokens, err := parseOptionalPositiveInt64From(getenv, prefix+"_MAX_TOKENS")
+		if err != nil {
+			return providerConfig, err
+		}
+		if maxTokens > math.MaxInt32 {
+			return providerConfig, fmt.Errorf("%s_MAX_TOKENS is too large", prefix)
+		}
+		providerConfig.MaxTokens = int(maxTokens)
+		return providerConfig, nil
 	}
-	cfg.ClaudeProvider = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE")
-	cfg.DeepSeekProvider = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK")
-	cfg.Worker.ProjectRoot = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
 	var err error
-	if raw := strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
+	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
+		return err
+	}
+	if cfg.DeepSeekProvider, err = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK"); err != nil {
+		return err
+	}
+	if cfg.LocalProvider, err = loadProvider(ports.ModelProviderLocal, "AO_CLAUDE_ORCHESTRATOR_LOCAL"); err != nil {
+		return err
+	}
+	if err := requireLoopbackForPlainHTTP("AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", cfg.LocalProvider.BaseURL); err != nil {
+		return err
+	}
+	cfg.PlannerProvider = ports.ModelProvider(strings.ToLower(strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER"))))
+	if cfg.PlannerProvider == "" {
+		cfg.PlannerProvider = ports.ModelProviderClaude
+	}
+	if cfg.PlannerProvider != ports.ModelProviderClaude && cfg.PlannerProvider != ports.ModelProviderLocal {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderLocal)
+	}
+	if cfg.Budget, err = loadClaudeOrchestratorBudget(getenv); err != nil {
+		return err
+	}
+	cfg.PublishRemote = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_PUBLISH_REMOTE"))
+	cfg.MaxReplans = DefaultClaudeOrchestratorMaxReplans
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_MAX_REPLANS")); raw != "" {
+		replans, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || replans < 0 || replans > MaxClaudeOrchestratorReplans {
+			return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_MAX_REPLANS must be a whole number from 0 to %d", MaxClaudeOrchestratorReplans)
+		}
+		cfg.MaxReplans = replans
+	}
+	cfg.Worker.ProjectRoot = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT"))
+	cfg.Worker.WorktreePath = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_WORKTREE_PATH"))
+	cfg.Worker.DefaultProvider = ports.ModelProvider(strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER")))
+	if cfg.Worker.DefaultProvider == "" {
+		cfg.Worker.DefaultProvider = ports.ModelProviderDeepSeek
+	}
+	switch cfg.Worker.DefaultProvider {
+	case ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal:
+	default:
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER must be %q, %q or %q", ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal)
+	}
+	cfg.Worker.Mode = strings.ToLower(strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE")))
+	if cfg.Worker.Mode == "" {
+		cfg.Worker.Mode = ClaudeOrchestratorWorkerModeModel
+	}
+	if cfg.Worker.Mode != ClaudeOrchestratorWorkerModeModel && cfg.Worker.Mode != ClaudeOrchestratorWorkerModeAgents {
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE must be %q or %q", ClaudeOrchestratorWorkerModeModel, ClaudeOrchestratorWorkerModeAgents)
+	}
+	cfg.Worker.AgentHarnesses = map[ports.ModelProvider]domain.AgentHarness{
+		ports.ModelProviderClaude:   domain.HarnessClaudeCode,
+		ports.ModelProviderDeepSeek: domain.HarnessDeepSeek,
+	}
+	for provider, name := range map[ports.ModelProvider]string{
+		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_CLAUDE",
+		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_AGENT_HARNESS_DEEPSEEK",
+	} {
+		raw := strings.TrimSpace(getenv(name))
+		if raw == "" {
+			continue
+		}
+		harness := domain.AgentHarness(raw)
+		if !harness.IsKnown() {
+			return fmt.Errorf("%s must name a known AO agent harness", name)
+		}
+		cfg.Worker.AgentHarnesses[provider] = harness
+	}
+	cfg.Worker.AgentProjectID = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_AGENT_PROJECT_ID"))
+	parallel, err := parseOptionalPositiveInt64From(getenv, "AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS")
+	if err != nil {
+		return err
+	}
+	switch {
+	case parallel == 0:
+		cfg.Worker.MaxParallelSubtasks = DefaultClaudeOrchestratorMaxParallelSubtasks
+	case parallel > MaxClaudeOrchestratorParallelSubtasks:
+		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS must be at most %d", MaxClaudeOrchestratorParallelSubtasks)
+	default:
+		cfg.Worker.MaxParallelSubtasks = int(parallel)
+	}
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED")); raw != "" {
 		cfg.Worker.SandboxEnabled, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED", raw)
 		if err != nil {
 			return err
 		}
 	}
-	cfg.Worker.SandboxImage = strings.TrimSpace(os.Getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE"))
-	if cfg.Worker.SandboxMemoryBytes, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_MEMORY_BYTES"); err != nil {
+	cfg.Worker.SandboxImage = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE"))
+	if cfg.Worker.SandboxMemoryBytes, err = parseOptionalPositiveInt64From(getenv, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_MEMORY_BYTES"); err != nil {
 		return err
 	}
-	if cfg.Worker.SandboxNanoCPUs, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_NANO_CPUS"); err != nil {
+	if cfg.Worker.SandboxNanoCPUs, err = parseOptionalPositiveInt64From(getenv, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_NANO_CPUS"); err != nil {
 		return err
 	}
-	if cfg.Worker.SandboxPIDs, err = parseOptionalPositiveInt64("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_PIDS"); err != nil {
+	if cfg.Worker.SandboxPIDs, err = parseOptionalPositiveInt64From(getenv, "AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_PIDS"); err != nil {
 		return err
 	}
-	if cfg.Worker.Commands, err = loadClaudeOrchestratorCommands("AO_CLAUDE_ORCHESTRATOR_WORKER_COMMANDS"); err != nil {
+	if cfg.Worker.Commands, err = loadClaudeOrchestratorCommands(getenv, "AO_CLAUDE_ORCHESTRATOR_WORKER_COMMANDS"); err != nil {
 		return err
 	}
-	if cfg.Validator.Commands, err = loadClaudeOrchestratorCommands("AO_CLAUDE_ORCHESTRATOR_VALIDATOR_COMMANDS"); err != nil {
+	if cfg.Validator.Commands, err = loadClaudeOrchestratorCommands(getenv, "AO_CLAUDE_ORCHESTRATOR_VALIDATOR_COMMANDS"); err != nil {
 		return err
 	}
-	if cfg.Worker.Timeout, err = parseOptionalPositiveDuration("AO_CLAUDE_ORCHESTRATOR_WORKER_TIMEOUT"); err != nil {
+	if cfg.Worker.Timeout, err = parseOptionalPositiveDurationFrom(getenv, "AO_CLAUDE_ORCHESTRATOR_WORKER_TIMEOUT"); err != nil {
 		return err
 	}
-	if cfg.Validator.Timeout, err = parseOptionalPositiveDuration("AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT"); err != nil {
+	if cfg.Validator.Timeout, err = parseOptionalPositiveDurationFrom(getenv, "AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT"); err != nil {
 		return err
+	}
+	if cfg.Worker.Timeout == 0 {
+		cfg.Worker.Timeout = DefaultClaudeOrchestratorWorkerTimeout
+	}
+	if cfg.Validator.Timeout == 0 {
+		cfg.Validator.Timeout = DefaultClaudeOrchestratorValidatorTimeout
 	}
 	return nil
 }
 
-func loadClaudeOrchestratorCommands(name string) ([]ClaudeOrchestratorCommandConfig, error) {
-	raw := strings.TrimSpace(os.Getenv(name))
+// Defaults for the per-attempt worker deadline (it covers model calls or an
+// agent's work plus the checks) and for one validation pass.
+const (
+	DefaultClaudeOrchestratorWorkerTimeout    = 30 * time.Minute
+	DefaultClaudeOrchestratorValidatorTimeout = 10 * time.Minute
+)
+
+// loadClaudeOrchestratorBudget reads the per-run budget. The token budget
+// defaults to DefaultClaudeOrchestratorRunTokenBudget; "0" or "off" removes it.
+func loadClaudeOrchestratorBudget(getenv func(string) string) (ClaudeOrchestratorBudgetConfig, error) {
+	budget := ClaudeOrchestratorBudgetConfig{MaxTokens: DefaultClaudeOrchestratorRunTokenBudget}
+	const tokenName = "AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET" //nolint:gosec // an environment variable name, not a credential
+	switch raw := strings.ToLower(strings.TrimSpace(getenv(tokenName))); raw {
+	case "":
+	case "0", "off":
+		budget.MaxTokens = 0
+	default:
+		tokens, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || tokens <= 0 {
+			return budget, fmt.Errorf("%s must be a positive whole number of tokens, 0, or off", tokenName)
+		}
+		budget.MaxTokens = tokens
+	}
+	cost, err := parseOptionalNonNegativeFloat(getenv, "AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD")
+	if err != nil {
+		return budget, err
+	}
+	budget.MaxCostUSD = cost
+	for provider, prefix := range map[ports.ModelProvider]string{
+		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_CLAUDE",
+		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK",
+		ports.ModelProviderLocal:    "AO_CLAUDE_ORCHESTRATOR_LOCAL",
+	} {
+		input, err := parseOptionalNonNegativeFloat(getenv, prefix+"_PRICE_INPUT_PER_MTOK")
+		if err != nil {
+			return budget, err
+		}
+		output, err := parseOptionalNonNegativeFloat(getenv, prefix+"_PRICE_OUTPUT_PER_MTOK")
+		if err != nil {
+			return budget, err
+		}
+		if input == 0 && output == 0 && provider != ports.ModelProviderLocal {
+			continue
+		}
+		if budget.Prices == nil {
+			budget.Prices = make(map[ports.ModelProvider]ClaudeOrchestratorPrice)
+		}
+		// A model on this machine costs nothing per token unless priced.
+		budget.Prices[provider] = ClaudeOrchestratorPrice{InputUSDPerMTok: input, OutputUSDPerMTok: output}
+	}
+	return budget, nil
+}
+
+func parseOptionalNonNegativeFloat(getenv func(string) string, name string) (float64, error) {
+	raw := strings.TrimSpace(getenv(name))
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 || math.IsInf(value, 0) || math.IsNaN(value) {
+		return 0, fmt.Errorf("invalid %s: must be a non-negative number", name)
+	}
+	return value, nil
+}
+
+// requireLoopbackForPlainHTTP refuses an unencrypted endpoint on another
+// machine: prompts and code would cross the network in the clear.
+func requireLoopbackForPlainHTTP(name, raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URL", name)
+	}
+	if parsed.Scheme != "http" {
+		return nil
+	}
+	host := parsed.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("%s must use https unless it points at this machine (localhost or 127.0.0.1)", name)
+}
+
+func loadClaudeOrchestratorCommands(getenv func(string) string, name string) ([]ClaudeOrchestratorCommandConfig, error) {
+	raw := strings.TrimSpace(getenv(name))
 	if raw == "" {
 		return nil, nil
 	}
@@ -553,8 +920,8 @@ func loadClaudeOrchestratorCommands(name string) ([]ClaudeOrchestratorCommandCon
 	return commands, nil
 }
 
-func parseOptionalPositiveDuration(name string) (time.Duration, error) {
-	raw := strings.TrimSpace(os.Getenv(name))
+func parseOptionalPositiveDurationFrom(getenv func(string) string, name string) (time.Duration, error) {
+	raw := strings.TrimSpace(getenv(name))
 	if raw == "" {
 		return 0, nil
 	}
@@ -565,8 +932,8 @@ func parseOptionalPositiveDuration(name string) (time.Duration, error) {
 	return duration, nil
 }
 
-func parseOptionalPositiveInt64(name string) (int64, error) {
-	raw := strings.TrimSpace(os.Getenv(name))
+func parseOptionalPositiveInt64From(getenv func(string) string, name string) (int64, error) {
+	raw := strings.TrimSpace(getenv(name))
 	if raw == "" {
 		return 0, nil
 	}

@@ -107,24 +107,24 @@ jobs:
           # frontend/docs/desktop-release.md), so this name is stable across tags.
           gh release download "$BASELINE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --pattern 'agent-orchestrator-darwin-arm64.zip' \
+            --pattern 'x-robot-ai-darwin-arm64.zip' \
             --dir "$RUNNER_TEMP/baseline"
 
       - name: Verify the baseline artifact is sealed, notarized and stapled
         # Same canonical script the release pipeline's post-staple gate uses.
         # An unsigned or unstapled baseline cannot auto-update, so a failure
         # here is a real signal, not harness noise.
-        run: frontend/scripts/verify-mac-artifact.sh "$RUNNER_TEMP/baseline/agent-orchestrator-darwin-arm64.zip"
+        run: frontend/scripts/verify-mac-artifact.sh "$RUNNER_TEMP/baseline/x-robot-ai-darwin-arm64.zip"
 
       - name: Install the baseline into /Applications
         run: |
           set -euo pipefail
-          rm -rf "/Applications/Agent Orchestrator.app"
+          rm -rf "/Applications/X-ROBOT-AI.app"
           # ditto, never unzip: plain unzip leaves stray AppleDouble files inside
           # the bundle and breaks the seal (see verify-mac-artifact.sh).
-          ditto -x -k "$RUNNER_TEMP/baseline/agent-orchestrator-darwin-arm64.zip" /Applications
+          ditto -x -k "$RUNNER_TEMP/baseline/x-robot-ai-darwin-arm64.zip" /Applications
           plutil -extract CFBundleShortVersionString raw -o - \
-            "/Applications/Agent Orchestrator.app/Contents/Info.plist"
+            "/Applications/X-ROBOT-AI.app/Contents/Info.plist"
 
       - name: Check the baseline can signal staging
         # The harness waits on AO_E2E_UPDATE_SENTINEL, and that listener only
@@ -137,7 +137,7 @@ jobs:
           set -euo pipefail
           node --input-type=module -e '
             import { assertSentinelCapable } from "./frontend/scripts/e2e-mac-update.mjs";
-            const app = "/Applications/Agent Orchestrator.app";
+            const app = "/Applications/X-ROBOT-AI.app";
             try {
               assertSentinelCapable(app);
             } catch (err) {
@@ -154,7 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           node frontend/scripts/e2e-mac-update.mjs \
-            --app "/Applications/Agent Orchestrator.app" \
+            --app "/Applications/X-ROBOT-AI.app" \
             --expect-version "$TARGET_VERSION" \
             --channel "$CHANNEL"
 
@@ -162,7 +162,7 @@ jobs:
         # The swap is done by ShipIt, not by our signing pipeline, so re-run the
         # full trio on what actually ended up on disk.
         if: always()
-        run: frontend/scripts/verify-mac-artifact.sh "/Applications/Agent Orchestrator.app"
+        run: frontend/scripts/verify-mac-artifact.sh "/Applications/X-ROBOT-AI.app"
 
       - name: Verify the updated app's baked update feed
         # The update above already proved the REAL published feed resolves (the
@@ -175,7 +175,7 @@ jobs:
         # dies. This assertion turns the drift into a red run instead.
         run: |
           set -euo pipefail
-          yml="/Applications/Agent Orchestrator.app/Contents/Resources/app-update.yml"
+          yml="/Applications/X-ROBOT-AI.app/Contents/Resources/app-update.yml"
           owner="$(sed -n 's/^owner:[[:space:]]*//p' "$yml")"
           repo="$(sed -n 's/^repo:[[:space:]]*//p' "$yml")"
           echo "updated app bakes feed: $owner/$repo (expected $GITHUB_REPOSITORY)"

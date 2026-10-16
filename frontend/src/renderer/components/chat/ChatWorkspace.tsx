@@ -1768,7 +1768,7 @@ function ChatHeader({
 								aria-selected={timelineActive}
 								data-terminal-role="primary"
 								className={cn(
-									"group relative inline-flex min-w-shell-tab-min max-w-shell-tab-max shrink-0 self-stretch cursor-pointer items-center gap-1.5 border-r border-border px-3 text-control font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
+									"group relative inline-flex min-w-shell-tab-min max-w-shell-tab-max shrink-0 self-stretch cursor-pointer items-center gap-1.5 border-e border-border px-3 text-control font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
 									timelineActive
 										? "bg-overlay text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-foreground/80"
 										: "text-muted-foreground hover:bg-raised hover:text-foreground",
@@ -1801,7 +1801,7 @@ function ChatHeader({
 													aria-label="Reviewer"
 													aria-selected={Boolean(reviewerActive && !workspaceActiveTabKey)}
 													className={cn(
-														"group relative inline-flex min-w-shell-tab-min max-w-shell-tab-max self-stretch cursor-pointer items-center gap-1.5 border-r border-border px-3 text-control font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
+														"group relative inline-flex min-w-shell-tab-min max-w-shell-tab-max self-stretch cursor-pointer items-center gap-1.5 border-e border-border px-3 text-control font-medium leading-none transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
 														reviewerActive && !workspaceActiveTabKey
 															? "bg-overlay text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-foreground/80"
 															: "text-muted-foreground hover:bg-raised hover:text-foreground",
@@ -1839,7 +1839,7 @@ function ChatHeader({
 					</div>
 				</div>
 				<div
-					className="ml-auto flex shrink-0 items-center gap-1 pl-2 pr-3"
+					className="ms-auto flex shrink-0 items-center gap-1 ps-2 pe-3"
 					data-testid="session-action-region"
 				>
 					{tabStripAction ? <div data-testid="session-tab-strip-action">{tabStripAction}</div> : null}
@@ -3061,7 +3061,7 @@ function Timeline({
 				onBlur={() => setHoveredMarker(null)}
 				onPointerLeave={() => setHoveredMarker(null)}
 					className={cn(
-						"group/scroll absolute inset-y-3 right-1 z-10 w-6 touch-none rounded-full outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-logo-accent/60",
+						"group/scroll absolute inset-y-3 end-1 z-10 w-6 touch-none rounded-full outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-logo-accent/60",
 						minimapEnabled && !inspectorOpenRef.current
 							? "cursor-pointer opacity-100"
 							: "pointer-events-none opacity-0",
@@ -3106,7 +3106,7 @@ function Timeline({
 				previews[hoveredMarker] ? (
 					<div
 						role="tooltip"
-						className="chat-scroll-preview pointer-events-none absolute right-full z-20 mr-3 w-80 rounded-xl border border-border-strong bg-raised px-3.5 py-3 shadow-lg"
+						className="chat-scroll-preview pointer-events-none absolute end-full z-20 me-3 w-80 rounded-xl border border-border-strong bg-raised px-3.5 py-3 shadow-lg"
 						style={{
 							top: `clamp(4rem, ${scrollbar.markers[hoveredMarker].top}px, calc(100% - 4rem))`,
 						}}

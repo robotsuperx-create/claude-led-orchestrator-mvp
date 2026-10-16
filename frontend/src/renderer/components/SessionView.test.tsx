@@ -1169,7 +1169,7 @@ describe("SessionView", () => {
 		expect(within(loader).getByTestId("multi-step-loader-step").querySelector(".multi-step-loader__step")).toBeInTheDocument();
 		expect(within(loader).queryByRole("progressbar")).not.toBeInTheDocument();
 		expect(loader).not.toHaveTextContent("Coder");
-		expect(loader).not.toHaveClass("right-4", "top-4");
+		expect(loader).not.toHaveClass("end-4", "top-4");
 		expect(document.querySelector("[data-cloud-lifecycle-stage]")).not.toBeInTheDocument();
 	});
 

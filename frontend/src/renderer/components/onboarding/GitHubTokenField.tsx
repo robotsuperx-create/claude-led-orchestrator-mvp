@@ -62,7 +62,7 @@ export function GitHubTokenField({
 			{hint ? <p className={onboardingFieldHintClass}>{hint}</p> : null}
 			<div className="flex items-center gap-2">
 				<div className="relative flex-1">
-					<span className="pointer-events-none absolute inset-y-0 left-3 flex w-4 items-center justify-center text-muted-foreground">
+					<span className="pointer-events-none absolute inset-y-0 start-3 flex w-4 items-center justify-center text-muted-foreground">
 						<KeyRound className="size-4" aria-hidden="true" />
 					</span>
 					<Input
@@ -70,7 +70,7 @@ export function GitHubTokenField({
 						type="password"
 						autoComplete="off"
 						spellCheck={false}
-						className="bg-[var(--color-bg-import-card)] pl-10 font-mono text-[13px]"
+						className="bg-[var(--color-bg-import-card)] ps-10 font-mono text-[13px]"
 						placeholder={placeholder}
 						disabled={disabled}
 						value={value}

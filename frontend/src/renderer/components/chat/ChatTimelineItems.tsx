@@ -9,6 +9,7 @@ import { AppLink } from "../AppLink";
  */
 
 import { stagedAttachmentParts, attachmentName, attachmentURL, IMAGE_ATTACHMENT_PATH } from "./messageAttachments";
+import { appI18n } from "../../i18n";
 import {
 	ACCENT_ACTION_SEGMENT,
 	ACCENT_ACTION_SHELL,
@@ -101,16 +102,20 @@ import {
 	type ParsedBrowserAnnotationMessage,
 } from "../../../shared/browser-annotations";
 
-const timeFormatter = new Intl.DateTimeFormat(undefined, {
-	hour: "2-digit",
-	minute: "2-digit",
-	hourCycle: "h23",
-});
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-	month: "short",
-	day: "numeric",
-	year: "numeric",
-});
+// Formatters follow the app's UI language, not the operating system's.
+const formatterCache = new Map<string, { time: Intl.DateTimeFormat; date: Intl.DateTimeFormat }>();
+function formatters() {
+	const locale = appI18n.resolvedLanguage ?? appI18n.language;
+	let cached = formatterCache.get(locale);
+	if (!cached) {
+		cached = {
+			time: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+			date: new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }),
+		};
+		formatterCache.set(locale, cached);
+	}
+	return cached;
+}
 
 const ORIGIN_REPORT_COLLAPSE_AT = 600;
 const ORIGIN_REPORT_PREVIEW_LENGTH = 240;
@@ -360,7 +365,7 @@ export function TurnOutcome({
 	const action = retry ? (
 		<>
 			{retry.error ? (
-				<span role="alert" className="max-w-[50%] text-pretty text-right text-[10px] leading-tight text-destructive">
+				<span role="alert" className="max-w-[50%] text-pretty text-end text-[10px] leading-tight text-destructive">
 					{retry.error}
 				</span>
 			) : null}
@@ -457,7 +462,7 @@ function formatDuration(ms: number): string {
 
 function formatTime(iso: string): string {
 	const parsed = new Date(iso);
-	return Number.isNaN(parsed.getTime()) ? "" : timeFormatter.format(parsed);
+	return Number.isNaN(parsed.getTime()) ? "" : formatters().time.format(parsed);
 }
 
 function formatMessageTimestamp(iso: string, now = new Date()): string {
@@ -467,9 +472,10 @@ function formatMessageTimestamp(iso: string, now = new Date()): string {
 	const messageDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 	const daysAgo = Math.round((today - messageDay) / 86_400_000);
-	if (daysAgo === 0) return timeFormatter.format(parsed);
-	if (daysAgo === 1) return `Yesterday · ${timeFormatter.format(parsed)}`;
-	return dateFormatter.format(parsed);
+	const { time, date } = formatters();
+	if (daysAgo === 0) return time.format(parsed);
+	if (daysAgo === 1) return appI18n.t("chat.yesterdayAt", { time: time.format(parsed) });
+	return date.format(parsed);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -660,11 +666,11 @@ export function OriginMessage({ message }: { message: ConversationMessage }) {
 		: message.text;
 
 	return (
-		<div className="cursor-chat-origin-message rounded-md border border-border border-l-2 border-l-logo-accent/60 px-3.5 py-2.5">
+		<div className="cursor-chat-origin-message rounded-md border border-border border-s-2 border-s-logo-accent/60 px-3.5 py-2.5">
 			<div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
 				<CircleAlert aria-hidden="true" className="size-3.5 shrink-0 text-logo-accent" />
 				<span className="truncate">{message.senderLabel ?? message.origin}</span>
-				<span className="ml-auto shrink-0 font-normal tabular-nums">
+				<span className="ms-auto shrink-0 font-normal tabular-nums">
 					{formatTime(message.createdAt)}
 				</span>
 			</div>
@@ -702,11 +708,11 @@ function BrowserAnnotationOrigin({
 }) {
 	const count = annotations.items.length;
 	return (
-		<div className="cursor-chat-origin-message rounded-md border border-border border-l-2 border-l-logo-accent/60 px-3.5 py-2.5">
+		<div className="cursor-chat-origin-message rounded-md border border-border border-s-2 border-s-logo-accent/60 px-3.5 py-2.5">
 			<div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
 				<MousePointer2 aria-hidden="true" className="size-3.5 shrink-0 text-logo-accent" />
 				<span>Browser feedback</span>
-				<span className="ml-auto shrink-0 font-normal tabular-nums">{formatTime(message.createdAt)}</span>
+				<span className="ms-auto shrink-0 font-normal tabular-nums">{formatTime(message.createdAt)}</span>
 			</div>
 			<p className="text-sm text-foreground">
 				{count} annotation{count === 1 ? "" : "s"} on {annotations.pageTitle}
@@ -776,7 +782,7 @@ export function AssistantMessage({
 							text={message.text}
 							label="Copy message as markdown"
 							compact
-							className="-ml-1.5 size-7 justify-center rounded-md px-0 py-0 transition-[scale,background-color,color] duration-150 ease-out hover:bg-interactive-hover hover:text-foreground active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100"
+							className="-ms-1.5 size-7 justify-center rounded-md px-0 py-0 transition-[scale,background-color,color] duration-150 ease-out hover:bg-interactive-hover hover:text-foreground active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100"
 						/>
 					) : null}
 					{onRollback ? (
@@ -958,7 +964,7 @@ function GenericActivityRow({ activity }: { activity: ConversationActivity }) {
 				className={cn(
 					compactSummary
 						? ACTIVITY_SUMMARY_BUTTON_CLASS
-						: "flex min-h-[35px] w-full min-w-0 select-none items-center gap-[9px] px-[11px] py-2 text-left text-[11px]",
+						: "flex min-h-[35px] w-full min-w-0 select-none items-center gap-[9px] px-[11px] py-2 text-start text-[11px]",
 					"activity-row-toggle",
 					hasBody && !compactSummary && "hover:text-foreground",
 					!hasBody && "cursor-default",
@@ -1407,7 +1413,7 @@ function FileChangeRow({ file }: { file: FileChangeFile }) {
 	// nothing when pressed is worse than plain text.
 	if (!hasPatch) {
 		return (
-			<li className="flex items-center gap-1.5 py-0.5 pr-1" aria-label={accessibleName}>
+			<li className="flex items-center gap-1.5 py-0.5 pe-1" aria-label={accessibleName}>
 				{line}
 			</li>
 		);
@@ -1420,7 +1426,7 @@ function FileChangeRow({ file }: { file: FileChangeFile }) {
 				onClick={() => setOpen((prev) => !prev)}
 				aria-expanded={open}
 				aria-label={accessibleName}
-				className="flex items-center gap-1.5 rounded-sm py-0.5 pr-1 text-left"
+				className="flex items-center gap-1.5 rounded-sm py-0.5 pe-1 text-start"
 			>
 				{line}
 				<ChevronRight
@@ -1501,7 +1507,7 @@ function ReasoningBlock({ activity }: { activity: ConversationActivity }) {
 	const streaming = activity.status === "running";
 
 	return (
-		<div className="flex gap-2.5 border-l-2 border-border-strong py-0.5 pl-3">
+		<div className="flex gap-2.5 border-s-2 border-border-strong py-0.5 ps-3">
 			<Brain aria-hidden="true" className="mt-[3px] size-3.5 shrink-0 text-muted-foreground/70" />
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
@@ -1822,7 +1828,7 @@ function AutoReviewRow({ activity }: { activity: ConversationActivity }) {
 				disabled={!hasBody}
 				aria-expanded={hasBody ? open : undefined}
 				className={cn(
-					"activity-row-toggle flex min-h-[35px] w-full select-none items-center gap-[9px] px-[11px] py-2 text-left text-[11px]",
+					"activity-row-toggle flex min-h-[35px] w-full select-none items-center gap-[9px] px-[11px] py-2 text-start text-[11px]",
 					hasBody && "hover:text-foreground",
 					!hasBody && "cursor-default",
 				)}
@@ -2339,7 +2345,7 @@ export function ApprovalCard({
 										<button
 											type="button"
 											aria-label="More approval options"
-											className="flex w-7 items-center justify-center border-l border-logo-accent-foreground/20 transition-colors hover:bg-logo-accent-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+											className="flex w-7 items-center justify-center border-s border-logo-accent-foreground/20 transition-colors hover:bg-logo-accent-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
 											disabled={busy}
 										>
 											<ChevronDown aria-hidden="true" className="size-3.5" />
@@ -2463,7 +2469,7 @@ function ResolvedApprovalRow({
 	return (
 		<div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-md border border-border/80 bg-surface/45 px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
 			<strong className="shrink-0 font-medium text-foreground">{outcome.label}</strong>
-			<span className="min-w-0 truncate text-right font-mono" title={title}>
+			<span className="min-w-0 truncate text-end font-mono" title={title}>
 				{command}
 			</span>
 		</div>
@@ -2588,7 +2594,7 @@ export function TurnChangedFiles({
 				{visible.map((file) => {
 					const status = diffStatusMark[file.status] ?? diffStatusMark.modified;
 					const rowClass =
-						"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-interactive-hover";
+						"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start transition-colors hover:bg-interactive-hover";
 					const tooltipPath = resolveTurnFilePath(file.path, pathHints);
 					const tooltipOldPath = file.oldPath
 						? resolveTurnFilePath(file.oldPath, pathHints)
@@ -2680,7 +2686,7 @@ export function TurnChangedFiles({
 					type="button"
 					onClick={() => setExpanded((prev) => !prev)}
 					aria-expanded={expanded}
-					className="flex w-full items-center gap-1.5 px-3 pb-2 text-left text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+					className="flex w-full items-center gap-1.5 px-3 pb-2 text-start text-[11px] text-muted-foreground transition-colors hover:text-foreground"
 				>
 					{expanded ? "Show less" : `Show ${hidden} more`}
 				</button>

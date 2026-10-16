@@ -336,14 +336,14 @@ export function KeyboardShortcutsContent({
 									</div>
 
 									{shortcut.customizable === false ? (
-										<span className="ml-auto text-caption text-settings-muted">{t("shortcut.fixedIndexed")}</span>
+										<span className="ms-auto text-caption text-settings-muted">{t("shortcut.fixedIndexed")}</span>
 									) : isRecording ? (
-										<div className="ml-auto flex min-w-52 items-center gap-2 rounded-md border border-(--color-settings-accent) px-3 py-2 text-caption text-settings-label">
+										<div className="ms-auto flex min-w-52 items-center gap-2 rounded-md border border-(--color-settings-accent) px-3 py-2 text-caption text-settings-label">
 											<Keyboard className="size-icon-base animate-pulse" aria-hidden="true" />
 											{t("shortcut.pressRecording")}
 										</div>
 									) : (
-										<div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+										<div className="ms-auto flex flex-wrap items-center justify-end gap-1.5">
 											{bindings.length === 0 ? (
 												<span className="text-caption text-settings-muted">{t("shortcut.unassigned")}</span>
 											) : (
@@ -359,7 +359,7 @@ export function KeyboardShortcutsContent({
 															<TooltipTrigger asChild>
 																<button
 																	type="button"
-																	className="mr-1 inline-flex size-5 items-center justify-center rounded text-settings-muted hover:bg-settings-menu-selected hover:text-settings-label"
+																	className="me-1 inline-flex size-5 items-center justify-center rounded text-settings-muted hover:bg-settings-menu-selected hover:text-settings-label"
 																	aria-label={t("shortcut.removeBindingAria", { binding: shortcutBindingLabel(candidate, isMac), name: shortcutLabel(shortcut.id, t) })}
 																	onClick={() => void handleRemoveBinding(shortcut.id, index)}
 																>
@@ -428,7 +428,7 @@ export function KeyboardShortcutsContent({
 				<div className="flex items-center gap-3 pt-2">
 					{confirmResetAll ? (
 						<>
-							<span className="mr-auto text-caption text-settings-muted">{t("shortcut.resetAllConfirm")}</span>
+							<span className="me-auto text-caption text-settings-muted">{t("shortcut.resetAllConfirm")}</span>
 							<Button type="button" variant="footer" className="rounded-md" onClick={() => setConfirmResetAll(false)}>
 								{t("confirm.cancel")}
 							</Button>
@@ -462,7 +462,7 @@ export function KeyboardShortcutsContent({
 
 				{toast ? (
 					<div
-						className="pointer-events-auto sticky bottom-2 z-10 ml-auto flex w-[min(24rem,100%)] items-start gap-3 rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"
+						className="pointer-events-auto sticky bottom-2 z-10 ms-auto flex w-[min(24rem,100%)] items-start gap-3 rounded-xl border border-(--color-border-settings-dialog) bg-settings-dialog px-4 py-3 shadow-[var(--shadow-settings-dialog)]"
 						role="status"
 						aria-live="polite"
 						aria-atomic="true"

@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useResizable } from "./useResizable";
+import { dragSign, useResizable } from "./useResizable";
 
 describe("useResizable", () => {
 	beforeEach(() => {
@@ -243,5 +243,21 @@ describe("useResizable", () => {
 			}),
 		);
 		expect(widthVar()).toBe("400px");
+	});
+});
+
+describe("dragSign", () => {
+	it("widens toward the handle's edge and flips inside right-to-left content", () => {
+		const ltr = document.createElement("div");
+		const rtl = document.createElement("div");
+		rtl.style.direction = "rtl";
+		document.body.append(ltr, rtl);
+		expect(dragSign("right", ltr)).toBe(1);
+		expect(dragSign("left", ltr)).toBe(-1);
+		expect(dragSign("right", rtl)).toBe(-1);
+		expect(dragSign("left", rtl)).toBe(1);
+		expect(dragSign("right", {})).toBe(1);
+		ltr.remove();
+		rtl.remove();
 	});
 });

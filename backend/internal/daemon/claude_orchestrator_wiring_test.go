@@ -17,7 +17,7 @@ func TestClaudeOrchestratorWiringDefaultOffCreatesNoProvidersOrRouteService(t *t
 	if err != nil {
 		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
 	}
-	if wiring == nil || wiring.service != nil || wiring.providers != nil || wiring.deepSeekWorker != nil {
+	if wiring == nil || wiring.service != nil || wiring.providers != nil {
 		t.Fatalf("disabled wiring created a service or provider clients: %+v", wiring)
 	}
 	result, err := wiring.RunGated(context.Background(), ports.ClaudeOrchestratorRunRequest{ExplicitOptIn: true}, ports.OrchestrationRequest{
@@ -67,7 +67,7 @@ func TestClaudeOrchestratorWiringEnabledWithInjectedFakes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
 	}
-	if wiring.service == nil || wiring.providers != nil || wiring.deepSeekWorker != nil {
+	if wiring.service == nil || wiring.providers != nil {
 		t.Fatalf("fake composition has unexpected service/provider state: %+v", wiring)
 	}
 	got, err := wiring.RunGated(context.Background(), ports.ClaudeOrchestratorRunRequest{ExplicitOptIn: true}, ports.OrchestrationRequest{
@@ -135,4 +135,29 @@ func (*fakeOrchestratorMemory) ReadContext(context.Context, ports.MemoryContextR
 func (f *fakeOrchestratorMemory) RecordOutcome(context.Context, ports.MemoryOutcome) error {
 	f.recorded++
 	return nil
+}
+
+// A machine with only a local model (Ollama, llama.cpp) can plan, review and
+// write code without any cloud provider configured.
+func TestClaudeOrchestratorWiringRunsOnALocalModelAlone(t *testing.T) {
+	cfg := configuredClaudeOrchestratorConfig()
+	cfg.ClaudeProvider = modelgateway.ProviderConfig{}
+	cfg.DeepSeekProvider = modelgateway.ProviderConfig{}
+	cfg.LocalProvider = modelgateway.ProviderConfig{Provider: ports.ModelProviderLocal, BaseURL: "http://127.0.0.1:11434/v1", DefaultModel: "qwen2.5-coder"}
+	cfg.PlannerProvider = ports.ModelProviderLocal
+	cfg.Worker.DefaultProvider = ports.ModelProviderLocal
+	wiring, err := newClaudeOrchestratorWiring(config.Config{ClaudeOrchestrator: cfg}, claudeOrchestratorBuildDeps{
+		Worker: &fakeOrchestratorWorker{}, Validator: &fakeOrchestratorValidator{}, Memory: &fakeOrchestratorMemory{},
+	})
+	if err != nil {
+		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
+	}
+	if providers := wiring.providers.Providers(); len(providers) != 1 || providers[0] != ports.ModelProviderLocal {
+		t.Fatalf("providers = %v, want only the local model", providers)
+	}
+
+	cfg.LocalProvider = modelgateway.ProviderConfig{}
+	if _, err := newClaudeOrchestratorWiring(config.Config{ClaudeOrchestrator: cfg}, claudeOrchestratorBuildDeps{}); err == nil || !strings.Contains(err.Error(), "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL") {
+		t.Fatalf("missing local model error = %v", err)
+	}
 }

@@ -87,7 +87,7 @@ export function ConnectMobileSetup({ mode, onModeChange, enabled, busy = false, 
 			) : (
 				<div className="mt-3 w-full px-(--size-settings-mobile-details-pad-x)">
 					<div className="relative flex items-start justify-between gap-3 rounded-(--radius-settings-dialog-lg) border border-[var(--color-border-settings-input)] bg-[var(--color-bg-settings-input)] px-3.5 py-2.5">
-						<div className="flex min-w-0 flex-col gap-1 pr-2">
+						<div className="flex min-w-0 flex-col gap-1 pe-2">
 							<span className="text-subtitle leading-(--leading-settings-mobile-title) text-settings-label">
 								{t("mobile.securePairing")}
 							</span>
@@ -108,6 +108,8 @@ export function ConnectMobileSetup({ mode, onModeChange, enabled, busy = false, 
 								"**:data-[slot=switch-thumb]:size-5 **:data-[slot=switch-thumb]:bg-white **:data-[slot=switch-thumb]:transition-transform **:data-[slot=switch-thumb]:duration-300 **:data-[slot=switch-thumb]:ease-out",
 								"data-[state=checked]:**:data-[slot=switch-thumb]:translate-x-(--size-settings-mobile-switch-travel)",
 								"data-[state=unchecked]:**:data-[slot=switch-thumb]:translate-x-0.5",
+								"rtl:data-[state=checked]:**:data-[slot=switch-thumb]:-translate-x-(--size-settings-mobile-switch-travel)",
+								"rtl:data-[state=unchecked]:**:data-[slot=switch-thumb]:-translate-x-0.5",
 							)}
 						/>
 					</div>

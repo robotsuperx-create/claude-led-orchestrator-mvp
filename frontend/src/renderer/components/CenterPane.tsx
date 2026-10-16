@@ -723,7 +723,7 @@ export function CenterPane({
 				</div>
 				{isFullscreen ? null : (
 					<div
-						className="ml-auto flex shrink-0 items-center gap-1 pl-2 pr-3"
+						className="ms-auto flex shrink-0 items-center gap-1 ps-2 pe-3"
 			data-testid="session-action-region"
 		>
 			{tabStripAction ? <div data-testid="session-tab-strip-action">{tabStripAction}</div> : null}
@@ -846,8 +846,8 @@ function AgentSwitchTerminalOverlay({
 		>
 			{sourceInput || staticWarning || success ? (
 				<div className={cn(
-					"agent-switch-attention-card pointer-events-auto relative flex max-w-md items-start gap-3 rounded-lg border bg-surface/95 px-4 py-3 text-left shadow-lg",
-					onDismiss && "pr-11",
+					"agent-switch-attention-card pointer-events-auto relative flex max-w-md items-start gap-3 rounded-lg border bg-surface/95 px-4 py-3 text-start shadow-lg",
+					onDismiss && "pe-11",
 					success
 						? "border-success/40"
 						: presentation.tone === "danger"
@@ -872,7 +872,7 @@ function AgentSwitchTerminalOverlay({
 					{onDismiss ? (
 						<button
 							aria-label={t("common.close")}
-							className="absolute right-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
+							className="absolute end-2 top-2 grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent/50"
 							onClick={onDismiss}
 							type="button"
 						>
@@ -898,7 +898,7 @@ function AgentSwitchTerminalOverlay({
 								strokeWidth={1.5}
 							/>
 							<span
-								className="absolute inset-y-[7px] left-0 right-3 overflow-hidden"
+								className="absolute inset-y-[7px] start-0 end-3 overflow-hidden"
 								data-testid="agent-switch-transfer-shaft"
 							>
 								<span className="agent-switch-transfer-pulse absolute inset-y-0 w-10 bg-gradient-to-r from-transparent via-accent to-transparent" />

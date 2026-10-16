@@ -28,7 +28,7 @@ export function AccordionTrigger({
 		>
 			<AccordionPrimitive.Trigger
 				className={cn(
-					"flex min-w-0 flex-1 items-center text-left focus-visible:outline-none",
+					"flex min-w-0 flex-1 items-center text-start focus-visible:outline-none",
 					className,
 				)}
 				{...props}

@@ -1500,7 +1500,7 @@ export const ChatComposer = memo(function ChatComposer({
 							return (
 							<li
 								key={file.id}
-								className="flex items-center gap-1.5 rounded border border-border bg-background py-0.5 pl-0.5 pr-1"
+								className="flex items-center gap-1.5 rounded border border-border bg-background py-0.5 ps-0.5 pe-1"
 							>
 								{preview ? (
 									<img src={preview} alt="" className="size-6 rounded-sm object-cover" />

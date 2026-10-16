@@ -67,7 +67,7 @@ function setup() {
 }
 
 const sessionItems = (tray: { template: MenuItem[] }) =>
-	tray.template.filter((item) => typeof item.click === "function" && item.label !== "Show Agent Orchestrator");
+	tray.template.filter((item) => typeof item.click === "function" && item.label !== "Show X-ROBOT-AI");
 
 afterEach(() => {
 	trayInstances.length = 0;
@@ -149,6 +149,6 @@ describe("createTrayController", () => {
 		controller.setLocale("zh-CN");
 		expect(tray.tooltip).toBe("1 个会话需要关注");
 		expect(tray.template.some((i) => i.label === "需要你处理")).toBe(true);
-		expect(tray.template.some((i) => i.label === "显示 Agent Orchestrator")).toBe(true);
+		expect(tray.template.some((i) => i.label === "显示 X-ROBOT-AI")).toBe(true);
 	});
 });

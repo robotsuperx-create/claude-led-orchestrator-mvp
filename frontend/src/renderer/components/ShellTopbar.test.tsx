@@ -246,6 +246,20 @@ describe("ShellTopbar route identity", () => {
 		expect(identity).toHaveTextContent("Automations");
 		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
 	});
+
+	it("identifies the Orchestrator route instead of presenting it as the board", () => {
+		locationMock.pathname = "/orchestrator";
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<TooltipProvider>
+					<ShellTopbar />
+				</TooltipProvider>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByTestId("orchestrator-topbar-label")).toHaveTextContent("Mission control");
+		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
+	});
 });
 
 describe("ShellTopbar status pill", () => {
@@ -253,8 +267,8 @@ describe("ShellTopbar status pill", () => {
 		renderTopbar(sessionWith());
 
 		const header = screen.getByTestId("workspace-topbar-actions").closest("header");
-		expect(header).toHaveClass("pr-2");
-		expect(header).not.toHaveClass("pr-4");
+		expect(header).toHaveClass("pe-2");
+		expect(header).not.toHaveClass("pe-4");
 	});
 
 	it("shows the worker session name and activity in the full topbar identity", () => {
@@ -311,7 +325,7 @@ describe("ShellTopbar status pill", () => {
 		expect(screen.queryByText("Working")).toBeNull();
 		const localActions = screen.getByTestId("session-local-actions");
 		expect(localActions).toHaveClass("gap-1");
-		expect(localActions).not.toHaveClass("gap-px", "mr-0.5");
+		expect(localActions).not.toHaveClass("gap-px", "me-0.5");
 		expect(localActions.contains(screen.getByRole("button", { name: "New terminal" }))).toBe(true);
 		expect(localActions.contains(screen.getByRole("button", { name: "Switch agent" }))).toBe(true);
 		expect(localActions.contains(screen.getByRole("button", { name: "Switch to chat UI" }))).toBe(true);

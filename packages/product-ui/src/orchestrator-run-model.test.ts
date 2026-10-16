@@ -19,6 +19,9 @@ describe("orchestrator run view-model adapter", () => {
 		expect(isTerminalOrchestratorRunState("completed")).toBe(true);
 		expect(toOrchestratorRunViewModel({ runId: "run-2", state: "failed" }, { cancelAvailable: true }).cancelAvailable).toBe(false);
 		expect(isTerminalOrchestratorRunState("held")).toBe(true);
+		// The daemon spells the wire state "canceled".
+		expect(isTerminalOrchestratorRunState("canceled")).toBe(true);
+		expect(toOrchestratorRunViewModel({ runId: "run-4", state: "canceled" })).toMatchObject({ status: "cancelled", cancelAvailable: false });
 		expect(toOrchestratorRunViewModel({ runId: "run-3", state: "held" }, { cancelAvailable: true })).toMatchObject({
 			status: "on_hold",
 			cancelAvailable: false,

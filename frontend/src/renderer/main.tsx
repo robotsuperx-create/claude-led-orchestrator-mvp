@@ -9,6 +9,7 @@ import { queryClient } from "./lib/query-client";
 import { mergeUnreadNotification, unreadNotificationsQueryKey } from "./lib/notifications";
 import { playNotificationSound } from "./lib/notification-sound-player";
 import { createAppRouter } from "./router";
+import { AppDirection } from "./components/AppDirection";
 import { TelemetryBoundary } from "./components/TelemetryBoundary";
 import { CloudOnboardingGate } from "./components/CloudOnboardingGate";
 import { CloudNotificationRuntime } from "./components/CloudNotificationRuntime";
@@ -98,6 +99,7 @@ async function renderApp(): Promise<void> {
 	// switches and drag updates spend hundreds of milliseconds recording timings.
 	createRoot(document.getElementById("root") as HTMLElement).render(
 		<I18nextProvider i18n={appI18n}>
+			<AppDirection>
 			<TelemetryBoundary>
 				<QueryClientProvider client={queryClient}>
 					<CloudNotificationRuntime />
@@ -105,6 +107,7 @@ async function renderApp(): Promise<void> {
 					<CloudOnboardingGate />
 				</QueryClientProvider>
 			</TelemetryBoundary>
+			</AppDirection>
 		</I18nextProvider>,
 	);
 }

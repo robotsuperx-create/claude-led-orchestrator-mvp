@@ -253,7 +253,7 @@ export function InstallDependencyDialog({
 										key={option.target}
 										value={option.target}
 										disabled={install.running}
-										className="group flex items-start gap-2.5 rounded-md border border-border px-3 py-2 text-left transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-accent data-[state=checked]:bg-accent-weak"
+										className="group flex items-start gap-2.5 rounded-md border border-border px-3 py-2 text-start transition-colors hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-accent data-[state=checked]:bg-accent-weak"
 									>
 										<span
 											aria-hidden="true"
@@ -360,7 +360,7 @@ function IssueSection({
 					{detail ? <p className="text-caption text-settings-muted">{detail}</p> : null}
 				</div>
 			</div>
-			{children ? <div className="pl-[calc(var(--size-icon-sm)+0.625rem)]">{children}</div> : null}
+			{children ? <div className="ps-[calc(var(--size-icon-sm)+0.625rem)]">{children}</div> : null}
 		</div>
 	);
 }

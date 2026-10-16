@@ -98,7 +98,7 @@ describe("ShellTerminalTab rename", () => {
 		renderTab({ appearance: "connected", isActive: true });
 
 		const closeButton = screen.getByRole("button", { name: "Close terminal ao" });
-		expect(closeButton.parentElement).toHaveClass("absolute", "inset-y-0", "left-2");
+		expect(closeButton.parentElement).toHaveClass("absolute", "inset-y-0", "start-2");
 		expect(closeButton).toHaveClass(
 			"opacity-0",
 			"pointer-events-none",
@@ -115,7 +115,7 @@ describe("ShellTerminalTab rename", () => {
 
 		const tab = screen.getByRole("tab", { name: "ao" });
 		expect(tab.classList.contains("min-w-0")).toBe(true);
-		expect(tab.classList.contains("text-left")).toBe(true);
+		expect(tab.classList.contains("text-start")).toBe(true);
 		const frame = tab.closest("[data-terminal-tab-frame]");
 		expect(frame?.classList.contains("inline-flex")).toBe(true);
 		expect(frame?.classList.contains("shrink-0")).toBe(true);

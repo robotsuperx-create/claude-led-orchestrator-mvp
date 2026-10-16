@@ -1,5 +1,6 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { AutoUnpackNativesPlugin } from "@electron-forge/plugin-auto-unpack-natives";
+import { PRODUCT_REPO_SLUG } from "./src/shared/brand";
 import { VitePlugin } from "@electron-forge/plugin-vite";
 import { rebuild } from "@electron/rebuild";
 import electronPackage from "electron/package.json";
@@ -19,13 +20,13 @@ import { BUNDLED_TMUX_VERSION } from "./scripts/tmux-version.mjs";
 // workflows set AO_RELEASE_REPO to the repo they run in, and build-artifacts.yml
 // asserts the baked app-update.yml matches it, so a future org/repo rename
 // fails the build instead of stranding the fleet on a redirect (#3523).
-const DEFAULT_RELEASE_REPO = "Untrivial-ai/agent-orchestrator";
+const DEFAULT_RELEASE_REPO = PRODUCT_REPO_SLUG;
 
 // The packaged binary name (no extension). Single source of truth: the packager
 // names the exe/ELF from this, and the NSIS + deb makers must point their
 // shortcut/launcher at the SAME name. Drift here means a broken Start menu
 // shortcut on Windows (#2414) or "could not find the Electron app binary" on deb.
-const EXECUTABLE_NAME = "agent-orchestrator";
+const EXECUTABLE_NAME = "x-robot-ai";
 const AUTH_PROTOCOL = {
 	name: "Agent Orchestrator authentication callback",
 	schemes: ["ao-app"],
@@ -123,8 +124,8 @@ const config: ForgeConfig = {
 		// runtime dependency tree explicitly; AutoUnpackNativesPlugin then places
 		// the .node binary outside app.asar.
 		ignore: ignoreFromVitePackage,
-		appBundleId: "dev.agent-orchestrator.desktop",
-		name: "Agent Orchestrator",
+		appBundleId: "ai.xrobot.desktop",
+		name: "X-ROBOT-AI",
 		executableName: EXECUTABLE_NAME,
 		protocols: [AUTH_PROTOCOL],
 		appCategoryType: "public.app-category.developer-tools",
@@ -179,7 +180,7 @@ const config: ForgeConfig = {
 				"provider: github",
 				`owner: ${owner}`,
 				`repo: ${name}`,
-				"updaterCacheDirName: agent-orchestrator-updater",
+				"updaterCacheDirName: x-robot-ai-updater",
 				"",
 			].join("\n");
 			writeFileSync("app-update.yml", yml);
@@ -281,10 +282,10 @@ const config: ForgeConfig = {
 		// custom install dir or proper uninstaller (issue #401).
 		new MakerNSIS(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Agent Orchestrator",
+				appId: "ai.xrobot.desktop",
+				productName: "X-ROBOT-AI",
 				// Match the packaged binary name so the Start menu shortcut targets
-				// the real "agent-orchestrator.exe" (not "Agent Orchestrator.exe").
+				// the real "x-robot-ai.exe" (not "Agent Orchestrator.exe").
 				executableName: EXECUTABLE_NAME,
 				icon: "assets/icon.ico",
 			},
@@ -300,8 +301,8 @@ const config: ForgeConfig = {
 		// break the signature seal on the way in (see makers/maker-dmg.ts, #3267).
 		new MakerDMG(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Agent Orchestrator",
+				appId: "ai.xrobot.desktop",
+				productName: "X-ROBOT-AI",
 			},
 			["darwin"],
 		),
@@ -311,8 +312,8 @@ const config: ForgeConfig = {
 		// prefer a system package.
 		new MakerAppImage(
 			{
-				appId: "dev.agent-orchestrator.desktop",
-				productName: "Agent Orchestrator",
+				appId: "ai.xrobot.desktop",
+				productName: "X-ROBOT-AI",
 				icon: "assets/icon.png",
 				protocols: [AUTH_PROTOCOL],
 			},
@@ -324,10 +325,10 @@ const config: ForgeConfig = {
 				options: {
 					// Must match packagerConfig.executableName, or the deb maker
 					// looks for the package name and fails with "could not find
-					// the Electron app binary". (Both are "agent-orchestrator".)
+					// the Electron app binary". (Both are "x-robot-ai".)
 					bin: EXECUTABLE_NAME,
 					icon: "assets/icon.png",
-					maintainer: "Agent Orchestrator",
+					maintainer: "X-ROBOT-AI",
 					homepage: "https://github.com/aoagents/agent-orchestrator",
 					mimeType: [AUTH_PROTOCOL_MIME_TYPE],
 				},

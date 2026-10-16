@@ -547,7 +547,7 @@ export function WorkspaceReviewPane({
 			    being reviewed on the left, review progress on the right. Trailing
 			    controls sit on the Files header's action columns (18px / 50px from
 			    the right edge), so the right side reads as one aligned column. */}
-			<div className="flex h-8 shrink-0 items-center gap-2 border-b border-border pb-1 pl-3 pr-1">
+			<div className="flex h-8 shrink-0 items-center gap-2 border-b border-border pb-1 ps-3 pe-1">
 				{onSourceMenuChange ? null : <div className="flex shrink-0 items-center rounded-md bg-[var(--color-bg-settings-trigger)]">{sourceControls}</div>}
 				{commitBrowserOpen ? (
 					<span className="min-w-0 truncate text-caption text-muted-foreground">{t("files.selectCommit")}</span>
@@ -561,7 +561,7 @@ export function WorkspaceReviewPane({
 							<span className="text-success">+{totalAdditions}</span>
 							<span className="text-error">−{totalDeletions}</span>
 						</span>
-						<div className="ml-auto flex shrink-0 items-center gap-1 text-caption text-muted-foreground">
+						<div className="ms-auto flex shrink-0 items-center gap-1 text-caption text-muted-foreground">
 							<span className="tabular-nums">{t("files.reviewProgress", { total: allFiles.length, viewed: viewedCount })}</span>
 							<HeaderActionTooltip label={t(allFilesCollapsed ? "files.expandAll" : "files.collapseAll")}>
 								<Button aria-label={t(allFilesCollapsed ? "files.expandAll" : "files.collapseAll")} onClick={toggleAll} size="icon-sm" type="button" variant="ghost">
@@ -642,14 +642,14 @@ export function WorkspaceReviewPane({
 										    name + stats on the left, every action grouped on the right
 										    with "viewed" pinned to the far edge. */}
 										<PopoverAnchor asChild>
-											<div className="group/file-header flex h-9 min-w-0 cursor-pointer items-center gap-2 pl-4 pr-1.5 hover:bg-interactive-hover/40" onClick={() => toggleCollapsed(file.path)}>
+											<div className="group/file-header flex h-9 min-w-0 cursor-pointer items-center gap-2 ps-4 pe-1.5 hover:bg-interactive-hover/40" onClick={() => toggleCollapsed(file.path)}>
 												<ChevronRight aria-hidden="true" className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 group-hover/file-header:text-foreground", !isCollapsed && "rotate-90")} />
 												<WorkspaceEntryIcon className="size-icon-xl" kind="file" name={file.path.split("/").pop() ?? file.path} />
 												<div className="flex min-w-0 shrink items-baseline gap-3">
 													<button
 														aria-expanded={!isCollapsed}
 														aria-label={isCollapsed ? t("files.expandFile", { file: file.path }) : t("files.collapseFile", { file: file.path })}
-														className="flex min-w-0 shrink items-baseline text-left text-[length:var(--font-size-base)] outline-none focus-visible:underline"
+														className="flex min-w-0 shrink items-baseline text-start text-[length:var(--font-size-base)] outline-none focus-visible:underline"
 														title={file.path}
 														type="button"
 													>
@@ -668,7 +668,7 @@ export function WorkspaceReviewPane({
 												    secondary actions fold into one ⋮ menu (like the browser's
 												    controls) and the extra lead-in goes, so the file name keeps its
 												    room; the row's own gap still separates it from the stats. */}
-												<div className="ml-auto flex shrink-0 items-center gap-1 pl-2 @max-[25rem]/review:pl-0" onClick={(event) => event.stopPropagation()}>
+												<div className="ms-auto flex shrink-0 items-center gap-1 ps-2 @max-[25rem]/review:ps-0" onClick={(event) => event.stopPropagation()}>
 													<div className="flex items-center gap-1 @max-[25rem]/review:hidden">
 														{onOpenFile && file.editable && file.fileFingerprint ? (
 															<HeaderActionTooltip label={t("files.editFile")}>
@@ -800,7 +800,7 @@ function CommitBrowser({ commits, filter, onSelect, selectedSha }: { commits: re
 				<li key={commit.sha}>
 				<button
 					aria-current={selectedSha === commit.sha ? "true" : undefined}
-					className={cn("group block w-full border-b border-border px-3 py-3 text-left transition-col hover:bg-interactive-hover", selectedSha === commit.sha && "bg-interactive-selected")}
+					className={cn("group block w-full border-b border-border px-3 py-3 text-start transition-col hover:bg-interactive-hover", selectedSha === commit.sha && "bg-interactive-selected")}
 					onClick={() => onSelect(commit)}
 					type="button"
 				>
@@ -818,7 +818,7 @@ function CommitBrowser({ commits, filter, onSelect, selectedSha }: { commits: re
 						</div>
 						<span className="shrink-0 text-caption text-passive">{t("files.count", { count: commit.files.length })}</span>
 					</div>
-					<div className="mt-2 space-y-1 pl-5">
+					<div className="mt-2 space-y-1 ps-5">
 						{commit.files.slice(0, 5).map((file) => (
 							<div className="flex min-w-0 items-center gap-2 text-2xs text-muted-foreground" key={`${commit.sha}:${file.path}`}>
 								<span className={cn("w-3 shrink-0 font-semibold", statusTone[file.status])}>{statusLabel[file.status]}</span>

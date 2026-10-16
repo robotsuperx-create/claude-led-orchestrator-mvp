@@ -34,7 +34,7 @@
 //     would make the harness depend on the runner image's macOS version.
 //
 // usage:
-//   node scripts/e2e-mac-update.mjs --app "/Applications/Agent Orchestrator.app" \
+//   node scripts/e2e-mac-update.mjs --app "/Applications/X-ROBOT-AI.app" \
 //     --expect-version 0.10.4 [--state-dir ~/.ao] [--channel latest|nightly]
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

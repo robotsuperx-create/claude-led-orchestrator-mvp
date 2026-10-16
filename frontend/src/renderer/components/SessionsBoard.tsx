@@ -214,7 +214,7 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 			    chooser was review feedback on #2432. */}
 			{!showWelcome && boardActionsInPanel && (boardLabel || actions) ? (
 				<div
-					className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pr-1"
+					className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center gap-2 border-b border-border-strong pe-1"
 					style={dragStyle}
 				>
 					{boardLabel ? (
@@ -272,7 +272,7 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 					role="status"
 				>
 					<span
-						className="size-icon-base shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent"
+						className="size-icon-base shrink-0 animate-spin rounded-full border-2 border-current border-e-transparent"
 						aria-hidden="true"
 					/>
 					<span className="min-w-0 flex-1">

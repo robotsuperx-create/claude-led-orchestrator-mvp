@@ -146,7 +146,7 @@
 	   TYPOGRAPHY
 	   ═══════════════════════════════════════════════════════════════ */
 
-	--font-family-base: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+	--font-family-base: "Geist Variable", "Geist", "Noto Sans Arabic Variable", ui-sans-serif, system-ui, sans-serif;
 	--font-family-mono:
 		"Geist Mono Variable", "Geist Mono", "JetBrainsMono Nerd Font Mono", "JetBrainsMono Nerd Font",
 		"FiraCode Nerd Font Mono", "FiraCode Nerd Font", "MesloLGS NF", ui-monospace, SFMono-Regular, Menlo, Monaco,
@@ -843,6 +843,75 @@
 	--color-bg-terminal: var(--background);
 	--color-text-terminal: var(--foreground);
 	--color-text-terminal-dim: var(--muted-foreground);
+}
+
+/* ── X-ROBOT-AI (Deep space / Stellar day) — the product's default palette ──
+   Deep navy space, cool starlight text, plasma-cyan live edge. Status colors
+   are untouched; brand nebula tokens are for brand surfaces only. */
+:root[data-style-theme="x-robot"] {
+	/* Dark — deep space */
+	--background:                 #070a18;
+	--foreground:                 #d8e1ff;
+	--card:                       #0f1430;
+	--card-foreground:            #d8e1ff;
+	--popover:                    #151b3b;
+	--popover-foreground:         #d8e1ff;
+	--primary:                    #3ee0ff;
+	--primary-foreground:         #04121a;
+	--secondary:                  #161d3d;
+	--secondary-foreground:       #d8e1ff;
+	--muted:                      #161d3d;
+	--muted-foreground:           #8a95c2;
+	--accent:                     #161d3d;
+	--accent-foreground:          #d8e1ff;
+	--border:                     oklch(0.85 0.06 265 / 12%);
+	--input:                      oklch(0.85 0.06 265 / 7%);
+	--ring:                       #3ee0ff;
+	--sidebar:                    #04060f;
+	--sidebar-foreground:         #d8e1ff;
+	--sidebar-primary:            #3ee0ff;
+	--sidebar-primary-foreground: #04121a;
+	--sidebar-accent:             #161d3d;
+	--sidebar-accent-foreground:  #d8e1ff;
+	--sidebar-ring:               #3ee0ff;
+	--brand-plasma:               #3ee0ff;
+	--brand-nebula-violet:        #8b5cf6;
+	--brand-nebula-teal:          #22d3ee;
+	--brand-star:                 #ffffff;
+	--brand-space-deep:           #03040c;
+}
+:root[data-style-theme="x-robot"][data-theme="light"] {
+	color-scheme: light;
+	/* Light — stellar day */
+	--background:                 #f5f7ff;
+	--foreground:                 #141a36;
+	--card:                       #eef1fd;
+	--card-foreground:            #141a36;
+	--popover:                    #fbfcff;
+	--popover-foreground:         #141a36;
+	--primary:                    #0b6f9c;
+	--primary-foreground:         #ffffff;
+	--secondary:                  #e6eafb;
+	--secondary-foreground:       #141a36;
+	--muted:                      #e6eafb;
+	--muted-foreground:           #5b6488;
+	--accent:                     #e6eafb;
+	--accent-foreground:          #141a36;
+	--border:                     oklch(0.3 0.06 265 / 12%);
+	--input:                      oklch(0.3 0.06 265 / 7%);
+	--ring:                       #0b6f9c;
+	--sidebar:                    #e9edfc;
+	--sidebar-foreground:         #141a36;
+	--sidebar-primary:            #0b6f9c;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent:             #dde3fa;
+	--sidebar-accent-foreground:  #141a36;
+	--sidebar-ring:               #0b6f9c;
+	--brand-plasma:               #0b6f9c;
+	--brand-nebula-violet:        #7c3aed;
+	--brand-nebula-teal:          #0891b2;
+	--brand-star:                 #4c5aa0;
+	--brand-space-deep:           #0b0f26;
 }
 
 /* ── GitHub (Primer) ── */

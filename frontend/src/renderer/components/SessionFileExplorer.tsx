@@ -256,10 +256,10 @@ export function SessionFileExplorer({
 
 	const filterField = (
 		<label className={cn("relative min-w-0", filesTopbarHost ? "block w-full" : "w-64 shrink")}>
-			<Search className="pointer-events-none absolute left-2.5 top-1/2 size-icon-sm -translate-y-1/2 text-passive" />
+			<Search className="pointer-events-none absolute start-2.5 top-1/2 size-icon-sm -translate-y-1/2 text-passive" />
 			<Input
 				aria-label={t("files.explorer.filter")}
-				className="inspector-field-input pl-8"
+				className="inspector-field-input ps-8"
 				onChange={(event) => setFilter(event.target.value)}
 				placeholder={t("files.explorer.filterPlaceholder")}
 				value={filter}
@@ -274,17 +274,17 @@ export function SessionFileExplorer({
 			    the split draws its divider on the content below instead.
 			    The trailing actions sit 4px from the right edge with 4px gaps, the same
 			    as the pinned top-bar buttons above them and the review rows below. */}
-			<header className={floatingHeader ? "absolute right-0 top-0 z-10 flex items-center gap-1 pr-1 pt-1" : "flex shrink-0 items-center gap-1 pb-3 pl-3 pr-1 pt-1"}>
+			<header className={floatingHeader ? "absolute end-0 top-0 z-10 flex items-center gap-1 pe-1 pt-1" : "flex shrink-0 items-center gap-1 pb-3 ps-3 pe-1 pt-1"}>
 				{/* One dropdown for "what am I reviewing", laid out like a VCS review
 				    picker: working scopes at the top, then Commits › and Branch ›
 				    flyouts (Branch = Workspace or a PR). */}
-				{/* -ml-2 cancels the trigger's own 8px inline padding so its label
+				{/* -ms-2 cancels the trigger's own 8px inline padding so its label
 				    starts on the same 12px gutter as the context row's text below. */}
 				{/* While a PR is shown, Workspace sits before the picker as the way back;
 				    on the workspace itself the trigger already names it. It keys off the
 				    source alone, so it stays reachable while the PR list loads or fails. */}
 				{source.kind === "pull_request" ? (
-					<Button className="-ml-2 h-control-md shrink-0 text-xs" onClick={() => selectSource("workspace")} size="sm" type="button" variant="ghost">
+					<Button className="-ms-2 h-control-md shrink-0 text-xs" onClick={() => selectSource("workspace")} size="sm" type="button" variant="ghost">
 						{t("files.explorer.workspaceSource")}
 					</Button>
 				) : null}
@@ -293,7 +293,7 @@ export function SessionFileExplorer({
 					<DropdownMenuTrigger asChild>
 						<SettingsMenuTrigger
 							aria-label={t("files.explorer.source")}
-							className={cn(source.kind !== "pull_request" && "-ml-2", "h-control-md min-w-0 max-w-72 shrink text-xs")}
+							className={cn(source.kind !== "pull_request" && "-ms-2", "h-control-md min-w-0 max-w-72 shrink text-xs")}
 							title={currentSourceLabel}
 						>
 							<span className="min-w-0 truncate">{currentSourceLabel}</span>
@@ -304,7 +304,7 @@ export function SessionFileExplorer({
 						{sourceMenu?.scopes.map((scope) => (
 							<DropdownMenuItem className="gap-1.5" key={scope.key} onSelect={scope.select}>
 								<span className="min-w-0 truncate">{scope.label}</span>
-								<span className="ml-auto flex size-4 shrink-0 items-center justify-center">
+								<span className="ms-auto flex size-4 shrink-0 items-center justify-center">
 									{scope.selected ? <Check aria-hidden="true" className="text-logo-accent" /> : null}
 								</span>
 							</DropdownMenuItem>
@@ -316,7 +316,7 @@ export function SessionFileExplorer({
 									{t("files.commits")}
 								</DropdownMenuSubTrigger>
 								<DropdownMenuSubContent className="w-max max-w-[min(28rem,calc(100vw_-_2rem))]">
-									<div className="board-scrollbar flex max-h-72 flex-col gap-px overflow-y-auto pr-0.5">
+									<div className="board-scrollbar flex max-h-72 flex-col gap-px overflow-y-auto pe-0.5">
 										{sourceMenu.commits.map((commit) => (
 											<DropdownMenuItem className="gap-2" key={commit.sha} onSelect={commit.select}>
 												<span className="min-w-0 flex-1 truncate">{commit.subject}</span>

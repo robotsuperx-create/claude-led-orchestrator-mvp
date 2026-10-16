@@ -1,10 +1,15 @@
 import { useMemo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import { prepareDesktopReleaseNotes } from "../lib/desktop-release-notes";
+import { PRODUCT_REPO_SLUG } from "../../shared/brand";
 import { ProductExternalLink } from "./ProductExternalLink";
 
-const AO_RELEASE_LINK_PATTERN =
-	/^https:\/\/github\.com\/Untrivial-ai\/agent-orchestrator\/(?:pull\/\d+|commit\/[0-9a-f]{7,40}|compare\/v\d+\.\d+\.\d+(?:-nightly\.\d{12})?\.\.\.v\d+\.\d+\.\d+(?:-nightly\.\d{12})?)$/i;
+// Links in release notes are trusted only when they point at this product's
+// own repository.
+const AO_RELEASE_LINK_PATTERN = new RegExp(
+	`^https:\\/\\/github\\.com\\/${PRODUCT_REPO_SLUG.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}\\/(?:pull\\/\\d+|commit\\/[0-9a-f]{7,40}|compare\\/v\\d+\\.\\d+\\.\\d+(?:-nightly\\.\\d{12})?\\.\\.\\.v\\d+\\.\\d+\\.\\d+(?:-nightly\\.\\d{12})?)$`,
+	"i",
+);
 
 const releaseNoteComponents: Components = {
 	h3: ({ children }) => (
@@ -14,10 +19,10 @@ const releaseNoteComponents: Components = {
 	// the dialog title's weight so the notes never outrank it.
 	strong: ({ children }) => <strong className="font-medium text-foreground">{children}</strong>,
 	p: ({ children }) => <p className="mt-2 first:mt-0">{children}</p>,
-	ul: ({ children }) => <ul className="mt-2 list-disc space-y-1 pl-5">{children}</ul>,
-	ol: ({ children }) => <ol className="mt-2 list-decimal space-y-1 pl-5">{children}</ol>,
+	ul: ({ children }) => <ul className="mt-2 list-disc space-y-1 ps-5">{children}</ul>,
+	ol: ({ children }) => <ol className="mt-2 list-decimal space-y-1 ps-5">{children}</ol>,
 	blockquote: ({ children }) => (
-		<blockquote className="mt-3 border-l-2 border-settings-muted pl-3 text-settings-muted">
+		<blockquote className="mt-3 border-s-2 border-settings-muted ps-3 text-settings-muted">
 			{children}
 		</blockquote>
 	),

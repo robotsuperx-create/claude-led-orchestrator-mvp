@@ -17,6 +17,7 @@ import {
 	AlertTriangle,
 	Archive,
 	CalendarClock,
+	Orbit,
 	ChevronRight,
 	Download,
 	Folder,
@@ -121,9 +122,9 @@ import {
 	useSidebar,
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { XRobotMark, XRobotWordmark } from "./BrandMark";
 import { OrchestratorIcon } from "./icons";
 import { Badge } from "./ui/badge";
-import aoLogo from "../../../assets/ao-mascot.png";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store";
 import { useKeybindingsStore } from "../stores/keybindings-store";
@@ -167,7 +168,7 @@ const NAV_ROW_CLASS =
 const FOOTER_NAV_BUTTON_CLASS = cn(
 	NAV_ROW_CLASS,
 	NAV_ROW_HIGHLIGHT_HOST_CLASS,
-	"flex h-9 w-full items-center text-left transition-none",
+	"flex h-9 w-full items-center text-start transition-none",
 );
 
 /** Collapsed footer icon-rail control: same growing highlight in the square. */
@@ -504,6 +505,7 @@ function useSelection() {
 	});
 	const goHome = useCallback(() => void navigate({ to: "/" }), [navigate]);
 	const goAutomations = useCallback(() => void navigate({ to: "/automations" }), [navigate]);
+	const goOrchestrator = useCallback(() => void navigate({ to: "/orchestrator" }), [navigate]);
 	const goStandaloneBoard = useCallback(() => void navigate({ to: "/sessions" }), [navigate]);
 	const goGlobalSettings = useCallback(() => openGlobalSettings(), [openGlobalSettings]);
 	const goConnectMobile = useCallback(() => openGlobalSettings("mobile"), [openGlobalSettings]);
@@ -528,6 +530,7 @@ function useSelection() {
 	return useMemo(() => ({
 		isHome: pathname === "/",
 		isAutomations: pathname === "/automations",
+		isOrchestrator: pathname === "/orchestrator",
 		activeRemoteHostId: params.hostId,
 		activeRemoteProjectId: params.hostId ? params.projectId : undefined,
 		activeRemoteSessionId: params.hostId ? params.sessionId : undefined,
@@ -535,6 +538,7 @@ function useSelection() {
 		activeSessionId: params.hostId ? undefined : params.sessionId,
 		goHome,
 		goAutomations,
+		goOrchestrator,
 		goStandaloneBoard,
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
@@ -543,7 +547,7 @@ function useSelection() {
 		goSettings,
 		goProject,
 		goSession,
-	}), [goAutomations, goConnectMobile, goGlobalSettings, goHome, goProject, goSession, goSettings, goStandaloneBoard, params.hostId, params.projectId, params.sessionId, pathname]);
+	}), [goAutomations, goOrchestrator, goConnectMobile, goGlobalSettings, goHome, goProject, goSession, goSettings, goStandaloneBoard, params.hostId, params.projectId, params.sessionId, pathname]);
 }
 
 // Colour tracks the session's board section, preserving SCM state while the
@@ -889,7 +893,7 @@ export function Sidebar({
 			data-topbar-offset={underTopbar ? topbarOffset : undefined}
 			className={cn(
 				"sidebar-focusless",
-				hideEdgeBorder ? "border-transparent" : "border-r-0 group-data-[side=left]:border-r-0",
+				hideEdgeBorder ? "border-transparent" : "border-e-0 group-data-[side=left]:border-e-0",
 				// Prefer top/bottom over h-svh/inset-y so titlebar offset (`top-(--sidebar-chrome-offset)`)
 				// clears chrome without fighting a second height constraint.
 				!underTopbar
@@ -909,7 +913,7 @@ export function Sidebar({
 				<button
 					aria-label={t("shell.goHome")}
 					className={cn(
-						"group/brand flex w-full shrink-0 items-center gap-1.5 rounded-md px-0.5 text-left",
+						"group/brand flex w-full shrink-0 items-center gap-1.5 rounded-md px-0.5 text-start",
 						"group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pb-2",
 						commandPaletteEnabled ? "pb-2" : "pb-3",
 					)}
@@ -923,12 +927,12 @@ export function Sidebar({
 							"group-data-[collapsible=icon]:size-control-board group-data-[collapsible=icon]:rounded-lg",
 						)}
 					>
-						<img src={aoLogo} alt="" aria-hidden="true" className="h-5.5 w-5.5 -translate-y-[1.5px] object-contain" />
+						<XRobotMark glow className="h-6 w-6" />
 					</span>
 					<span
 						className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-sm font-bold leading-tight tracking-tight-lg text-foreground group-data-[collapsible=icon]:hidden"
 					>
-						Agent Orchestrator
+						<XRobotWordmark />
 					</span>
 					{isNightly && (
 						<span className="sidebar-expanded-chrome shrink-0 rounded-full bg-purple-subtle px-1.5 py-0.5 text-micro font-semibold leading-none text-purple-accent group-data-[collapsible=icon]:hidden">
@@ -998,6 +1002,18 @@ export function Sidebar({
 							<span className="sidebar-expanded-chrome group-data-[collapsible=icon]:hidden">{t("automations.title")}</span>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
+					<SidebarMenuItem>
+						<SidebarMenuButton
+							aria-label={t("orchestrator.title")}
+							className={NAV_ROW_CLASS}
+							isActive={selection.isOrchestrator}
+							onClick={selection.goOrchestrator}
+							tooltip={isCollapsed ? t("orchestrator.title") : undefined}
+						>
+							<Orbit aria-hidden="true" />
+							<span className="sidebar-expanded-chrome group-data-[collapsible=icon]:hidden">{t("orchestrator.title")}</span>
+						</SidebarMenuButton>
+					</SidebarMenuItem>
 				</SidebarMenu>
 
 				{/* Pinned — collapsible; hidden when empty. */}
@@ -1011,7 +1027,7 @@ export function Sidebar({
 						/>
 						<AnimatedSectionBody open={pinnedOpen}>
 							<SidebarMenuSub
-								className="sidebar-expanded-chrome mx-0 ml-0 translate-x-0 gap-0.5 border-l-0 px-0 py-0.5 mb-2"
+								className="sidebar-expanded-chrome mx-0 ms-0 translate-x-0 gap-0.5 border-s-0 px-0 py-0.5 mb-2"
 								data-testid="pinned-session-list"
 							>
 								{pinnedSessions.map((session) => (
@@ -1669,7 +1685,7 @@ const ProjectItem = memo(function ProjectItem({
 										name: nameWithHost,
 									})}
 									aria-expanded={expanded}
-									className="absolute inset-y-0 left-0 z-10 w-9 cursor-pointer bg-transparent group-data-[collapsible=icon]:hidden"
+									className="absolute inset-y-0 start-0 z-10 w-9 cursor-pointer bg-transparent group-data-[collapsible=icon]:hidden"
 									data-project-folder=""
 									onClick={onFolderClick}
 									type="button"
@@ -1679,7 +1695,7 @@ const ProjectItem = memo(function ProjectItem({
 		navigation surface so their own presses stay independent. */}
 						{!isStandalone && <div
 								className={cn(
-									"sidebar-expanded-chrome absolute top-0 right-0.5 z-chrome flex h-control-form items-center gap-px",
+									"sidebar-expanded-chrome absolute top-0 end-0.5 z-chrome flex h-control-form items-center gap-px",
 									"group-data-[collapsible=icon]:hidden",
 									projectDragInProgress && "pointer-events-none",
 								)}
@@ -1795,7 +1811,7 @@ const ProjectItem = memo(function ProjectItem({
 										dndId={sessionDndId(projectKey)}
 										testId={`session-list-${projectKey}`}
 												className={cn(
-													"mx-0 ml-3.5 translate-x-0 gap-px border-l-0 px-0 pt-1",
+													"mx-0 ms-3.5 translate-x-0 gap-px border-s-0 px-0 pt-1",
 													hiddenSessionCount > 0 ? "pb-px" : "pb-1",
 												)}
 												sessions={listedSessions}
@@ -1809,7 +1825,7 @@ const ProjectItem = memo(function ProjectItem({
 											/>
 											{hiddenSessionCount > 0 ? (
 												// Indented to the session list so its label starts on the status-dot column.
-												<div className="pl-4">
+												<div className="ps-4">
 													<ShowMoreRow
 														className="px-3"
 														expanded={showAllSessions}
@@ -1974,7 +1990,7 @@ function ScratchpadSection({
 					<div className="relative inline-flex items-center">
 						<span
 							className={cn(
-								"pointer-events-none absolute right-full top-0 flex h-full origin-center scale-[0.8] items-center opacity-0",
+								"pointer-events-none absolute end-full top-0 flex h-full origin-center scale-[0.8] items-center opacity-0",
 								"transition-[scale] duration-normal ease-[var(--ease-out)]",
 								"motion-reduce:transition-none",
 								"group-focus-within/scratchpad:pointer-events-auto group-focus-within/scratchpad:scale-100 group-focus-within/scratchpad:opacity-100",
@@ -2027,7 +2043,7 @@ function ScratchpadSection({
 					<SessionReorderList
 						dndId={sessionDndId(STANDALONE_WORKSPACE_ID)}
 						testId={`session-list-${STANDALONE_WORKSPACE_ID}`}
-						className="mx-0 ml-0 translate-x-0 gap-0.5 border-l-0 px-0 py-0.5"
+						className="mx-0 ms-0 translate-x-0 gap-0.5 border-s-0 px-0 py-0.5"
 						sessions={listedSessions}
 						sessionIds={listedSessionIds}
 						activeSessionId={selection.activeSessionId}
@@ -2306,10 +2322,10 @@ function SessionRow({
 
 	if (rename.isEditing) {
 		return (
-			<SidebarMenuSubItem className={cn(indented && "pl-0.5")}>
+			<SidebarMenuSubItem className={cn(indented && "ps-0.5")}>
 				<div
 					className={cn(
-						"group/nav-row relative flex h-8 w-full items-center gap-1.5 rounded-lg py-0 pl-1.5 pr-1",
+						"group/nav-row relative flex h-8 w-full items-center gap-1.5 rounded-lg py-0 ps-1.5 pe-1",
 						active && "text-foreground",
 					)}
 					data-session-row=""
@@ -2321,7 +2337,7 @@ function SessionRow({
 						autoFocus
 						className={cn(
 							"relative z-[1] h-full min-w-0 flex-1 appearance-none border-0 bg-transparent! p-0 text-sm text-foreground outline-none ring-0 focus:outline-none focus:ring-0",
-							session.lastUserMessageAt && "pr-[36px]",
+							session.lastUserMessageAt && "pe-[36px]",
 						)}
 						data-session-inline-editor=""
 						maxLength={MAX_SESSION_DISPLAY_NAME_LEN}
@@ -2349,7 +2365,7 @@ function SessionRow({
 		<ContextMenu>
 			<ContextMenuTrigger asChild>
 				<SidebarMenuSubItem
-					className={cn(indented && "pl-0.5", reorder?.isDragging && "z-chrome cursor-grabbing opacity-60")}
+					className={cn(indented && "ps-0.5", reorder?.isDragging && "z-chrome cursor-grabbing opacity-60")}
 					data-dragging={reorder?.isDragging ? "true" : undefined}
 					ref={reorder?.setNodeRef}
 					style={reorder ? sortableRowStyle(reorder) : undefined}
@@ -2380,10 +2396,10 @@ function SessionRow({
 							aria-keyshortcuts="F2"
 							aria-label={t("shell.openSession", { title: hostLabel ? `${session.title} · ${hostLabel}` : session.title })}
 							className={cn(
-								"flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-0 pl-1.5 text-left text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-								session.lastUserMessageAt ? "pr-[36px]" : "pr-2.5",
+								"flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-0 ps-1.5 text-start text-sm outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+								session.lastUserMessageAt ? "pe-[36px]" : "pe-2.5",
 								!reorder?.isDragging &&
-									"group-hover/session-row:pr-[50px] group-focus-within/session-row:pr-[50px]",
+									"group-hover/session-row:pe-[50px] group-focus-within/session-row:pe-[50px]",
 								reorder && "cursor-grab active:cursor-grabbing",
 								reorder?.isDragging && "!cursor-grabbing",
 							)}
@@ -2470,7 +2486,7 @@ const SessionMessageAge = memo(function SessionMessageAge({ session }: { session
 
 	return (
 		<time
-			className="absolute inset-y-0 right-1.5 z-[1] flex min-w-0 shrink-0 items-center whitespace-nowrap font-sans text-micro tabular-nums text-passive opacity-100 group-focus-within/session-row:opacity-0"
+			className="absolute inset-y-0 end-1.5 z-[1] flex min-w-0 shrink-0 items-center whitespace-nowrap font-sans text-micro tabular-nums text-passive opacity-100 group-focus-within/session-row:opacity-0"
 			data-session-message-age=""
 			dateTime={session.lastUserMessageAt}
 			title={t("shell.lastMessageAt", { time: formatTimeCompact(session.lastUserMessageAt) })}
@@ -2517,14 +2533,14 @@ const SessionActions = memo(function SessionActions({
 
 	return (
 		<div
-			className="pointer-events-none absolute inset-y-0 right-0 z-chrome"
+			className="pointer-events-none absolute inset-y-0 end-0 z-chrome"
 			data-session-actions=""
 			onPointerDown={(event) => event.stopPropagation()}
 		>
 			<div
 				className={cn(
 					/* 1.3 — pin/kill: scale 0.8↔1 from center (not origin-right — that reads as a slide) */
-					"absolute inset-y-0 right-0.5 flex origin-center scale-[0.8] items-center gap-px opacity-0",
+					"absolute inset-y-0 end-0.5 flex origin-center scale-[0.8] items-center gap-px opacity-0",
 					"transition-[scale] duration-normal ease-[var(--ease-out)]",
 					"motion-reduce:transition-none",
 					!isDragging &&
@@ -2861,7 +2877,7 @@ function UpdateStatusRow({
 		return (
 			<div
 				aria-live="polite"
-				className={cn(NAV_ROW_CLASS, "flex w-full items-center text-left [&_svg]:size-icon-md [&_svg]:shrink-0")}
+				className={cn(NAV_ROW_CLASS, "flex w-full items-center text-start [&_svg]:size-icon-md [&_svg]:shrink-0")}
 				data-testid="sidebar-update-downloading"
 				role="status"
 			>
@@ -2876,7 +2892,7 @@ function UpdateStatusRow({
 	return (
 		<button
 			aria-label={t("shell.retryUpdateCheck")}
-			className="flex w-full items-center gap-2.5 rounded-lg border border-warning/35 bg-warning/12 p-2.5 text-left text-control font-medium text-warning hover:bg-warning/18 [&_svg]:text-warning"
+			className="flex w-full items-center gap-2.5 rounded-lg border border-warning/35 bg-warning/12 p-2.5 text-start text-control font-medium text-warning hover:bg-warning/18 [&_svg]:text-warning"
 			data-testid="sidebar-update-failed"
 			onClick={() => void aoBridge.updates.check()}
 			tabIndex={tabIndex}
@@ -2921,7 +2937,7 @@ function UpdateInstallSlide({
 					: t("shell.restartInstallUpdate")
 			}
 			className={cn(
-				"mb-1 flex h-9 w-full items-center gap-2.5 rounded-lg bg-muted px-3 text-left text-sm font-normal text-foreground",
+				"mb-1 flex h-9 w-full items-center gap-2.5 rounded-lg bg-muted px-3 text-start text-sm font-normal text-foreground",
 				"hover:bg-interactive-hover",
 			)}
 			data-testid="sidebar-update-ready"
@@ -3077,7 +3093,7 @@ function ShowMoreRow({
 				className={cn(
 					SECTION_ROW_CLASS,
 					NAV_ROW_HIGHLIGHT_HOST_CLASS,
-					"mb-1 shrink-0 rounded-lg text-left text-muted-foreground",
+					"mb-1 shrink-0 rounded-lg text-start text-muted-foreground",
 					className,
 				)}
 				initial={{ opacity: 0, y: 4 }}
@@ -3130,7 +3146,7 @@ function SectionDisclosure({
 
 	if (!collapsible) {
 		return (
-			<div className={cn(SECTION_ROW_CLASS, trailing && "pr-1", className)}>
+			<div className={cn(SECTION_ROW_CLASS, trailing && "pe-1", className)}>
 				<div className="flex min-w-0 flex-1 items-center gap-2">
 					{labelRow}
 				</div>
@@ -3145,7 +3161,7 @@ function SectionDisclosure({
 				className={cn(
 					SECTION_ROW_CLASS,
 					NAV_ROW_HIGHLIGHT_HOST_CLASS,
-					"rounded-lg pr-1",
+					"rounded-lg pe-1",
 					className,
 				)}
 			>
@@ -3153,7 +3169,7 @@ function SectionDisclosure({
 				<button
 					aria-expanded={open}
 					aria-label={label}
-					className="relative z-[1] flex min-w-0 flex-1 self-stretch items-center gap-2 text-left"
+					className="relative z-[1] flex min-w-0 flex-1 self-stretch items-center gap-2 text-start"
 					onClick={onToggle}
 					type="button"
 				>
@@ -3171,7 +3187,7 @@ function SectionDisclosure({
 			className={cn(
 				SECTION_ROW_CLASS,
 				NAV_ROW_HIGHLIGHT_HOST_CLASS,
-				"rounded-lg text-left",
+				"rounded-lg text-start",
 				className,
 			)}
 			onClick={onToggle}
@@ -3214,10 +3230,10 @@ function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
 				)}
 			>
 				<Search strokeWidth={1.75} aria-hidden="true" />
-				<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-left leading-none group-data-[collapsible=icon]:hidden">
+				<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-start leading-none group-data-[collapsible=icon]:hidden">
 					{t("shell.search")}
 				</span>
-				<kbd className="sidebar-expanded-chrome ml-auto shrink-0 rounded-sm border border-border-strong/60 bg-surface/50 px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground/80 group-data-[collapsible=icon]:hidden">
+				<kbd className="sidebar-expanded-chrome ms-auto shrink-0 rounded-sm border border-border-strong/60 bg-surface/50 px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground/80 group-data-[collapsible=icon]:hidden">
 					{commandPaletteShortcutLabel}
 				</kbd>
 			</SidebarMenuButton>

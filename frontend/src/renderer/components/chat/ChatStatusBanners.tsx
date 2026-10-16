@@ -67,7 +67,7 @@ export const ReauthBanner = memo(function ReauthBanner({
 					)}
 				</p>
 			</div>
-			<Button variant="ghost" size="icon" className="ml-auto size-6 shrink-0"
+			<Button variant="ghost" size="icon" className="ms-auto size-6 shrink-0"
 				aria-label="Dismiss authentication notice" title="Hide this notice; authentication state is unchanged"
 				onClick={() => setDismissedFailure(failure)}>
 				<X aria-hidden="true" className="size-3.5" />

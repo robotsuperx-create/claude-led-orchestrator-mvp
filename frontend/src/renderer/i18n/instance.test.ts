@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { APP_LOCALES, coerceLocale, DEFAULT_LOCALE } from "./locales";
 import { createAppI18n, type TranslationCatalogs } from "./instance";
 import {
+	arMessages,
 	deMessages,
 	enMessages,
 	esMessages,
@@ -14,6 +15,7 @@ import {
 
 const allCatalogs = {
 	en: enMessages,
+	ar: arMessages,
 	"zh-CN": zhCNMessages,
 	ja: jaMessages,
 	ko: koMessages,
@@ -57,6 +59,17 @@ describe("app i18next instance", () => {
 		}
 	});
 
+	it("uses Arabic, right to left, when selected", () => {
+		const arabic = createAppI18n("ar");
+		expect(arabic.t("settings.general")).not.toBe("General");
+		expect(arabic.t("settings.language.ar")).toBe("العربية");
+		expect(arabic.dir("ar")).toBe("rtl");
+		// Arabic needs all six CLDR plural forms.
+		expect(arabic.t("files.count", { count: 0 })).not.toBe(arabic.t("files.count", { count: 2 }));
+		expect(arabic.t("files.count", { count: 2 })).not.toBe(arabic.t("files.count", { count: 5 }));
+		expect(arabic.t("files.count", { count: 5 })).not.toBe(arabic.t("files.count", { count: 11 }));
+	});
+
 	it("uses English by default and Chinese when selected", () => {
 		expect(createAppI18n().t("settings.general")).toBe("General");
 		expect(createAppI18n("zh-CN").t("settings.general")).toBe("通用");
@@ -66,6 +79,7 @@ describe("app i18next instance", () => {
 	it("resolves native language labels for every supported locale", () => {
 		const labels = {
 			en: "settings.language.en",
+			ar: "settings.language.ar",
 			"zh-CN": "settings.language.zhCN",
 			ja: "settings.language.ja",
 			ko: "settings.language.ko",
@@ -76,6 +90,7 @@ describe("app i18next instance", () => {
 		} as const;
 		const expected = {
 			en: "English",
+			ar: "العربية",
 			"zh-CN": "简体中文",
 			ja: "日本語",
 			ko: "한국어",

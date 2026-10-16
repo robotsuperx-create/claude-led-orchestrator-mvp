@@ -62,7 +62,7 @@ export function ModelMenuChoices<T extends { id: string; label: string }>({
 				>
 					<div className="relative">
 						<Search
-							className="pointer-events-none absolute left-3 top-1/2 size-icon-sm -translate-y-1/2 text-settings-muted"
+							className="pointer-events-none absolute start-3 top-1/2 size-icon-sm -translate-y-1/2 text-settings-muted"
 							aria-hidden="true"
 						/>
 						<input

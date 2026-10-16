@@ -434,8 +434,8 @@ describe("TerminalPane empty states", () => {
 	it("uses the full top, right, and bottom extent for the terminal grid", () => {
 		const view = renderPane({ ...worker, terminalHandleId: "term-1" });
 		try {
-			expect(screen.getByTestId("xterm").parentElement).toHaveClass("pl-2");
-			expect(screen.getByTestId("xterm").parentElement).not.toHaveClass("pt-2", "pr-2", "pb-2", "p-2");
+			expect(screen.getByTestId("xterm").parentElement).toHaveClass("ps-2");
+			expect(screen.getByTestId("xterm").parentElement).not.toHaveClass("pt-2", "pe-2", "pb-2", "p-2");
 		} finally {
 			view.restore();
 		}
@@ -476,7 +476,7 @@ describe("TerminalPane empty states", () => {
 	it("shows a no-selection message when no session is selected", () => {
 		const view = renderPane();
 		try {
-			expect(screen.getByText("Agent Orchestrator")).toBeInTheDocument();
+			expect(screen.getByText("X-ROBOT-AI")).toBeInTheDocument();
 			expect(screen.getByText("No session selected. Pick a worker to attach its terminal.")).toBeInTheDocument();
 		} finally {
 			view.restore();

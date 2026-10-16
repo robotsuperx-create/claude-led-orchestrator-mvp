@@ -299,7 +299,7 @@ export function FileContentPane({
 				</span>
 				{unsavedIndicator}
 				{detail.status !== "unmodified" ? (
-					<span className="ml-1.5 flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
+					<span className="ms-1.5 flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
 						{statusLabel[detail.status] ? <span className={cn("font-semibold", statusTone[detail.status])}>{statusLabel[detail.status]}</span> : null}
 						<span className="text-success">+{detail.additions}</span>
 						<span className="text-error">−{detail.deletions}</span>

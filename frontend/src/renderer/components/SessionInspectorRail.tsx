@@ -127,7 +127,7 @@ export function SessionInspectorRail({
 		<motion.div aria-hidden="true" className="relative max-w-(--session-inspector-max-width) shrink-0" data-slot="inspector-gap" initial={false} ref={gapRef} animate={{ width: isOpen ? `var(${inspectorWidthVar}, ${sizing.defaultWidth}px)` : 0 }} transition={transition} />
 		<motion.div
 			aria-hidden={hidden}
-			className="absolute inset-y-0 right-0 z-chrome flex h-full max-w-(--session-inspector-max-width) flex-col overflow-hidden border-l border-border-strong bg-background"
+			className="absolute inset-y-0 end-0 z-chrome flex h-full max-w-(--session-inspector-max-width) flex-col overflow-hidden border-s border-border-strong bg-background"
 			data-panel=""
 			data-settled={settledClosed ? "true" : "false"}
 			data-slot="inspector-container"
@@ -147,6 +147,6 @@ export function SessionInspectorRail({
 			<ResizeHandle className={!isOpen ? "hidden" : undefined} data-testid="inspector-resize-handle" getBorderElement={getBorderElement} getObserveElements={getResizeTargets} onDoubleClick={onDoubleClick} onPointerDown={onPointerDown} side="left" style={noDragStyle} />
 			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">{children}</div>
 		</motion.div>
-		{isOpen || !showCollapsedHandle ? null : <div className="absolute inset-y-0 right-0 z-chrome w-2 cursor-e-resize touch-none" data-slot="inspector-collapsed-rail" data-testid="inspector-collapsed-rail" onPointerDown={onCollapsedPointerDown} style={noDragStyle} />}
+		{isOpen || !showCollapsedHandle ? null : <div className="absolute inset-y-0 end-0 z-chrome w-2 cursor-e-resize touch-none" data-slot="inspector-collapsed-rail" data-testid="inspector-collapsed-rail" onPointerDown={onCollapsedPointerDown} style={noDragStyle} />}
 	</>;
 }

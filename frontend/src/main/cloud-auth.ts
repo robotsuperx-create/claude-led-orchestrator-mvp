@@ -32,7 +32,9 @@ async function persistLocalClaudeOAuthToken(dataDir: string, token: string): Pro
 // The WorkOS AuthKit client id is public configuration (it appears in every
 // sign-in URL), so a baked default keeps sign-in working without build-time
 // setup; VITE_WORKOS_CLIENT_ID overrides it per build when needed.
-const DEFAULT_WORKOS_CLIENT_ID = "client_01KZ3VRKC374HS91XGRDPT3671";
+// Empty for X-ROBOT-AI: Agent Orchestrator's cloud sign-in is not offered.
+// An owner who runs their own WorkOS project sets VITE_WORKOS_CLIENT_ID.
+const DEFAULT_WORKOS_CLIENT_ID = "";
 const CLIENT_ID =
   import.meta.env.VITE_WORKOS_CLIENT_ID?.trim() ||
   (process.env.VITEST ? "client_test" : DEFAULT_WORKOS_CLIENT_ID);

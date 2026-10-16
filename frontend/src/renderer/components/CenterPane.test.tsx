@@ -893,7 +893,7 @@ describe("CenterPane toolbar session label", () => {
 			"shrink-0",
 			"self-stretch",
 			"w-shell-tab-connected",
-			"border-r",
+			"border-e",
 			"border-border",
 			"bg-overlay",
 		);
@@ -991,11 +991,11 @@ describe("CenterPane toolbar session label", () => {
 		expect(terminalRegion).not.toContainElement(screen.getByRole("button", { name: "New terminal" }));
 		expect(screen.queryByRole("toolbar", { name: "Terminal display controls" })).not.toBeInTheDocument();
 		expect(terminalRegion).toContainElement(screen.getByRole("button", { name: "Session tab action" }));
-		expect(screen.getByTestId("session-tab-action").parentElement).toHaveClass("absolute", "right-1", "inset-y-0");
+		expect(screen.getByTestId("session-tab-action").parentElement).toHaveClass("absolute", "end-1", "inset-y-0");
 		expect(screen.getByRole("tab", { name: /^do the thing/ })).toHaveClass("h-full", "flex-1");
 		expect(terminalRegion).not.toContainElement(screen.getByTestId("session-action-region"));
 		const actionRegion = screen.getByTestId("session-action-region");
-		expect(actionRegion).not.toHaveClass("border-l");
+		expect(actionRegion).not.toHaveClass("border-s");
 		expect(actionRegion).toHaveClass("gap-1");
 		expect(actionRegion).toContainElement(screen.getByRole("button", { name: "New terminal" }));
 		expect(actionRegion).toContainElement(screen.getByRole("button", { name: "Workspace action" }));
@@ -1007,9 +1007,9 @@ describe("CenterPane toolbar session label", () => {
 	it("keeps the tab strip flush with the action controls", () => {
 		renderCenterPane({ session: worker });
 
-		expect(screen.getByTestId("session-terminal-region")).not.toHaveClass("pr-3");
-		expect(screen.getByTestId("session-action-region")).toHaveClass("pr-3");
-		expect(screen.getByTestId("session-action-region")).toHaveClass("pl-2");
+		expect(screen.getByTestId("session-terminal-region")).not.toHaveClass("pe-3");
+		expect(screen.getByTestId("session-action-region")).toHaveClass("pe-3");
+		expect(screen.getByTestId("session-action-region")).toHaveClass("ps-2");
 		expect(screen.getByTestId("session-action-region")).not.toHaveClass("px-3");
 	});
 
@@ -1031,7 +1031,7 @@ describe("CenterPane toolbar session label", () => {
 	it("does not reserve tab-strip space for unavailable overflow controls", () => {
 		renderCenterPane({ session: worker });
 
-		expect(screen.getByTestId("session-terminal-region")).not.toHaveClass("pl-0.5");
+		expect(screen.getByTestId("session-terminal-region")).not.toHaveClass("ps-0.5");
 		expect(screen.getByRole("tablist", { name: "Open terminals" })).not.toHaveClass("pt-1.5");
 		expect(screen.queryByRole("button", { name: "Scroll tabs left" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Scroll tabs right" })).not.toBeInTheDocument();

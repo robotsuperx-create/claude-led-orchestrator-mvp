@@ -283,7 +283,8 @@ func TestCancelBeforeStartIsFinalAndDoesNotDispatch(t *testing.T) {
 		workerCalls++
 		return ports.WorkerExecution{Status: ports.WorkerOutcomeCompleted}, nil
 	}}})
-	if !service.Cancel("not-started") || !service.Cancel("not-started") {
+	first, second := service.Cancel("not-started"), service.Cancel("not-started")
+	if !first || !second {
 		t.Fatal("Cancel should accept and idempotently repeat cancellation before Run starts")
 	}
 	result, err := service.Run(context.Background(), ports.OrchestrationRequest{RunID: "not-started", Task: "work"})
@@ -335,7 +336,7 @@ func TestCancelIsIdempotentAndScopedToOneWorkerContext(t *testing.T) {
 			finished <- runOutcome{id: runID, result: result, err: err}
 		}(id)
 	}
-	var contexts map[string]<-chan struct{} = make(map[string]<-chan struct{})
+	contexts := make(map[string]<-chan struct{})
 	for range 2 {
 		select {
 		case started := <-entered:
@@ -344,7 +345,7 @@ func TestCancelIsIdempotentAndScopedToOneWorkerContext(t *testing.T) {
 			t.Fatal("both workers did not start")
 		}
 	}
-	if !service.Cancel("cancel-a") || !service.Cancel("cancel-a") {
+	if first, second := service.Cancel("cancel-a"), service.Cancel("cancel-a"); !first || !second {
 		t.Fatal("duplicate Cancel on the same active run should be idempotent")
 	}
 	select {

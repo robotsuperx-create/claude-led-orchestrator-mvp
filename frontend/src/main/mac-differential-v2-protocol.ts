@@ -1,8 +1,10 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 import semver from "semver";
+import { PRODUCT_REPO_SLUG } from "../shared/brand";
 
 export const MAC_V2_METADATA = "ao-diff-v2-mac.json";
-export const MAC_V2_REPOSITORY = "Untrivial-ai/agent-orchestrator";
+// Differential updates come only from this product's own releases.
+export const MAC_V2_REPOSITORY = PRODUCT_REPO_SLUG;
 export const MAC_V2_MAX_METADATA = 256 * 1024;
 export const MAC_V2_MAX_MAP = 8 * 1024 * 1024;
 export type MacV2Arch = "arm64" | "x64";

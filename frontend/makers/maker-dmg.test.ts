@@ -37,7 +37,7 @@ import MakerDMG, { sealDmg, verifyDmg } from "./maker-dmg";
 const makeOptions = {
 	dir: "/tmp/app/Agent Orchestrator-darwin-arm64",
 	makeDir: "/tmp/app/make",
-	appName: "Agent Orchestrator",
+	appName: "X-ROBOT-AI",
 	targetPlatform: "darwin" as const,
 	targetArch: "arm64" as const,
 	forgeConfig: {} as never,
@@ -47,7 +47,7 @@ const makeOptions = {
 // What Forge actually hands the maker: `dir` is the PACKAGE directory and the
 // bundle sits inside it. electron-builder's mac path treats buildForge's `dir`
 // as the .app itself, so this is the only correct value to pass through.
-const APP_PATH = "/tmp/app/Agent Orchestrator-darwin-arm64/Agent Orchestrator.app";
+const APP_PATH = "/tmp/app/Agent Orchestrator-darwin-arm64/X-ROBOT-AI.app";
 
 beforeEach(() => {
 	buildForge.mockClear();
@@ -66,7 +66,7 @@ describe("MakerDMG", () => {
 	});
 
 	it("builds a dmg target for the requested arch and forwards config", async () => {
-		const maker = new MakerDMG({ appId: "dev.agent-orchestrator.desktop" }, ["darwin"]);
+		const maker = new MakerDMG({ appId: "ai.xrobot.desktop" }, ["darwin"]);
 		await maker.prepareConfig(makeOptions.targetArch);
 		const artifacts = await maker.make(makeOptions);
 
@@ -75,8 +75,8 @@ describe("MakerDMG", () => {
 		expect(options.mac).toEqual(["dmg:arm64"]);
 		// electron-builder must not try to publish; the workflow does that.
 		expect(options.config.publish).toBeNull();
-		expect(options.config.appId).toBe("dev.agent-orchestrator.desktop");
-		expect(options.config.productName).toBe("Agent Orchestrator");
+		expect(options.config.appId).toBe("ai.xrobot.desktop");
+		expect(options.config.productName).toBe("X-ROBOT-AI");
 	});
 
 	// The layout check. buildForge sets `prepackaged: resolve(dir)`, and
@@ -84,7 +84,7 @@ describe("MakerDMG", () => {
 	// (`appPath = prepackaged ?? join(computeAppOutDir(...), "<name>.app")`), then
 	// dmg-builder copies appPath into the image renamed to "<name>.app". Passing
 	// Forge's package directory here nests the whole directory under that name and
-	// yields "Agent Orchestrator.app/Agent Orchestrator.app", an outer bundle with
+	// yields "X-ROBOT-AI.app/X-ROBOT-AI.app", an outer bundle with
 	// no Contents that cannot launch. Verified against app-builder-lib 26.15.3.
 	it("hands buildForge the .app inside the package dir, not the package dir", async () => {
 		await new MakerDMG().make(makeOptions);

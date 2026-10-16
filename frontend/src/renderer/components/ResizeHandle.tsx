@@ -4,7 +4,7 @@
  * DO NOT regress these design contracts (home-page-ui / shell polish):
  * - Grip is a fixed, hover/active-only pill on the CENTER-PANE border (sidebar:
  *   sidebar-container right edge ≈ center surface left; inspector: panel
- *   `border-l`). Not inset into the panel, not a CSS `::after`, not always-visible.
+ *   `border-s`). Not inset into the panel, not a CSS `::after`, not always-visible.
  * - Height is 80vh, vertically centered — not full inset-y / not titlebar-tall.
  * - useResizable is the ONLY width integrator. This handle only paints the grip
  *   on the live border — never a second drag/clamp state machine.
@@ -164,8 +164,8 @@ export function ResizeHandle({
 			data-testid="resize-handle"
 			className={cn(
 				"group/resize absolute inset-y-0 z-[5] w-[length:var(--size-resize-handle)] cursor-col-resize touch-none",
-				side === "right" && "right-[calc(-1*var(--size-resize-handle-offset))]",
-				side === "left" && "left-[calc(-1*var(--size-resize-handle-offset))]",
+				side === "right" && "end-[calc(-1*var(--size-resize-handle-offset))]",
+				side === "left" && "start-[calc(-1*var(--size-resize-handle-offset))]",
 				className,
 			)}
 			onPointerDown={(event) => {

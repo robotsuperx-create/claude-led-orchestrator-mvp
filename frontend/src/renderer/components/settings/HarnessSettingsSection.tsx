@@ -215,7 +215,7 @@ function CloudHarnessContent({ focusAgentId, search }: { focusAgentId?: string; 
 							<p className="truncate text-xs text-settings-muted">{connected ? t("settings.harness.loggedIn") : t("settings.harness.cloudNotConnected")}</p>
 						</div>
 						{loginAgent === agentId ? null : <Button data-harness-primary-action="" size="sm" variant={connected ? "outline" : "primary"} onClick={() => setLoginAgent(agentId)}>{t(connected ? "settings.harness.refreshLogin" : "settings.harness.login")}</Button>}
-						{loginAgent === agentId ? <div className="basis-full pl-10"><CloudHarnessLoginPanel agent={agentId} onClose={() => setLoginAgent(null)} /></div> : null}
+						{loginAgent === agentId ? <div className="basis-full ps-10"><CloudHarnessLoginPanel agent={agentId} onClose={() => setLoginAgent(null)} /></div> : null}
 					</div>;
 				})}
 				{rows.length === 0 ? <p className="px-3 py-6 text-center text-sm text-settings-muted">{t("settings.harness.noResults")}</p> : null}
@@ -667,7 +667,7 @@ function LocalHarnessContent({ focusAgentId, hostId, search }: { focusAgentId?: 
 											aria-label={t("settings.harness.installMethod")}
 											value={selectedMethodId}
 											options={availableMethods.map((method) => ({ value: method.id, label: installMethodLabel(method) ?? method.label }))}
-											triggerClassName="h-8! min-h-8! w-8! min-w-8! justify-center! rounded-none! border-l border-settings-menu bg-transparent px-0! text-xs leading-4 hover:bg-[var(--color-bg-settings-trigger-hover)]!"
+											triggerClassName="h-8! min-h-8! w-8! min-w-8! justify-center! rounded-none! border-s border-settings-menu bg-transparent px-0! text-xs leading-4 hover:bg-[var(--color-bg-settings-trigger-hover)]!"
 							renderTrigger={(selected) => <span className="sr-only">{selected?.label}</span>}
 							onChange={(value) => setSelectedMethods((current) => ({ ...current, [agentId]: value }))}
 						/>
@@ -722,7 +722,7 @@ function LocalHarnessContent({ focusAgentId, hostId, search }: { focusAgentId?: 
 										className={cn(
 											MENU_TRIGGER_CHROME,
 											"h-8! min-h-8! rounded-none! border-0! bg-transparent px-3! text-xs leading-4 hover:bg-[var(--color-bg-settings-trigger-hover)]! dark:hover:bg-[var(--color-bg-settings-trigger-hover)]!",
-											availableMethods.length > 1 && "pr-3",
+											availableMethods.length > 1 && "pe-3",
 										)}
 										size="none"
 										variant="ghost"
@@ -786,7 +786,7 @@ function LocalHarnessContent({ focusAgentId, hostId, search }: { focusAgentId?: 
 					</div>
 										) : null}
 										{rowAuthWorkflow ? (
-											<div className="basis-full pl-10">
+											<div className="basis-full ps-10">
 												<HarnessAuthTerminalPanel
 													workflow={rowAuthWorkflow}
 													hostId={hostId}

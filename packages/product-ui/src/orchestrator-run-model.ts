@@ -17,10 +17,12 @@ export const ORCHESTRATOR_RUN_WIRE_STATES = [
 	"executing",
 	"validating",
 	"reviewing",
+	"awaiting_approval",
 	"completed",
 	"held",
 	"failed",
-	"cancelled",
+	// Matches the daemon's RunStateCanceled ("canceled", one l).
+	"canceled",
 ] as const;
 export type OrchestratorRunWireState = (typeof ORCHESTRATOR_RUN_WIRE_STATES)[number];
 export type OrchestratorRunSnapshot = { runId: string; state: OrchestratorRunWireState };
@@ -31,14 +33,16 @@ const runStatusByWireState: Record<OrchestratorRunWireState, OrchestratorRunStat
 	executing: "running",
 	validating: "running",
 	reviewing: "running",
+	// Paused until a person approves the plan; nothing has run yet.
+	awaiting_approval: "awaiting_consent",
 	completed: "succeeded",
 	held: "on_hold",
 	failed: "failed",
-	cancelled: "cancelled",
+	canceled: "cancelled",
 };
 // `held` is a terminal service outcome (the merge decision is advisory); keep
 // polling/cancel controls closed once the backend reports it.
-const terminalWireStates = new Set<OrchestratorRunWireState>(["completed", "held", "failed", "cancelled"]);
+const terminalWireStates = new Set<OrchestratorRunWireState>(["completed", "held", "failed", "canceled"]);
 
 export function isTerminalOrchestratorRunState(state: OrchestratorRunWireState): boolean {
 	return terminalWireStates.has(state);

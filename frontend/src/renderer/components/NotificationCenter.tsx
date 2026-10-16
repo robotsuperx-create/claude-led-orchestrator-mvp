@@ -679,7 +679,7 @@ export function NotificationCenter({ style }: NotificationCenterProps) {
 						<Bell className="size-icon-base" aria-hidden="true" />
 					)}
 					{unreadCount > 0 ? (
-						<span className="pointer-events-none absolute right-px top-px grid h-3 min-w-3 place-items-center rounded-full bg-accent-strong px-0.5 font-mono text-[7px] font-semibold leading-none text-accent-foreground shadow-sm ring-1 ring-background">
+						<span className="pointer-events-none absolute end-px top-px grid h-3 min-w-3 place-items-center rounded-full bg-accent-strong px-0.5 font-mono text-[7px] font-semibold leading-none text-accent-foreground shadow-sm ring-1 ring-background">
 							{unreadCount > 99 ? "99+" : unreadCount}
 						</span>
 					) : null}
@@ -953,7 +953,7 @@ const NotificationItem = memo(function NotificationItem({
 		<div role="listitem">
 			<div
 				className={cn(
-					"group grid grid-cols-notification items-start gap-3 px-4 py-3 text-left transition-[background-color,opacity,transform] duration-fast will-change-transform",
+					"group grid grid-cols-notification items-start gap-3 px-4 py-3 text-start transition-[background-color,opacity,transform] duration-fast will-change-transform",
 					highlighted && "notification-row-enter",
 					canOpenSession
 						? "cursor-pointer hover:bg-interactive-hover active:scale-[0.99] active:bg-interactive-active"
@@ -1139,7 +1139,7 @@ const CloudNotificationItem = memo(function CloudNotificationItem({
 		<div data-notification-source="cloud" role="listitem">
 			<div
 				className={cn(
-					"group grid grid-cols-notification items-start gap-3 px-4 py-3 text-left transition-[background-color,opacity,transform] duration-fast will-change-transform",
+					"group grid grid-cols-notification items-start gap-3 px-4 py-3 text-start transition-[background-color,opacity,transform] duration-fast will-change-transform",
 					highlighted && "notification-row-enter",
 					canOpenSession
 						? "cursor-pointer hover:bg-interactive-hover active:scale-[0.99] active:bg-interactive-active"

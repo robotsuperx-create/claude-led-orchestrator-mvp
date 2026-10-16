@@ -65,7 +65,7 @@ let fixtureDir: string;
 function acpNodeWith(contents: Buffer): string {
 	const binDir = join(
 		fixtureDir,
-		"Agent Orchestrator.app",
+		"X-ROBOT-AI.app",
 		"Contents",
 		"Resources",
 		"acp-runtime",
@@ -218,16 +218,16 @@ describe("postMake artifact verification", () => {
 
 	it("verifies a signed zip with the canonical script, gated on isSigningConfigured", async () => {
 		isSigningConfigured.mockReturnValue(true);
-		const makeResults = darwinResult(["/out/make/zip/agent-orchestrator-darwin-x64.zip"]);
+		const makeResults = darwinResult(["/out/make/zip/x-robot-ai-darwin-x64.zip"]);
 
 		await config.hooks?.postMake?.({} as never, makeResults);
 
-		expect(verifyMacArtifact).toHaveBeenCalledWith("/out/make/zip/agent-orchestrator-darwin-x64.zip");
+		expect(verifyMacArtifact).toHaveBeenCalledWith("/out/make/zip/x-robot-ai-darwin-x64.zip");
 	});
 
 	it("skips zip verification for an unsigned local build", async () => {
 		isSigningConfigured.mockReturnValue(false);
-		const makeResults = darwinResult(["/out/make/zip/agent-orchestrator-darwin-x64.zip"]);
+		const makeResults = darwinResult(["/out/make/zip/x-robot-ai-darwin-x64.zip"]);
 
 		await config.hooks?.postMake?.({} as never, makeResults);
 
@@ -250,20 +250,20 @@ describe("postMake artifact verification", () => {
 		isSigningConfigured.mockReturnValue(true);
 		sealDmg.mockResolvedValue(true);
 		const makeResults = darwinResult([
-			"/out/make/zip/agent-orchestrator-darwin-x64.zip",
+			"/out/make/zip/x-robot-ai-darwin-x64.zip",
 			"/out/make/app.dmg",
 		]);
 
 		await config.hooks?.postMake?.({} as never, makeResults);
 
-		expect(verifyMacArtifact).toHaveBeenCalledWith("/out/make/zip/agent-orchestrator-darwin-x64.zip");
+		expect(verifyMacArtifact).toHaveBeenCalledWith("/out/make/zip/x-robot-ai-darwin-x64.zip");
 		expect(verifyDmg).toHaveBeenCalledWith("/out/make/app.dmg");
 	});
 
 	it("never verifies non-darwin artifacts", async () => {
 		const makeResults = [
 			{
-				artifacts: ["/out/make/agent-orchestrator.exe"],
+				artifacts: ["/out/make/x-robot-ai.exe"],
 				packageJSON: {},
 				platform: "win32" as const,
 				arch: "x64" as const,

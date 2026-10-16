@@ -150,6 +150,21 @@ if (typeof window !== "undefined") {
 			writeText: async () => undefined,
 			readText: async () => "",
 		},
+		claudeOrchestrator: {
+			info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0, plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false } }),
+			list: async () => ({ ok: false, error: "disabled" }),
+			start: async () => ({ ok: false, error: "disabled" }),
+			status: async () => ({ ok: false, error: "disabled" }),
+			cancel: async () => ({ ok: false, error: "disabled" }),
+			plan: async () => ({ ok: false, error: "disabled" }),
+			approve: async () => ({ ok: false, error: "disabled" }),
+			reject: async () => ({ ok: false, error: "disabled" }),
+			publish: async () => ({ ok: false, error: "disabled" }),
+		},
+		claudeOrchestratorSettings: {
+			get: async () => ({ ok: false, error: "unavailable" }),
+			save: async () => ({ ok: false, error: "unavailable" }),
+		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),
 			start: async () => ({ state: "starting" }),

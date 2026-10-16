@@ -1,4 +1,5 @@
 import { syncMacWindowButtons } from "./main/window-chrome";
+import { BRAND_ATTRIBUTION, BRAND_NAME } from "./shared/brand";
 import { MAC_TITLEBAR_HEIGHT, MAC_WINDOW_BUTTON_X, MAC_WINDOW_BUTTON_RADIUS } from "./shared/window-chrome";
 import { finishUpdateQuit } from "./main/update-quit";
 import { acknowledgeMacUpdateRestart } from "./main/mac-update-progress";
@@ -21,6 +22,7 @@ import {
 	webContents,
 	type WebContents,
 	type OpenDialogOptions,
+	type IpcMainInvokeEvent,
 } from "electron";
 import {
 	setRendererSink,
@@ -41,6 +43,8 @@ import { listFeatureBuilds, getActiveFeatureBuild } from "./main/feature-builds"
 import { initMainSentry, sanitizeRendererCapture } from "./main/sentry-main";
 import { TelemetryPolicyAuthority, resolveDesktopDataDir } from "./main/telemetry-policy-file";
 import { DaemonTelemetryPolicyClient } from "./main/daemon-telemetry-policy-client";
+import { ClaudeOrchestratorClient } from "./main/claude-orchestrator-client";
+import { ClaudeOrchestratorSettingsStore } from "./main/claude-orchestrator-settings";
 import { DesktopTelemetryController } from "./main/desktop-telemetry-controller";
 import { AgentSwitchVisibilityController } from "./main/agent-switch-observability";
 import { readUpdateSettings, type UpdateSettings, type UpdateStatus } from "./main/update-settings";
@@ -196,14 +200,14 @@ process.stderr.on("error", ignoreStdStreamError);
 // Must run before app ready so the About panel and default-menu role labels use it.
 // Unpackaged runs get a distinct name so the dev window, dock menu, and About
 // panel never impersonate the installed app (#3642).
-app.setName(app.isPackaged ? "Agent Orchestrator" : "Agent Orchestrator (dev)");
+app.setName(app.isPackaged ? BRAND_NAME : `${BRAND_NAME} (dev)`);
 
 // Windows shows native toasts only when the app declares an AppUserModelID that
 // matches its installer shortcut (the NSIS maker's appId). Without it,
 // Notification.isSupported() still returns true but show() silently drops the
 // toast, so notifications never appear. No-op on macOS/Linux.
 if (process.platform === "win32") {
-	app.setAppUserModelId("dev.agent-orchestrator.desktop");
+	app.setAppUserModelId("ai.xrobot.desktop");
 }
 
 // Escape hatch for hosts whose GPU driver stack crashes Chromium on startup
@@ -616,7 +620,7 @@ async function createWindowInternal(): Promise<void> {
 		height: 860,
 		minWidth: 960,
 		minHeight: 640,
-		title: app.isPackaged ? "Agent Orchestrator" : "Agent Orchestrator (dev)",
+		title: app.isPackaged ? BRAND_NAME : `${BRAND_NAME} (dev)`,
 		icon: windowIconPath(),
 		backgroundColor: NATIVE_WINDOW_BACKGROUND_DARK,
 		// Windows goes frameless and the renderer paints the whole titlebar,
@@ -1004,7 +1008,9 @@ const configuredLoginShell = process.platform === "darwin" ? (os.userInfo().shel
 function telemetryOverrides(): Record<string, string> {
 	return {
 		AO_TELEMETRY_EVENTS: process.env.AO_TELEMETRY_EVENTS ?? "on",
-		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? (isDev ? "off" : "posthog"),
+		// X-ROBOT-AI exports nothing unless its owner configures their own
+		// PostHog/Sentry through these variables; no data goes to upstream AO.
+		AO_TELEMETRY_REMOTE: process.env.AO_TELEMETRY_REMOTE ?? "off",
 		AO_TELEMETRY_POSTHOG_KEY: process.env.AO_TELEMETRY_POSTHOG_KEY ?? DEFAULT_POSTHOG_PROJECT_KEY,
 		AO_TELEMETRY_POSTHOG_HOST: process.env.AO_TELEMETRY_POSTHOG_HOST ?? DEFAULT_POSTHOG_HOST,
 		// Daemon-side Sentry (5xx + panics with Go stacks). Stamped on the daemon
@@ -1993,6 +1999,48 @@ async function restartDaemon(): Promise<DaemonStatus> {
 	return startDaemonForRestart();
 }
 
+// Claude orchestrator: the daemon's orchestrator routes are loopback-only and
+// reject browser origins, so the renderer reaches them through these handlers.
+// Only the trusted shell window may call them; results are validated codes and
+// allowlisted fields (see main/claude-orchestrator-client.ts).
+const claudeOrchestratorClient = new ClaudeOrchestratorClient(
+	() => daemonStatus.state === "ready" && daemonStatus.port ? `http://127.0.0.1:${daemonStatus.port}` : null,
+	(url, init) => net.fetch(url, init),
+);
+function isTrustedShellSender(event: IpcMainInvokeEvent): boolean {
+	const trusted = trustedShellWebContents.get(event.sender.id);
+	return trusted === event.sender && !trusted.isDestroyed();
+}
+const untrustedOrchestratorCaller = { ok: false, error: "failed" } as const;
+ipcMain.handle("claudeOrchestrator:info", (event) => isTrustedShellSender(event) ? claudeOrchestratorClient.info() : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:list", (event) => isTrustedShellSender(event) ? claudeOrchestratorClient.list() : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:start", (event, input: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.start(input) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:status", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.status(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:cancel", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.cancel(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:plan", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.plan(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:approve", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.approve(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.reject(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:publish", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.publish(runId) : untrustedOrchestratorCaller);
+
+// Mission control settings: saved owner-only under the AO data dir and read
+// by the daemon at start, so a save restarts the daemon. API keys are written
+// to that file but never sent back to the renderer.
+const claudeOrchestratorSettings = new ClaudeOrchestratorSettingsStore(() => desktopDataDir);
+const untrustedSettingsCaller = { ok: false, error: "unavailable" } as const;
+ipcMain.handle("claudeOrchestratorSettings:get", (event) => isTrustedShellSender(event) ? claudeOrchestratorSettings.get() : untrustedSettingsCaller);
+ipcMain.handle("claudeOrchestratorSettings:save", async (event, input: unknown) => {
+	if (!isTrustedShellSender(event)) return untrustedSettingsCaller;
+	const result = await claudeOrchestratorSettings.save(input);
+	if (result.ok) {
+		try {
+			await restartDaemon();
+		} catch (error) {
+			reportDaemonRestartFailure(error);
+		}
+	}
+	return result;
+});
+
 ipcMain.handle("daemon:getStatus", () => refreshDaemonStatus());
 ipcMain.handle("daemon:start", () => startDaemon());
 ipcMain.handle("daemon:stop", () => stopDaemon());
@@ -2146,9 +2194,9 @@ ipcMain.handle("menu:action", (_event, action: string) => {
 		case "help.about":
 			void dialog.showMessageBox(win, {
 				type: "info",
-				title: "About Agent Orchestrator",
-				message: "Agent Orchestrator",
-				detail: `Version ${app.getVersion()}`,
+				title: `About ${BRAND_NAME}`,
+				message: BRAND_NAME,
+				detail: `Version ${app.getVersion()}\n${BRAND_ATTRIBUTION}`,
 				buttons: ["OK"],
 			});
 			return;
@@ -2723,7 +2771,7 @@ function initAutoUpdates(): void {
 }
 
 // Resolve the bundle path `ao start` will later `open` and stat as a usable app.
-// On macOS process.execPath is .../Agent Orchestrator.app/Contents/MacOS/<exe>;
+// On macOS process.execPath is .../X-ROBOT-AI.app/Contents/MacOS/<exe>;
 // the thing `ao start` opens is the enclosing `.app` directory, so walk up three
 // levels (MacOS -> Contents -> .app). app.getAppPath() is WRONG here: it returns
 // the app.asar archive path inside the bundle, not the bundle itself.

@@ -45,7 +45,7 @@ export function ContextMenuItem({
 		<ContextMenuPrimitive.Item
 			className={cn(
 				actionMenuItemClass,
-				inset && "pl-8",
+				inset && "ps-8",
 				className,
 			)}
 			{...props}
@@ -62,7 +62,7 @@ export function ContextMenuLabel({
 		<ContextMenuPrimitive.Label
 			className={cn(
 				actionMenuLabelClass,
-				inset && "pl-8",
+				inset && "ps-8",
 				className,
 			)}
 			{...props}

@@ -98,9 +98,10 @@ describe("report problem drafts", () => {
 	it("produces a useful draft when user input is partial", () => {
 		const draft = formatReportProblemDraft({ summary: "", details: "" }, diagnostics, "email");
 
-		expect(draft).toContain("AO feedback");
-		expect(draft).toContain("To: prasad@untrivial.ai");
-		expect(draft).toContain("Cc: prateek@untrivial.ai");
+		expect(draft).toContain("X-ROBOT-AI feedback");
+		// No preset inbox: the reporter chooses who receives it.
+		expect(draft).not.toContain("To:");
+		expect(draft).not.toContain("Cc:");
 		expect(draft).toContain("Not provided");
 		expect(draft).toContain("Safe diagnostics");
 		expect(draft).toContain("AO version: 1.2.3-test");
@@ -123,21 +124,20 @@ describe("report problem drafts", () => {
 
 	it("builds copy handoff destinations for GitHub, Discord, and support email", () => {
 		const github = new URL(reportProblemDestinationUrl(completeInput, diagnostics, "github")!);
-		expect(`${github.origin}${github.pathname}`).toBe("https://github.com/Untrivial-ai/agent-orchestrator/issues/new");
+		expect(`${github.origin}${github.pathname}`).toBe("https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/issues/new");
 		expect(github.searchParams.get("title")).toBe("Terminal keeps reconnecting after daemon restart");
 		expect(github.searchParams.get("body")).toContain("[redacted-local-path]");
 		expect(github.searchParams.get("body")).toContain("[redacted-local-url]");
 
-		expect(reportProblemDestinationUrl(completeInput, diagnostics, "discord")).toBe(
-			"https://discord.gg/WjKNa7EbB8",
-		);
+		const discord = new URL(reportProblemDestinationUrl(completeInput, diagnostics, "discord")!);
+		expect(`${discord.origin}${discord.pathname}`).toBe("https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/issues/new");
 
 		const email = new URL(reportProblemDestinationUrl(completeInput, diagnostics, "email")!);
 		expect(email.protocol).toBe("mailto:");
-		expect(email.pathname).toBe("prasad@untrivial.ai");
-		expect(email.searchParams.get("cc")).toBe("prateek@untrivial.ai");
-		expect(email.searchParams.get("subject")).toBe("AO feedback: Terminal keeps reconnecting after daemon restart");
-		expect(email.searchParams.get("body")).toContain("AO feedback");
+		expect(email.pathname).toBe("");
+		expect(email.searchParams.get("cc")).toBeNull();
+		expect(email.searchParams.get("subject")).toBe("X-ROBOT-AI feedback: Terminal keeps reconnecting after daemon restart");
+		expect(email.searchParams.get("body")).toContain("X-ROBOT-AI feedback");
 		expect(email.searchParams.get("body")).toContain("AO version: 1.2.3-test");
 	});
 
@@ -146,16 +146,16 @@ describe("report problem drafts", () => {
 		expect(gmail.origin).toBe("https://mail.google.com");
 		expect(gmail.pathname).toBe("/mail/");
 		expect(gmail.searchParams.get("view")).toBe("cm");
-		expect(gmail.searchParams.get("to")).toBe("prasad@untrivial.ai");
-		expect(gmail.searchParams.get("cc")).toBe("prateek@untrivial.ai");
+		expect(gmail.searchParams.get("to")).toBeNull();
+		expect(gmail.searchParams.get("cc")).toBeNull();
 		expect(gmail.searchParams.get("su")).toContain("Terminal keeps reconnecting");
 		expect(gmail.searchParams.get("body")).toContain("AO version: 1.2.3-test");
 
 		const outlook = new URL(reportProblemDestinationUrl(completeInput, diagnostics, "email", "outlook")!);
 		expect(outlook.origin).toBe("https://outlook.office.com");
 		expect(outlook.pathname).toBe("/mail/deeplink/compose");
-		expect(outlook.searchParams.get("to")).toBe("prasad@untrivial.ai");
-		expect(outlook.searchParams.get("cc")).toBe("prateek@untrivial.ai");
+		expect(outlook.searchParams.get("to")).toBeNull();
+		expect(outlook.searchParams.get("cc")).toBeNull();
 		expect(outlook.searchParams.get("subject")).toContain("Terminal keeps reconnecting");
 		expect(outlook.searchParams.get("body")).toContain("AO version: 1.2.3-test");
 	});
@@ -170,9 +170,9 @@ describe("report problem drafts", () => {
 			"email",
 		)!;
 
-		expect(email.startsWith("mailto:prasad@untrivial.ai?")).toBe(true);
-		expect(email).toContain("subject=AO%20feedback%3A%20Switch%20Codex%20accounts%20bug");
-		expect(email).toContain("body=AO%20feedback%0A%0ASummary%3A%20Switch%20Codex%20accounts%20bug");
+		expect(email.startsWith("mailto:?")).toBe(true);
+		expect(email).toContain("subject=X-ROBOT-AI%20feedback%3A%20Switch%20Codex%20accounts%20bug");
+		expect(email).toContain("body=X-ROBOT-AI%20feedback%0A%0ASummary%3A%20Switch%20Codex%20accounts%20bug");
 		expect(email).toContain("Keep%20literal%20%2B%20signs%20safe.");
 		expect(email).not.toContain("+");
 	});
@@ -189,7 +189,7 @@ describe("report problem drafts", () => {
 			)!,
 		);
 
-		expect(email.searchParams.get("subject")).toBe("AO feedback: Broken � text");
+		expect(email.searchParams.get("subject")).toBe("X-ROBOT-AI feedback: Broken � text");
 	});
 
 	it("derives route surface from the hash-history route", async () => {

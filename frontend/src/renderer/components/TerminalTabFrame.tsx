@@ -41,7 +41,7 @@ export function TerminalTabFrame({
 			<div
 				className={cn(
 					"flex shrink-0 items-center self-stretch",
-					actionPosition === "leading" ? "pl-1" : "pr-1",
+					actionPosition === "leading" ? "ps-1" : "pe-1",
 				)}
 				data-terminal-tab-action
 			>
@@ -51,7 +51,7 @@ export function TerminalTabFrame({
 	return (
 		<span
 			className={cn(
-				"group relative inline-flex h-full shrink-0 self-stretch items-stretch border-r border-border",
+				"group relative inline-flex h-full shrink-0 self-stretch items-stretch border-e border-border",
 				active ? "bg-overlay text-foreground" : "text-passive hover:bg-raised hover:text-foreground",
 				className,
 			)}
@@ -68,8 +68,8 @@ export function TerminalTabFrame({
 					<button
 						ref={buttonRef}
 						className={cn(
-							"inline-flex h-full max-w-full min-w-0 flex-1 cursor-pointer items-center overflow-hidden px-2 text-left text-control leading-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
-							overlayTrailing && "pr-7",
+							"inline-flex h-full max-w-full min-w-0 flex-1 cursor-pointer items-center overflow-hidden px-2 text-start text-control leading-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent/50",
+							overlayTrailing && "pe-7",
 							buttonClassName,
 						)}
 						{...restButtonProps}
@@ -84,7 +84,7 @@ export function TerminalTabFrame({
 					<div
 						className={cn(
 							"absolute inset-y-0 z-20 flex items-center",
-							actionPosition === "leading" ? "left-2" : "right-1",
+							actionPosition === "leading" ? "start-2" : "end-1",
 						)}
 						data-terminal-tab-action
 					>
@@ -93,7 +93,7 @@ export function TerminalTabFrame({
 				) : null}
 				{trailingAction ? (
 					<div
-						className="flex shrink-0 items-center pr-1"
+						className="flex shrink-0 items-center pe-1"
 						data-terminal-tab-action
 					>
 						{trailingAction}

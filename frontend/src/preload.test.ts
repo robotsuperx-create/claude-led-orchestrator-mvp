@@ -425,3 +425,19 @@ describe("preload browser downloads bridge", () => {
 		expect(electronMocks.off).toHaveBeenCalledWith("browser:downloadsChanged", wrapped);
 	});
 });
+
+describe("preload Claude orchestrator bridge", () => {
+	it("routes calls over IPC and forwards only the allowlisted start fields", async () => {
+		const orchestrator = exposedBridge().claudeOrchestrator;
+		await orchestrator.info();
+		await orchestrator.list();
+		await orchestrator.start({ task: "Add a test", maxRetries: 1, ...({ worktreePath: "/etc", explicitOptIn: false } as object) } as { task: string; maxRetries: number });
+		await orchestrator.status("claude-run-0123456789abcdef0123456789abcdef");
+		await orchestrator.cancel("claude-run-0123456789abcdef0123456789abcdef");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(1, "claudeOrchestrator:info");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(2, "claudeOrchestrator:list");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(3, "claudeOrchestrator:start", { task: "Add a test", maxRetries: 1 });
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(4, "claudeOrchestrator:status", "claude-run-0123456789abcdef0123456789abcdef");
+		expect(electronMocks.invoke).toHaveBeenNthCalledWith(5, "claudeOrchestrator:cancel", "claude-run-0123456789abcdef0123456789abcdef");
+	});
+});

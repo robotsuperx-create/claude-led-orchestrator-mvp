@@ -17,7 +17,7 @@ export type MakerNSISConfig = {
 	// Display name for the installer + Start menu shortcut. Defaults to appName.
 	productName?: string;
 	// The packaged binary name WITHOUT ".exe" — must match Forge's
-	// packagerConfig.executableName ("agent-orchestrator"). electron-builder
+	// packagerConfig.executableName ("x-robot-ai"). electron-builder
 	// otherwise derives the exe name from productName and points the Start menu
 	// shortcut at "Agent Orchestrator.exe", which does not exist, so the app
 	// silently fails to launch and the shortcut shows a generic icon (#2414).
@@ -119,7 +119,7 @@ export default class MakerNSIS extends MakerBase<MakerNSISConfig> {
 		// electron-builder derives the Windows exe name — and thus the Start menu
 		// shortcut's target path and icon — from `win.executableName`, falling back
 		// to productName when it is unset. Forge's packager already named the binary
-		// "agent-orchestrator.exe" (packagerConfig.executableName), so we forward the
+		// "x-robot-ai.exe" (packagerConfig.executableName), so we forward the
 		// same name here; otherwise the shortcut targets a nonexistent
 		// "Agent Orchestrator.exe" and the app never launches (#2414).
 		const win: Record<string, unknown> = { ...(cfg.win ?? {}) };
@@ -127,7 +127,7 @@ export default class MakerNSIS extends MakerBase<MakerNSISConfig> {
 		if (cfg.executableName) win.executableName = cfg.executableName;
 		// Windows code signing (#4502): when signing credentials are present in
 		// the environment, electron-builder signs the packaged
-		// agent-orchestrator.exe AND the NSIS installer itself. The signing
+		// x-robot-ai.exe AND the NSIS installer itself. The signing
 		// block is deep-merged over any explicit cfg.win override. With
 		// credentials set we also flip forceCodeSigning so a silently-unsigned
 		// artifact fails the build instead of shipping (same "prove the seal"
