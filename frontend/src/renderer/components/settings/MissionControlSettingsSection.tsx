@@ -122,7 +122,9 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 
 	useEffect(() => {
 		let active = true;
-		void aoBridge.claudeOrchestratorSettings.get().then((result) => {
+		const bridge = aoBridge.claudeOrchestratorSettings;
+		if (!bridge) return;
+		void bridge.get().then((result) => {
 			if (!active) return;
 			if (result.ok) adopt(result.value);
 			else setLoadFailed(true);
@@ -141,6 +143,8 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 		setStatus("idle");
 	};
 
+	// Older or partial bridges (tests, plain web) carry no settings surface.
+	if (!aoBridge.claudeOrchestratorSettings) return null;
 	if (loadFailed) {
 		return (
 			<SettingsSection title={t("settings.missionControl")} titleHidden={titleHidden}>
@@ -171,7 +175,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 			Object.entries(secrets).filter(([, value]) => value === null || Boolean(value?.trim())),
 		) as ClaudeOrchestratorSettingsUpdate["secrets"];
 		setStatus("saving");
-		const result = await aoBridge.claudeOrchestratorSettings.save({ values, secrets: pendingSecrets });
+		const result = await aoBridge.claudeOrchestratorSettings?.save({ values, secrets: pendingSecrets }) ?? { ok: false as const, error: "unavailable" as const };
 		if (!result.ok) {
 			setStatus("failed");
 			return;
