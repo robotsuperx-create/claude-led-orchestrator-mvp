@@ -39,12 +39,14 @@ When a referenced file and this guide disagree, follow this guide for new work a
 
 ## X-ROBOT-AI brand layer (approved exception)
 
-The product ships as **X-ROBOT-AI**, built on Agent Orchestrator (Apache-2.0; keep the attribution in About and `NOTICE`). Its owner asked for a distinctive deep-space identity. That identity is an approved, bounded exception to the "no gradients, glow, or texture" rule in §2 and §13:
+The product ships as **X-ROBOT-AI**, built on Agent Orchestrator (Apache-2.0; keep the attribution in About and `NOTICE`). Its owner asked it to wear the design of his X-ROBOT trading deck (the "observation deck"). That identity is an approved, bounded exception to the "no gradients, glow, or texture" rule in §2 and §13:
 
-- **Default palette:** `x-robot` in `tokens.css` (deep space dark, stellar day light). Earlier palettes stay selectable in Settings. Status colors are untouched and keep their meaning.
-- **Brand surfaces only:** the sidebar backdrop, the sidebar brand, Home, the startup screen, and the Mission control header may use `.xr-cosmos` (nebula and starfield), `.xr-cosmos--quiet` (nebula only, for panels with text), `.xr-wordmark`, `.xr-mark--glow`, and `OrbitField`. Primitives live in `components/BrandMark.tsx` and the brand section of `styles.css`.
+- **Default palette:** `x-robot` in `tokens.css`, the deck's five colours: void `#050607` (the room), graphite `#111315` (matte panels), hairline `#26292D` (every 1px line), ivory `#ECE9E2` (text; secondary at ~55%), and ion `#C6E3F0`, the one light, kept for what is live and for the single primary action. By day the same roles sit on ivory paper with a deep ion. Dark is the default appearance. Corners are near-square (`--radius` 4px). Earlier palettes stay selectable in Settings. Status colors are untouched and keep their meaning.
+- **Type (x-robot only):** IBM Plex Sans and IBM Plex Sans Arabic for text and numerals (300/400/500, no faux bold), Reem Kufi for the wordmark and Arabic display lines (`.xr-display`), light tabular LTR numerals (`.xr-num`). Faces are bundled under `assets/fonts` with their OFL licenses.
+- **X-00, the commander:** `X00Portrait` (`components/X00Portrait.tsx`, engine in `lib/x00-portrait.ts`) is a one-pass WebGL relief of the deck's commander, lit by the state of the fleet (`lib/x00-fleet.ts`): ion while watching, a 4 s breath while runs work, long-green when the latest run finished, coral when held, dark when it failed. Outcome colours (`--brand-long/short/veto`) appear only on X-00. The still image takes over without WebGL, on context loss, or below ~55 fps; reduced motion shows the final state.
+- **Brand surfaces only:** Home, the startup screen, and the Mission control header may use X-00, `.xr-cosmos` (the deck's planet-horizon backdrop), `.xr-cosmos--quiet` (plain panel), `.xr-wordmark`, crew marks (`.xr-crew-mark`, one per live run), and `.xr-arrive` (the one load sequence: the light rises on X-00, then the words). The sidebar brand and the app icon use X-00's head (`XRobotMark`).
 - **Never** on working surfaces: terminal, session view, board cards, dialogs, menus, or settings content. Never over live terminal content.
-- Every brand effect is inert outside the `x-robot` palette and stops under reduced motion. Orbit satellites carry semantic status colors and stand for real runs only.
+- Motion is 600–1200 ms on `cubic-bezier(0.2, 0.8, 0.2, 1)`: no bounce, glitch, scan, or flash. Every brand effect is inert outside the `x-robot` palette and stops under reduced motion. Crew marks stand for real runs only.
 
 ## 1. Product and reader
 
@@ -442,4 +444,5 @@ Approve only when the answer to every applicable check is yes. Otherwise classif
 | 2026-09-16 | Brand mark clicks to home with no hover/focus fill | Separate home affordance and sidebar focus wash on the brand were rejected. |
 | 2026-10-13 | Arabic and right-to-left support across the renderer | Owner's audience; logical utilities keep LTR pixel-identical while mirroring RTL. |
 | 2026-10-13 | X-ROBOT-AI brand layer: deep-space palette as default, cosmic treatment on brand surfaces only | Owner's product identity; bounded so working surfaces stay calm and status stays truthful. |
+| 2026-10-30 | X-ROBOT-AI takes the X-ROBOT observation deck: void/graphite/hairline/ivory/ion palette, IBM Plex + Reem Kufi, dark by default, X-00 commander portrait on brand surfaces | Owner asked the product to share his trading deck's design; outcome colours stay on X-00 so status colors keep their meaning. |
 | 2026-09-16 | Resize grips: fixed 80vh hover pill on center-pane border; clamp to panel min/max ∩ CSS max-width | Rejected always-on/`::after`/inset grips and unclamped pointer-following (inspector flew past both limits). |

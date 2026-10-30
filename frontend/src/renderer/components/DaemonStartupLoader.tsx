@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BRAND_NAME } from "../../shared/brand";
-import { OrbitField, XRobotMark, XRobotWordmark } from "./BrandMark";
+import { XRobotWordmark } from "./BrandMark";
+import { X00Portrait } from "./X00Portrait";
 import { aoBridge } from "../lib/bridge";
 import { useSystemRequirementsGate } from "../hooks/useSystemRequirementsGate";
 import { InstallDependencyDialog } from "./InstallDependencyDialog";
@@ -76,13 +77,8 @@ export function DaemonStartupLoader() {
 			role="status"
 		>
 			<div className="ao-startup-content flex -translate-y-[3vh] flex-col items-center text-center">
-				<div className="relative grid size-40 place-items-center" aria-hidden="true">
-					<OrbitField className="absolute inset-0 size-full" />
-					<div className="ao-startup-logo relative size-20">
-						<XRobotMark glow className="size-full" />
-					</div>
-				</div>
-				<p className="mt-3 text-xl font-semibold tracking-tight text-foreground"><XRobotWordmark /></p>
+				<X00Portrait state="working" className="w-48" />
+				<p className="xr-arrive mt-4 text-[24px] leading-8 text-foreground [--xr-delay:500ms]"><XRobotWordmark /></p>
 				<p className="mt-2 min-h-5 text-md-sm text-muted-foreground">
 					<span aria-hidden="true" className={phraseIndex === 0 ? undefined : "ao-startup-status"} key={phraseIndex}>
 						{phrase}
