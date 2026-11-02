@@ -34,6 +34,7 @@ import {
 	onboardingFormLabelClass,
 } from "../lib/onboarding-ui";
 import { cn } from "../lib/utils";
+import { crewMember } from "../lib/x00-crew";
 import { crewMarkTone, x00StateForRuns } from "../lib/x00-fleet";
 import { XRobotWordmark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -199,6 +200,9 @@ function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: Cl
 	const { t } = useTranslation();
 	const live = runs.filter((run) => !isTerminalClaudeOrchestratorState(run.state));
 	const commander = x00StateForRuns(runs);
+	const sayKey = commander === "watching" && runs.some((run) => run.state === "awaiting_approval")
+		? "orchestrator.mission.say.approval" as const
+		: (`orchestrator.mission.say.${commander}` as const);
 	const tally = [
 		{ key: "active", label: t("orchestrator.mission.active"), value: `${live.length}/${info.maxActiveRuns}`, tone: "bg-status-working" },
 		{ key: "done", label: t("orchestrator.mission.done"), value: String(runs.filter((run) => run.state === "completed").length), tone: "bg-status-ready" },
@@ -213,13 +217,13 @@ function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: Cl
 			<X00Portrait
 				state={commander}
 				className="mx-auto w-36 sm:w-40"
-				label={t("orchestrator.mission.portraitLabel", { state: t(`orchestrator.mission.say.${commander}`) })}
+				label={t("orchestrator.mission.portraitLabel", { state: t(sayKey) })}
 			/>
 			<div className="min-w-0">
 				<h2 className="text-[22px] leading-8"><XRobotWordmark /></h2>
 				<p className="mt-0.5 text-sm text-muted-foreground">{t("orchestrator.mission.subtitle")}</p>
 				<p className="xr-display mt-3 text-[17px] leading-6 text-foreground" data-testid="mission-say" aria-live="polite">
-					{t(`orchestrator.mission.say.${commander}`)}
+					{t(sayKey)}
 				</p>
 				<div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
 					{live.length > 0 ? (
@@ -437,11 +441,16 @@ function PlanReview({ runId }: { runId: string }) {
 				<>
 					{plan.data.summary ? <p className="mt-1 max-w-prose text-[13px] leading-5 text-muted-foreground">{plan.data.summary}</p> : null}
 					<ol className="mt-3 overflow-hidden rounded-md border border-border">
-						{plan.data.steps.map((step, index) => (
-							<li key={step.id} className="flex gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
-								<span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-muted text-[11px] font-medium tabular-nums text-muted-foreground">{index + 1}</span>
+						{plan.data.steps.map((step, index) => {
+							const crew = crewMember(index);
+							return (
+							<li key={step.id} className="flex gap-3 border-b border-border px-3 py-2.5 last:border-b-0" data-testid="plan-step">
+								<span className="flex w-9 shrink-0 flex-col items-center gap-1 pt-0.5">
+									{crew.portrait ? <img src={crew.portrait} alt="" aria-hidden="true" draggable={false} className="xr-crew-portrait size-8" /> : null}
+									<span className="xr-num text-[10px] leading-3 text-muted-foreground" data-testid="plan-step-crew">{crew.callSign}</span>
+								</span>
 								<div className="min-w-0 flex-1">
-									<p className="text-[13px] font-medium leading-5 text-foreground">{step.title || step.id}</p>
+									<p className="text-[13px] font-medium leading-5 text-foreground"><span className="sr-only">{`${index + 1}. `}</span>{step.title || step.id}</p>
 									{step.instructions ? <p className="mt-0.5 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{step.instructions}</p> : null}
 									<p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
 										{step.provider ? <span>{t("orchestrator.plan.by", { provider: providerName(step.provider) })}</span> : null}
@@ -451,7 +460,8 @@ function PlanReview({ runId }: { runId: string }) {
 									</p>
 								</div>
 							</li>
-						))}
+							);
+						})}
 					</ol>
 					<div className="mt-3 flex flex-wrap items-center gap-2">
 						<Button variant="primary" size="sm" disabled={decide.isPending} onClick={() => decide.mutate({ runId, approve: true })}>
@@ -486,6 +496,28 @@ function outcomeKey(run: ClaudeOrchestratorRun) {
 	}
 }
 
+type DecisionTone = "long" | "short" | "veto" | "ion" | "quiet";
+
+/** The colour of a finished run's decision, after the deck: long to merge, short to hold, veto when it failed. */
+function decisionTone(run: ClaudeOrchestratorRun): DecisionTone {
+	if (run.interrupted || run.state === "canceled") return "quiet";
+	if (run.state === "completed") return run.recommendation === "merge" && run.commit ? "long" : "ion";
+	if (run.state === "held") return "short";
+	if (run.state === "failed") return "veto";
+	return "quiet";
+}
+
+/** A finished run's decision line (the deck's "decision") with what stands behind it beneath. */
+function Decision({ run, outcome }: { run: ClaudeOrchestratorRun; outcome: NonNullable<ReturnType<typeof outcomeKey>> }) {
+	const { t } = useTranslation();
+	return (
+		<div className="xr-decision mb-4 max-w-prose" data-tone={decisionTone(run)} data-testid="claude-orchestrator-decision">
+			<p className="xr-decision-label xr-display text-[17px] leading-6">{t(stageKey(run))}</p>
+			<p className="mt-1 text-[13px] leading-5 text-muted-foreground" data-testid="claude-orchestrator-outcome">{t(outcome)}</p>
+		</div>
+	);
+}
+
 function RunDetails({ run, info }: { run: ClaudeOrchestratorRun; info?: ClaudeOrchestratorInfo }) {
 	const { t, i18n } = useTranslation();
 	const cancel = useCancelClaudeOrchestratorRun();
@@ -503,7 +535,7 @@ function RunDetails({ run, info }: { run: ClaudeOrchestratorRun; info?: ClaudeOr
 		<div className="border-t border-border bg-muted/10 px-4 py-4 ps-[3.25rem]">
 			{active ? <StageTimeline run={run} /> : null}
 			{run.state === "awaiting_approval" ? <PlanReview runId={run.runId} /> : null}
-			{outcome ? <p className="mb-4 max-w-prose text-[13px] leading-5 text-foreground" data-testid="claude-orchestrator-outcome">{t(outcome)}</p> : null}
+			{outcome ? <Decision run={run} outcome={outcome} /> : null}
 			<dl className="grid max-w-xl grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs">
 				{run.branch ? (
 					<>

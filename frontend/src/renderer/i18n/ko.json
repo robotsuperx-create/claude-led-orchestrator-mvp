@@ -2424,6 +2424,7 @@
 	"orchestrator.mission.orbitLabel": "진행 중인 실행: {{count}}",
 	"orchestrator.mission.portraitLabel": "사령관 X-00: {{state}}",
 	"orchestrator.mission.say.watching": "X-00이 지켜보고 있습니다. 크루에게 작업을 맡기세요.",
+	"orchestrator.mission.say.approval": "계획이 승인을 기다리고 있습니다.",
 	"orchestrator.mission.say.working": "크루가 작업 중입니다. X-00이 진행하며 검토합니다.",
 	"orchestrator.mission.say.done": "마지막 실행이 끝났고 검토할 준비가 되었습니다.",
 	"orchestrator.mission.say.held": "마지막 실행이 보류되었습니다. Claude가 직접 확인하길 원합니다.",

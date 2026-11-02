@@ -2528,6 +2528,7 @@
 	"orchestrator.mission.orbitLabel": "عمليات التشغيل النشطة: {{count}}",
 	"orchestrator.mission.portraitLabel": "X-00، القائد: {{state}}",
 	"orchestrator.mission.say.watching": "X-00 يراقب. أعطِ الطاقم مهمة.",
+	"orchestrator.mission.say.approval": "خطة بانتظار موافقتك.",
 	"orchestrator.mission.say.working": "الطاقم يعمل، وX-00 يراجع أولاً بأول.",
 	"orchestrator.mission.say.done": "اكتمل آخر تشغيل وهو جاهز لمراجعتك.",
 	"orchestrator.mission.say.held": "آخر تشغيل معلّق؛ يريد Claude أن تراجعه بنفسك.",

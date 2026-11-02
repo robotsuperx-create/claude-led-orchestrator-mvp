@@ -6125,6 +6125,40 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 	}
 }
 
+/* Crew portraits: the deck's agent heads, round, quiet chrome. */
+.xr-crew-portrait {
+	display: block;
+	border-radius: 999px;
+	object-fit: cover;
+	object-position: 50% 20%;
+	background: var(--brand-void, #050607);
+	box-shadow: inset 0 0 0 1px var(--border);
+}
+:root[data-style-theme="x-robot"] .xr-crew-portrait {
+	filter: saturate(0.45);
+}
+
+/* The decision: the one place a run's outcome colour appears in text. */
+.xr-decision {
+	--decision: var(--muted-foreground);
+}
+.xr-decision[data-tone="long"] {
+	--decision: var(--brand-long, var(--color-status-ready));
+}
+.xr-decision[data-tone="short"] {
+	--decision: var(--brand-short, var(--color-status-in-review));
+}
+.xr-decision[data-tone="veto"] {
+	--decision: var(--brand-veto, var(--destructive));
+}
+.xr-decision[data-tone="ion"] {
+	--decision: var(--brand-ion, var(--foreground));
+}
+.xr-decision-label {
+	color: var(--decision);
+	font-weight: 500;
+}
+
 /* One page-load sequence on brand surfaces: the light rises on X-00, then the words arrive. */
 .xr-arrive {
 	animation: xr-arrive 1200ms var(--brand-ease, ease) both;
