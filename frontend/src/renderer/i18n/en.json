@@ -2404,6 +2404,7 @@
 	"orchestrator.mission.orbitLabel": "Active runs: {{count}}",
 	"orchestrator.mission.portraitLabel": "X-00, the commander: {{state}}",
 	"orchestrator.mission.say.watching": "X-00 is watching. Give the crew a task.",
+	"orchestrator.mission.say.approval": "A plan is waiting for your approval.",
 	"orchestrator.mission.say.working": "The crew is at work. X-00 reviews as they go.",
 	"orchestrator.mission.say.done": "The last run is finished and ready for your review.",
 	"orchestrator.mission.say.held": "The last run is held. Claude wants your eyes on it.",

@@ -2424,6 +2424,7 @@
 	"orchestrator.mission.orbitLabel": "Aktive Läufe: {{count}}",
 	"orchestrator.mission.portraitLabel": "X-00, der Kommandant: {{state}}",
 	"orchestrator.mission.say.watching": "X-00 beobachtet. Gib der Crew eine Aufgabe.",
+	"orchestrator.mission.say.approval": "Ein Plan wartet auf deine Freigabe.",
 	"orchestrator.mission.say.working": "Die Crew arbeitet. X-00 prüft laufend mit.",
 	"orchestrator.mission.say.done": "Der letzte Lauf ist fertig und bereit für deine Prüfung.",
 	"orchestrator.mission.say.held": "Der letzte Lauf ist angehalten. Claude möchte, dass du ihn ansiehst.",

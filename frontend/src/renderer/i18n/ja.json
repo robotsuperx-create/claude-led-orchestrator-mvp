@@ -2424,6 +2424,7 @@
 	"orchestrator.mission.orbitLabel": "実行中: {{count}}",
 	"orchestrator.mission.portraitLabel": "司令官 X-00: {{state}}",
 	"orchestrator.mission.say.watching": "X-00 は監視中です。クルーにタスクを渡しましょう。",
+	"orchestrator.mission.say.approval": "計画があなたの承認を待っています。",
 	"orchestrator.mission.say.working": "クルーが作業中です。X-00 が随時レビューしています。",
 	"orchestrator.mission.say.done": "最後の実行は完了し、レビューの準備ができています。",
 	"orchestrator.mission.say.held": "最後の実行は保留中です。Claude があなたの確認を求めています。",

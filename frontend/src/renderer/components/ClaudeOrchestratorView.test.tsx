@@ -133,6 +133,9 @@ describe("ClaudeOrchestratorView", () => {
 
 		await userEvent.click(within(rows[1]).getByRole("button", { name: "Show details for Add retries" }));
 		expect(await screen.findByTestId("claude-orchestrator-outcome")).toHaveTextContent("Claude recommends merging");
+		const decision = screen.getByTestId("claude-orchestrator-decision");
+		expect(decision).toHaveAttribute("data-tone", "long");
+		expect(within(decision).getByText("Ready to merge")).toBeInTheDocument();
 		expect(screen.getByText("4e7a1c2f90")).toBeInTheDocument();
 		expect(screen.getByText(`git diff HEAD...ao/claude-orchestrator/${RUN_B}`)).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Copy branch name" }));
@@ -200,6 +203,8 @@ describe("ClaudeOrchestratorView", () => {
 		expect(await within(plan).findByText("Validate the form")).toBeInTheDocument();
 		expect(within(plan).getByText("After Add a schema")).toBeInTheDocument();
 		expect(within(plan).getByText("Written by DeepSeek")).toBeInTheDocument();
+		// Each step is carried by a crew member from the deck, in plan order.
+		expect(within(plan).getAllByTestId("plan-step-crew").map((node) => node.textContent)).toEqual(["X-01", "X-02"]);
 		await userEvent.click(within(plan).getByRole("button", { name: "Approve and run" }));
 		expect(mocks.approve).toHaveBeenCalledWith(RUN_A);
 		expect(mocks.reject).not.toHaveBeenCalled();
@@ -251,6 +256,7 @@ describe("ClaudeOrchestratorView", () => {
 		expect(usage).toHaveTextContent("about $6.75");
 		expect(within(usage).getByRole("meter")).toHaveAttribute("aria-valuenow", "100");
 		expect(screen.getByTestId("claude-orchestrator-outcome")).toHaveTextContent("used up its model budget");
+		expect(screen.getByTestId("claude-orchestrator-decision")).toHaveAttribute("data-tone", "veto");
 	});
 
 	it("publishes a finished run only after confirmation and links the pull request", async () => {

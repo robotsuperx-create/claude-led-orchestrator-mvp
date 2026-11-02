@@ -2455,6 +2455,7 @@
 	"orchestrator.mission.orbitLabel": "Ejecuciones activas: {{count}}",
 	"orchestrator.mission.portraitLabel": "X-00, el comandante: {{state}}",
 	"orchestrator.mission.say.watching": "X-00 está observando. Dale una tarea a la tripulación.",
+	"orchestrator.mission.say.approval": "Un plan espera tu aprobación.",
 	"orchestrator.mission.say.working": "La tripulación está trabajando. X-00 revisa sobre la marcha.",
 	"orchestrator.mission.say.done": "La última ejecución terminó y está lista para tu revisión.",
 	"orchestrator.mission.say.held": "La última ejecución está retenida. Claude quiere que la revises.",
