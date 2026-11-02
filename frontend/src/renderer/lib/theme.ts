@@ -15,6 +15,7 @@ export type ThemeStyle =
 
 /** X-ROBOT-AI's own palette is the default; the earlier palettes stay selectable. */
 export const DEFAULT_THEME_STYLE: ThemeStyle = "x-robot";
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = "dark";
 
 export const themeStorageKey = "ao.theme";
 export const themeStyleStorageKey = "ao.theme-style";
@@ -36,7 +37,8 @@ export function readStoredThemePreference(): ThemePreference {
 	} catch {
 		// ignore
 	}
-	return "system";
+	// X-ROBOT-AI is an observatory: dark until someone picks otherwise.
+	return DEFAULT_THEME_PREFERENCE;
 }
 
 /** Resolve the active light/dark appearance from a stored preference. */

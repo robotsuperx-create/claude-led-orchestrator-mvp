@@ -3,3 +3,7 @@ Copyright 2026 robotsuperx-create
 
 This product is built on Agent Orchestrator (https://github.com/Untrivial-ai/agent-orchestrator),
 licensed under the Apache License, Version 2.0. See LICENSE.
+
+Bundled fonts: IBM Plex Sans and IBM Plex Sans Arabic (Copyright IBM Corp.), Reem Kufi
+(Copyright The Reem Kufi Project Authors), and Noto Sans Arabic, each under the SIL Open
+Font License 1.1; see frontend/src/renderer/assets/fonts.

@@ -8,6 +8,7 @@ const draft =
 	"Select this existing chat draft across its wrapped text so an earlier instruction can be replaced precisely without retyping the entire message.";
 const themeStyles = [
 	"orchestrate",
+	"x-robot",
 	"github",
 	"catppuccin",
 	"dracula",

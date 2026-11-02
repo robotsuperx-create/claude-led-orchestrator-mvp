@@ -34,8 +34,10 @@ import {
 	onboardingFormLabelClass,
 } from "../lib/onboarding-ui";
 import { cn } from "../lib/utils";
-import { OrbitField, XRobotMark, XRobotWordmark } from "./BrandMark";
+import { crewMarkTone, x00StateForRuns } from "../lib/x00-fleet";
+import { XRobotWordmark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { X00Portrait } from "./X00Portrait";
 import { TopbarButton, topbarProjectLabelClass } from "./TopbarButton";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
@@ -189,13 +191,14 @@ export function ClaudeOrchestratorView() {
 }
 
 /**
- * The mission-control header: Claude at the core, one satellite per live run
- * in its semantic status color, and the run tally. Counts come straight from
- * the run list; nothing here invents state.
+ * The mission-control header, after the X-ROBOT deck: X-00 lit by the state
+ * of the fleet, one crew mark per live run, X-00's line, and the run tally.
+ * Counts and light come straight from the run list; nothing here invents state.
  */
 function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: ClaudeOrchestratorRun[] }) {
 	const { t } = useTranslation();
 	const live = runs.filter((run) => !isTerminalClaudeOrchestratorState(run.state));
+	const commander = x00StateForRuns(runs);
 	const tally = [
 		{ key: "active", label: t("orchestrator.mission.active"), value: `${live.length}/${info.maxActiveRuns}`, tone: "bg-status-working" },
 		{ key: "done", label: t("orchestrator.mission.done"), value: String(runs.filter((run) => run.state === "completed").length), tone: "bg-status-ready" },
@@ -203,28 +206,42 @@ function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: Cl
 		{ key: "failed", label: t("orchestrator.mission.failed"), value: String(runs.filter((run) => run.state === "failed").length), tone: "bg-status-exited" },
 	];
 	return (
-		<section className="xr-cosmos xr-cosmos--quiet mb-4 flex flex-col items-center gap-5 overflow-hidden rounded-lg px-5 py-5 sm:flex-row" data-testid="claude-orchestrator-mission">
-			<div className="relative grid size-36 shrink-0 place-items-center">
-				<OrbitField
-					className="absolute inset-0 size-full"
-					label={t("orchestrator.mission.orbitLabel", { count: live.length })}
-					satellites={live.map((run) => ({ id: run.runId, tone: run.state === "validating" ? "validating" : "working" }))}
-				/>
-				<XRobotMark glow className="relative size-12" />
-			</div>
-			<div className="min-w-0 flex-1">
-				<h2 className="text-[21px] leading-7"><XRobotWordmark /></h2>
+		<section
+			className="xr-cosmos xr-cosmos--quiet mb-4 grid items-center gap-x-8 gap-y-4 overflow-hidden rounded-lg border border-border px-6 py-5 sm:grid-cols-[160px_minmax(0,1fr)]"
+			data-testid="claude-orchestrator-mission"
+		>
+			<X00Portrait
+				state={commander}
+				className="mx-auto w-36 sm:w-40"
+				label={t("orchestrator.mission.portraitLabel", { state: t(`orchestrator.mission.say.${commander}`) })}
+			/>
+			<div className="min-w-0">
+				<h2 className="text-[22px] leading-8"><XRobotWordmark /></h2>
 				<p className="mt-0.5 text-sm text-muted-foreground">{t("orchestrator.mission.subtitle")}</p>
-				<dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
-					{tally.map((item) => (
-						<div key={item.key} className="flex items-center gap-1.5 text-xs">
-							<span aria-hidden="true" className={cn("inline-block size-1.5 rounded-full", item.tone)} />
-							<dt className="text-muted-foreground">{item.label}</dt>
-							<dd className="font-medium tabular-nums text-foreground" data-testid={`mission-${item.key}`}>{item.value}</dd>
-						</div>
-					))}
-				</dl>
-				<div className="mt-3">
+				<p className="xr-display mt-3 text-[17px] leading-6 text-foreground" data-testid="mission-say" aria-live="polite">
+					{t(`orchestrator.mission.say.${commander}`)}
+				</p>
+				<div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
+					{live.length > 0 ? (
+						<ul className="flex flex-wrap items-center gap-2" role="img" aria-label={t("orchestrator.mission.orbitLabel", { count: live.length })}>
+							{live.slice(0, 12).map((run) => (
+								<li key={run.runId} className="flex" title={run.title}>
+									<span className="xr-crew-mark" data-tone={crewMarkTone(run.state)} data-testid="crew-mark" aria-hidden="true" />
+								</li>
+							))}
+						</ul>
+					) : null}
+					<dl className="flex flex-wrap gap-x-5 gap-y-2">
+						{tally.map((item) => (
+							<div key={item.key} className="flex items-center gap-1.5 text-xs">
+								<span aria-hidden="true" className={cn("inline-block size-1.5 rounded-full", item.tone)} />
+								<dt className="text-muted-foreground">{item.label}</dt>
+								<dd className="xr-num font-medium tabular-nums text-foreground" data-testid={`mission-${item.key}`}>{item.value}</dd>
+							</div>
+						))}
+					</dl>
+				</div>
+				<div className="mt-3 border-t border-border pt-3">
 					<ConfigurationLine info={info} />
 				</div>
 			</div>

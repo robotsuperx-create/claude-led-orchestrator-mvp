@@ -141,7 +141,7 @@ describe("ClaudeOrchestratorView", () => {
 		expect(screen.queryByRole("button", { name: "Cancel run" })).not.toBeInTheDocument();
 	});
 
-	it("shows mission control with one satellite per live run and the run tally", async () => {
+	it("shows mission control with X-00 at work, one crew mark per live run, and the run tally", async () => {
 		mocks.list.mockResolvedValue(ok([
 			{ runId: RUN_A, state: "executing", title: "One" },
 			{ runId: RUN_B, state: "validating", title: "Two" },
@@ -149,11 +149,27 @@ describe("ClaudeOrchestratorView", () => {
 		]));
 		renderView();
 		const mission = await screen.findByTestId("claude-orchestrator-mission");
-		await waitFor(() => expect(within(mission).getAllByTestId("orbit-satellite")).toHaveLength(2));
+		await waitFor(() => expect(within(mission).getAllByTestId("crew-mark")).toHaveLength(2));
 		expect(within(mission).getByRole("img", { name: "Active runs: 2" })).toBeInTheDocument();
+		const commander = within(mission).getByTestId("x00-portrait");
+		expect(commander).toHaveAttribute("data-state", "working");
+		expect(commander).toHaveAccessibleName("X-00, the commander: The crew is at work. X-00 reviews as they go.");
+		expect(within(mission).getByTestId("mission-say")).toHaveTextContent("The crew is at work.");
 		expect(within(mission).getByTestId("mission-active")).toHaveTextContent("2/2");
 		expect(within(mission).getByTestId("mission-held")).toHaveTextContent("1");
 		expect(within(mission).getByTestId("mission-done")).toHaveTextContent("0");
+	});
+
+	it("lights X-00 with the latest finished run once the crew is idle", async () => {
+		mocks.list.mockResolvedValue(ok([
+			{ runId: RUN_A, state: "completed", title: "One", updatedAt: "2026-10-07T01:00:00Z" },
+			{ runId: RUN_B, state: "failed", title: "Two", updatedAt: "2026-10-07T03:00:00Z" },
+		]));
+		renderView();
+		const mission = await screen.findByTestId("claude-orchestrator-mission");
+		await waitFor(() => expect(within(mission).getByTestId("x00-portrait")).toHaveAttribute("data-state", "failed"));
+		expect(within(mission).queryAllByTestId("crew-mark")).toHaveLength(0);
+		expect(within(mission).getByTestId("mission-say")).toHaveTextContent("The last run failed.");
 	});
 
 	it("explains a run that stopped because the app closed", async () => {
