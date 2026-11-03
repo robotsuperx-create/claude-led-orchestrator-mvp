@@ -7,6 +7,8 @@ import { memo, type CSSProperties, useCallback, useEffect, useMemo, useRef, useS
 import { FolderPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CommandPalette } from "../components/CommandPalette";
+import { SpaceBackdrop } from "../components/SpaceBackdrop";
+import { X00Commander } from "../components/x00/X00Commander";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
 import { DaemonStartupLoader } from "../components/DaemonStartupLoader";
@@ -1156,6 +1158,8 @@ function ShellLayout() {
 					isFullScreen && "native-fullscreen",
 				)}
 			>
+				{/* Deep space behind the whole app (x-robot dark only; see .xr-space-app). */}
+				<SpaceBackdrop className="xr-space-app" />
 				{/* Windows-only custom title bar (sidebar toggle + File/Edit/View/…
             menu); paints the chrome the frameless window drops. Renders null on
             macOS/Linux. */}
@@ -1269,6 +1273,7 @@ function ShellLayout() {
 					workspaces={workspaces}
 				/>
 					<CommandPalette />
+					<X00Commander />
 				</div>
 				</TerminalCacheProvider>
 			</SessionTopbarProvider>

@@ -72,7 +72,7 @@ export function DaemonStartupLoader() {
 			aria-busy="true"
 			aria-label={t("startup.aria", { brand: BRAND_NAME })}
 			aria-live="polite"
-			className="ao-startup-screen xr-cosmos flex h-full w-full items-center justify-center bg-background text-foreground"
+			className="ao-startup-screen xr-cosmos xr-space-through flex h-full w-full items-center justify-center bg-background text-foreground"
 			data-testid="daemon-startup-loader"
 			role="status"
 		>

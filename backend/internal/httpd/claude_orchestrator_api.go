@@ -20,6 +20,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/claudeorchestrator"
+	"github.com/aoagents/agent-orchestrator/backend/internal/service/x00"
 )
 
 const (
@@ -472,6 +473,35 @@ func (api *ClaudeOrchestratorAPI) list(w http.ResponseWriter, r *http.Request) {
 	}
 	api.mu.RUnlock()
 	envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorRunList{Runs: runs})
+}
+
+// Fleet is what X-00 may know about the runs: identity, title, state, and
+// where a finished run's result lives. Newest first.
+func (api *ClaudeOrchestratorAPI) Fleet() x00.Fleet {
+	api.refreshFromService()
+	api.mu.RLock()
+	defer api.mu.RUnlock()
+	limit := api.MaxActiveRuns
+	if limit <= 0 {
+		limit = DefaultClaudeOrchestratorMaxActiveRuns
+	}
+	fleet := x00.Fleet{
+		RunsEnabled: api.Info.Enabled, Repository: api.Info.Repository, MaxActiveRuns: limit,
+		CanPublish: api.Publisher != nil, Runs: make([]x00.RunBrief, 0, len(api.order)),
+	}
+	for i := len(api.order) - 1; i >= 0; i-- {
+		runID := api.order[i]
+		state, ok := api.runs[runID]
+		if !ok {
+			continue
+		}
+		details := api.details[runID]
+		fleet.Runs = append(fleet.Runs, x00.RunBrief{
+			RunID: runID, Title: details.Title, State: string(state), Recommendation: string(details.Recommendation),
+			Branch: details.Branch, HasCommit: details.Commit != "", UpdatedAt: details.UpdatedAt,
+		})
+	}
+	return fleet
 }
 
 // refreshFromService pulls the live stage of every active run so history

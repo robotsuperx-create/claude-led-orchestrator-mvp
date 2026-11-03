@@ -39,6 +39,9 @@ import { crewMarkTone, x00StateForRuns } from "../lib/x00-fleet";
 import { XRobotWordmark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { X00Portrait } from "./X00Portrait";
+import { openX00 } from "./x00/X00Commander";
+import { x00VoiceLevel } from "../hooks/useX00";
+import { useX00Store } from "../stores/x00-store";
 import { TopbarButton, topbarProjectLabelClass } from "./TopbarButton";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
@@ -116,7 +119,7 @@ export function ClaudeOrchestratorView() {
 	const runsError = claudeOrchestratorErrorCode(runs.error);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col bg-background">
+		<div className="xr-space-through flex min-h-0 flex-1 flex-col bg-background">
 			<header className="workspace-topbar-container center-panel-titlebar flex h-toolbar shrink-0 items-center justify-between gap-3 border-b border-border-strong pe-2">
 				<div className="flex min-w-0 items-center gap-2">
 					<h1 className={showPageTitle ? cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5") : "sr-only"}>
@@ -196,13 +199,22 @@ export function ClaudeOrchestratorView() {
  * of the fleet, one crew mark per live run, X-00's line, and the run tally.
  * Counts and light come straight from the run list; nothing here invents state.
  */
+const SAY_KEYS = {
+	watching: "orchestrator.mission.say.watching",
+	working: "orchestrator.mission.say.working",
+	done: "orchestrator.mission.say.done",
+	held: "orchestrator.mission.say.held",
+	failed: "orchestrator.mission.say.failed",
+} as const;
+
 function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: ClaudeOrchestratorRun[] }) {
 	const { t } = useTranslation();
 	const live = runs.filter((run) => !isTerminalClaudeOrchestratorState(run.state));
 	const commander = x00StateForRuns(runs);
+	const speaking = useX00Store((store) => store.speaking);
 	const sayKey = commander === "watching" && runs.some((run) => run.state === "awaiting_approval")
 		? "orchestrator.mission.say.approval" as const
-		: (`orchestrator.mission.say.${commander}` as const);
+		: SAY_KEYS[commander];
 	const tally = [
 		{ key: "active", label: t("orchestrator.mission.active"), value: `${live.length}/${info.maxActiveRuns}`, tone: "bg-status-working" },
 		{ key: "done", label: t("orchestrator.mission.done"), value: String(runs.filter((run) => run.state === "completed").length), tone: "bg-status-ready" },
@@ -214,11 +226,15 @@ function MissionControl({ info, runs }: { info: ClaudeOrchestratorInfo; runs: Cl
 			className="xr-cosmos xr-cosmos--quiet mb-4 grid items-center gap-x-8 gap-y-4 overflow-hidden rounded-lg border border-border px-6 py-5 sm:grid-cols-[160px_minmax(0,1fr)]"
 			data-testid="claude-orchestrator-mission"
 		>
-			<X00Portrait
-				state={commander}
-				className="mx-auto w-36 sm:w-40"
-				label={t("orchestrator.mission.portraitLabel", { state: t(sayKey) })}
-			/>
+			<button type="button" className="x00-talk mx-auto" onClick={openX00} aria-label={t("x00.open")} title={t("x00.open")} data-testid="mission-talk">
+				<X00Portrait
+					state={commander}
+					speaking={speaking}
+					voice={x00VoiceLevel}
+					className="w-36 sm:w-40"
+					label={t("orchestrator.mission.portraitLabel", { state: t(sayKey) })}
+				/>
+			</button>
 			<div className="min-w-0">
 				<h2 className="text-[22px] leading-8"><XRobotWordmark /></h2>
 				<p className="mt-0.5 text-sm text-muted-foreground">{t("orchestrator.mission.subtitle")}</p>

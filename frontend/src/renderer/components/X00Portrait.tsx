@@ -13,7 +13,14 @@ export type { X00State } from "../lib/x00-portrait";
  * and goes dark when one fails. The still image stands in when WebGL is
  * missing, lost, or too slow. Decorative unless given a label.
  */
-export function X00Portrait({ state, className, label }: { state: X00State; className?: string; label?: string }) {
+export function X00Portrait({ state, className, label, speaking = false, voice = null }: {
+	state: X00State;
+	className?: string;
+	label?: string;
+	/** True while X-00 speaks; `voice` gives the loudness (0..1) that moves his jaw. */
+	speaking?: boolean;
+	voice?: ((now: number) => number) | null;
+}) {
 	const host = useRef<HTMLDivElement>(null);
 	const engine = useRef<X00PortraitEngine | null>(null);
 	const [still, setStill] = useState(false);
@@ -38,12 +45,17 @@ export function X00Portrait({ state, className, label }: { state: X00State; clas
 		engine.current?.setState(state);
 	}, [state]);
 
+	useEffect(() => {
+		engine.current?.setSpeaking(speaking, voice);
+	}, [speaking, voice]);
+
 	return (
 		<div
 			ref={host}
 			className={cn("x00", className)}
 			data-state={state}
 			data-still={still ? "true" : undefined}
+			data-speaking={speaking ? "true" : undefined}
 			data-testid="x00-portrait"
 			role={label ? "img" : undefined}
 			aria-label={label}

@@ -58,9 +58,17 @@ precision mediump float;
 #endif
 uniform sampler2D uMap; uniform sampler2D uData;
 uniform vec3 uLightCol; uniform vec3 uLightDir; uniform float uLight; uniform float uGlow; uniform float uReveal; uniform float uSat;
+uniform float uMouth; uniform vec2 uMouthAt; uniform float uMouthW;
 varying vec2 vUv; varying vec3 vN; varying vec3 vView;
 void main(){
-  vec4 c = texture2D(uMap, vUv); vec4 D = texture2D(uData, vUv);
+  vec2 uv = vUv;
+  // He speaks: the jaw drops with the voice; the lower face slides down and a dark mouth opens on the lip line.
+  float jawW = smoothstep(uMouthW * 2.2, uMouthW * 1.1, abs(uv.x - uMouthAt.x));
+  float jawY = smoothstep(uMouthAt.y - .09, uMouthAt.y - .03, uv.y) * step(uv.y, uMouthAt.y);
+  float drop = uMouth * .027 * jawW * jawY;
+  uv.y += drop;
+  float cav = smoothstep(uMouthAt.y - drop - .002, uMouthAt.y - drop + .002, vUv.y) * smoothstep(uMouthAt.y + .002, uMouthAt.y - .002, vUv.y) * jawW * step(.001, drop);
+  vec4 c = texture2D(uMap, uv); vec4 D = texture2D(uData, uv);
   float a = c.a * smoothstep(0., .03, vUv.y) * smoothstep(0., .08, uReveal * 1.25 - (1. - vUv.y));
   if (a < .004) discard;
   vec3 col = pow(c.rgb, vec3(2.2)); float lum = dot(col, vec3(.2126, .7152, .0722));
@@ -72,6 +80,9 @@ void main(){
   float ndv = clamp(abs(dot(N, normalize(vView))), 0., 1.);
   col += vec3(.93, .91, .89) * pow(max(1. - ndv, 0.), 3.) * .08;
   col = mix(col, uLightCol * (.3 + 1.1 * lum) * uGlow, D.g);
+  // The open mouth: dark inside, a thread of the room's light where the voice is.
+  float mid = 1. - abs((vUv.y - (uMouthAt.y - drop * .5)) / max(drop * .5, .001));
+  col = mix(col, vec3(.0002) + uLightCol * .12 * max(mid, 0.) * uGlow, cav);
   gl_FragColor = vec4(pow(max(col, 0.), vec3(1. / 2.2)), a);
 }`;
 
@@ -128,6 +139,9 @@ export class X00PortraitEngine {
 	private mx = 0;
 	private my = 0;
 	private state: X00State;
+	private speaking = false;
+	private voice: ((now: number) => number) | null = null;
+	private mouth = 0;
 	private lightCol: [number, number, number];
 	private targetCol: [number, number, number];
 	private light: number;
@@ -181,6 +195,13 @@ export class X00PortraitEngine {
 		if (this.reduced) this.draw(performance.now());
 	}
 
+	/** While he speaks, the jaw follows `voice` (0..1, the loudness of what he says). */
+	setSpeaking(speaking: boolean, voice: ((now: number) => number) | null = null): void {
+		this.speaking = speaking;
+		this.voice = speaking ? voice : null;
+		if (this.reduced) this.draw(performance.now());
+	}
+
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
@@ -227,7 +248,7 @@ export class X00PortraitEngine {
 		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(`program: ${gl.getProgramInfoLog(program) ?? "link"}`);
 		this.program = program;
 		gl.useProgram(program);
-		for (const name of ["uProj", "uModelView", "uNormal", "uRelief", "uReveal", "uHand", "uBreath", "uHandBox", "uMap", "uData", "uLightCol", "uLightDir", "uLight", "uGlow", "uSat"]) {
+		for (const name of ["uProj", "uModelView", "uNormal", "uRelief", "uReveal", "uHand", "uBreath", "uHandBox", "uMap", "uData", "uLightCol", "uLightDir", "uLight", "uGlow", "uSat", "uMouth", "uMouthAt", "uMouthW"]) {
 			this.uniforms[name] = gl.getUniformLocation(program, name);
 		}
 		gl.uniform1i(this.uniforms.uMap, 0);
@@ -235,6 +256,8 @@ export class X00PortraitEngine {
 		gl.uniform1f(this.uniforms.uRelief, 0.3);
 		gl.uniform1f(this.uniforms.uSat, 0.9);
 		gl.uniform4f(this.uniforms.uHandBox, 0.03, 0.33, 0.3, 0);
+		gl.uniform2f(this.uniforms.uMouthAt, 0.5, 0.687);
+		gl.uniform1f(this.uniforms.uMouthW, 0.036);
 		gl.enable(gl.DEPTH_TEST);
 		gl.enable(gl.BLEND);
 		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -441,8 +464,11 @@ export class X00PortraitEngine {
 		for (let i = 0; i < 3; i += 1) this.lightCol[i] += (this.targetCol[i] - this.lightCol[i]) * k;
 		const breath = this.state === "working" ? 0.72 + 0.28 * Math.sin((this.t * Math.PI) / 2) : 1;
 		this.light += (this.targetLight * breath - this.light) * Math.min(1, dt * 2.5);
+		const level = this.speaking && this.voice ? Math.max(0, Math.min(1, this.voice(now))) : 0;
+		this.mouth += (level - this.mouth) * Math.min(1, dt * 22);
+		const talk = this.speaking ? 1 : 0;
 		const tx = this.mx * 0.16 + Math.sin(this.t * 0.25) * 0.05;
-		const ty = this.my * 0.08 + Math.sin(this.t * 0.19 + 1) * 0.025;
+		const ty = this.my * 0.08 + Math.sin(this.t * 0.19 + 1) * 0.025 + talk * Math.sin(this.t * 2.3) * 0.012 * level;
 		this.ry += (tx - this.ry) * Math.min(1, dt * 2);
 		this.rx += (ty - this.rx) * Math.min(1, dt * 2);
 		this.draw(now);
@@ -471,7 +497,13 @@ export class X00PortraitEngine {
 		gl.uniform1f(u.uBreath, Math.sin((this.t * Math.PI) / 2.2));
 		const g1 = Math.sin(this.t * 0.9) * 0.5 + 0.5;
 		const g2 = Math.sin(this.t * 0.7 + 2.1) * 0.5 + 0.5;
-		gl.uniform2f(u.uHand, g1 * 0.006, g2 * 0.006);
+		const talking = this.speaking ? this.mouth : 0;
+		gl.uniform2f(
+			u.uHand,
+			g1 * 0.006 + talking * 0.018 * (0.5 + 0.5 * Math.sin(this.t * 3.1)),
+			g2 * 0.006 + talking * 0.018 * (0.5 + 0.5 * Math.sin(this.t * 2.6 + 1.3)),
+		);
+		gl.uniform1f(u.uMouth, this.reduced ? 0 : this.mouth);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		gl.drawElements(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0);
 	}
