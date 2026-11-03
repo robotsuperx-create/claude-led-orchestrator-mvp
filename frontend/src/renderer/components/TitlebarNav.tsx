@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { isLinuxPlatform, isMacPlatform } from "../lib/platform";
 import { sidebarIsVisible, useUiStore } from "../stores/ui-store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { X00TitlebarButton } from "./x00/X00TitlebarButton";
 
 const isMac = isMacPlatform();
 const isLinux = isLinuxPlatform();
@@ -102,9 +101,6 @@ export function TitlebarNav({
       >
         <ArrowRight className="size-icon-lg" aria-hidden="true" />
       </TitlebarButton>
-      {isSidebarOpen ? null : (
-        <X00TitlebarButton className="grid size-control-md place-items-center rounded-md transition-colors hover:bg-interactive-hover" />
-      )}
     </div>
   );
 }

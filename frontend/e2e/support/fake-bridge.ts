@@ -138,6 +138,10 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					get: async () => ({ ok: false, error: "unavailable" }),
 					save: async () => ({ ok: false, error: "unavailable" }),
 				},
+				x00: {
+					info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
+					chat: async () => ({ ok: false, error: "disabled" }),
+				},
 				daemon: {
 					getStatus: async () => status,
 					start: async () => status,
@@ -731,6 +735,10 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 				claudeOrchestratorSettings: {
 					get: async () => ({ ok: false, error: "unavailable" }),
 					save: async () => ({ ok: false, error: "unavailable" }),
+				},
+				x00: {
+					info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
+					chat: async () => ({ ok: false, error: "disabled" }),
 				},
 				daemon: {
 					getStatus: async () => status,
