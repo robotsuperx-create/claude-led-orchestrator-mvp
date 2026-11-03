@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // testWAV is a 16 kHz mono 16-bit recording of the given length.
@@ -244,7 +246,7 @@ func TestLocalMouthPicksAVoicePerLanguage(t *testing.T) {
 	if string(seen.Stdin) != "مرحباً أيها القائد\n" {
 		t.Fatalf("stdin = %q", seen.Stdin)
 	}
-	if _, err := mouth.Synthesize(context.Background(), "Hello", "en"); err != nil || filepath.Base(argAfter(seen.Args, "--model")) != "en_US-ryan-high.onnx" {
+	if _, err := mouth.Synthesize(context.Background(), "Hello", "en"); err != nil || filepath.Base(argAfter(seen.Args, "--model")) != "en_US-ryan-medium.onnx" {
 		t.Fatalf("english voice = %v, %v", seen.Args, err)
 	}
 	if _, err := mouth.Synthesize(context.Background(), "Bonjour", "fr"); !errors.Is(err, ErrUnavailable) {
@@ -322,5 +324,90 @@ func TestAudioContextFitsTheRecording(t *testing.T) {
 		if got := audioContext(44 + int(seconds*SampleRate*2)); got != want {
 			t.Errorf("audioContext(%vs) = %d, want %d", seconds, got, want)
 		}
+	}
+}
+
+type fakeSession struct {
+	mu     sync.Mutex
+	lines  chan string
+	sent   []string
+	closed bool
+	stall  bool
+	write  func(path string) error
+}
+
+func (f *fakeSession) Send(line string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sent = append(f.sent, line)
+	var request map[string]string
+	if err := json.Unmarshal([]byte(line), &request); err != nil {
+		return err
+	}
+	if f.stall {
+		return nil
+	}
+	if err := f.write(request["output_file"]); err != nil {
+		return err
+	}
+	f.lines <- "some log line"
+	f.lines <- request["output_file"]
+	return nil
+}
+
+func (f *fakeSession) Lines() <-chan string { return f.lines }
+
+func (f *fakeSession) Close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = true
+}
+
+func TestLocalMouthKeepsAVoiceWarm(t *testing.T) {
+	dir := t.TempDir()
+	touch(t, filepath.Join(dir, "piper", executable("piper")))
+	touch(t, filepath.Join(dir, "piper", "voices", "en_US-ryan-medium.onnx"))
+	touch(t, filepath.Join(dir, "piper", "voices", "en_US-ryan-medium.onnx.json"))
+	var sessions []*fakeSession
+	var started []Command
+	mouth := &LocalMouth{Dir: dir, Start: func(command Command) (Session, error) {
+		started = append(started, command)
+		session := &fakeSession{lines: make(chan string, 8), write: func(path string) error {
+			return os.WriteFile(path, testWAV(t, 0.5, 22050, 1), 0o600)
+		}}
+		sessions = append(sessions, session)
+		return session, nil
+	}}
+	for _, text := range []string{"Welcome, commander.", "The fleet\nis calm."} {
+		audio, err := mouth.Synthesize(context.Background(), text, "en")
+		if err != nil || len(audio.Data) <= 44 {
+			t.Fatalf("Synthesize(%q) = %d bytes, %v", text, len(audio.Data), err)
+		}
+	}
+	if len(started) != 1 || !slices.Contains(started[0].Args, "--json-input") || argAfter(started[0].Args, "--length_scale") != "1.08" {
+		t.Fatalf("started = %+v", started)
+	}
+	var second map[string]string
+	_ = json.Unmarshal([]byte(sessions[0].sent[1]), &second)
+	if second["text"] != "The fleet is calm." {
+		t.Fatalf("second line = %q", second["text"])
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, "tmp", "*"))
+	if len(left) != 0 {
+		t.Fatalf("scratch files left behind: %v", left)
+	}
+
+	// A stuck Piper is dropped when the request gives up, and the next line starts a fresh one.
+	sessions[0].stall = true
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := mouth.Synthesize(ctx, "Are you there?", "en"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("stalled Synthesize err = %v", err)
+	}
+	if !sessions[0].closed {
+		t.Fatal("the stuck Piper was not closed")
+	}
+	if _, err := mouth.Synthesize(context.Background(), "Back online.", "en"); err != nil || len(started) != 2 {
+		t.Fatalf("restart: started %d, err %v", len(started), err)
 	}
 }

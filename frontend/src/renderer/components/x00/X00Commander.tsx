@@ -286,7 +286,7 @@ function MicButton({ hearing, level, disabled, onToggle }: { hearing: "idle" | "
 			data-hearing={hearing}
 			aria-label={label}
 			aria-pressed={hearing === "listening"}
-			title={hearing === "idle" ? `${label} (Ctrl+Space)` : label}
+			title={label}
 			disabled={hearing === "transcribing" || (disabled && hearing === "idle")}
 			onClick={onToggle}
 			data-testid="x00-mic"

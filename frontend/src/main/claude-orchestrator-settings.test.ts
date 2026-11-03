@@ -53,6 +53,7 @@ describe("ClaudeOrchestratorSettingsStore", () => {
 			AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY: true,
 			AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_API_KEY: false,
 			AO_CLAUDE_ORCHESTRATOR_LOCAL_API_KEY: false,
+			AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY: false,
 		});
 		expect(next.ok && next.value.values).toEqual({ AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL: "m" });
 	});

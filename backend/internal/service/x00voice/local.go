@@ -236,10 +236,13 @@ func readBounded(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// LocalMouth speaks with Piper.
+// LocalMouth speaks with Piper. It keeps each voice loaded in a warm Piper
+// (Start) and falls back to one Piper per line (Run) if that cannot start.
 type LocalMouth struct {
-	Dir string
-	Run Runner
+	Dir   string
+	Run   Runner
+	Start Starter
+	warm  warmPipers
 }
 
 func (m *LocalMouth) Kind() string { return KindLocal }
@@ -249,7 +252,9 @@ func (m *LocalMouth) binary() (string, bool) {
 	return bin, isFile(bin)
 }
 
-// voice picks the best installed voice for a language: high quality first.
+// voice picks the installed voice for a language. Medium voices come first:
+// they sound nearly as good as high ones and speak in real time on a laptop
+// CPU, where high ones are slower than the speech they make.
 func (m *LocalMouth) voice(lang string) (string, bool) {
 	found, _ := filepath.Glob(filepath.Join(m.Dir, "piper", "voices", "*.onnx"))
 	sort.Strings(found)
@@ -264,9 +269,9 @@ func (m *LocalMouth) voice(lang string) (string, bool) {
 		}
 		score := 0
 		switch {
-		case strings.Contains(name, "-high"):
-			score = 3
 		case strings.Contains(name, "-medium"):
+			score = 3
+		case strings.Contains(name, "-high"):
 			score = 2
 		case strings.Contains(name, "-low"):
 			score = 1
@@ -311,13 +316,18 @@ func (m *LocalMouth) Synthesize(ctx context.Context, text, lang string) (Audio, 
 	if lang == "ar" {
 		pace = "1.02"
 	}
-	args := []string{"--model", voice, "--output_file", output, "--length_scale", pace, "--sentence_silence", "0.25"}
-	run := m.Run
-	if run == nil {
-		run = RunProcess
-	}
-	if _, err := run(ctx, Command{Path: bin, Args: args, Dir: filepath.Dir(bin), Stdin: []byte(line + "\n")}); err != nil {
-		return Audio{}, err
+	if !m.speakWarm(ctx, bin, voice, pace, line, output) {
+		if ctx.Err() != nil {
+			return Audio{}, ctx.Err()
+		}
+		args := []string{"--model", voice, "--output_file", output, "--length_scale", pace, "--sentence_silence", "0.25"}
+		run := m.Run
+		if run == nil {
+			run = RunProcess
+		}
+		if _, err := run(ctx, Command{Path: bin, Args: args, Dir: filepath.Dir(bin), Stdin: []byte(line + "\n")}); err != nil {
+			return Audio{}, err
+		}
 	}
 	data, err := readBounded(output, maxEngineOutput)
 	if err != nil {
@@ -327,4 +337,21 @@ func (m *LocalMouth) Synthesize(ctx context.Context, text, lang string) (Audio, 
 		return Audio{}, ErrFailed
 	}
 	return Audio{Data: data, ContentType: "audio/wav"}, nil
+}
+
+// speakWarm voices a line through a warm Piper; false means use a fresh one.
+func (m *LocalMouth) speakWarm(ctx context.Context, bin, voice, pace, line, output string) bool {
+	start := m.Start
+	if start == nil {
+		if m.Run != nil {
+			// A test runner stands in for the engine; keep to it.
+			return false
+		}
+		start = StartProcess
+	}
+	piper, err := m.warm.get(start, bin, voice, pace)
+	if err != nil {
+		return false
+	}
+	return piper.speak(ctx, line, output) == nil
 }
