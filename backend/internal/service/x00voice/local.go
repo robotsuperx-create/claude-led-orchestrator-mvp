@@ -120,6 +120,7 @@ type LocalEar struct {
 	Threads int
 }
 
+// Kind reports that this ear runs on this computer.
 func (e *LocalEar) Kind() string { return KindLocal }
 
 func (e *LocalEar) paths() (string, string, bool) {
@@ -143,11 +144,13 @@ func (e *LocalEar) paths() (string, string, bool) {
 	return "", "", false
 }
 
+// Available reports whether Whisper and a model are installed.
 func (e *LocalEar) Available() bool {
 	_, _, ok := e.paths()
 	return ok
 }
 
+// Transcribe runs Whisper on the recording and returns its text.
 func (e *LocalEar) Transcribe(ctx context.Context, wav []byte, lang string) (string, error) {
 	bin, model, ok := e.paths()
 	if !ok {
@@ -157,12 +160,12 @@ func (e *LocalEar) Transcribe(ctx context.Context, wav []byte, lang string) (str
 	if err != nil {
 		return "", err
 	}
-	defer os.Remove(input)
+	defer func() { _ = os.Remove(input) }()
 	if err := os.WriteFile(input, wav, 0o600); err != nil {
 		return "", err
 	}
 	base := strings.TrimSuffix(input, ".wav")
-	defer os.Remove(base + ".txt")
+	defer func() { _ = os.Remove(base + ".txt") }()
 	if lang == "" {
 		lang = "auto"
 	}
@@ -225,7 +228,7 @@ func readBounded(path string, limit int64) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
 		return nil, err
@@ -245,6 +248,7 @@ type LocalMouth struct {
 	warm  warmPipers
 }
 
+// Kind reports that this voice runs on this computer.
 func (m *LocalMouth) Kind() string { return KindLocal }
 
 func (m *LocalMouth) binary() (string, bool) {
@@ -283,6 +287,7 @@ func (m *LocalMouth) voice(lang string) (string, bool) {
 	return best, best != ""
 }
 
+// Available reports whether Piper and a voice are installed.
 func (m *LocalMouth) Available() bool {
 	if _, ok := m.binary(); !ok {
 		return false
@@ -292,6 +297,7 @@ func (m *LocalMouth) Available() bool {
 	return ar || en
 }
 
+// Synthesize voices the line with Piper and returns WAV audio.
 func (m *LocalMouth) Synthesize(ctx context.Context, text, lang string) (Audio, error) {
 	bin, ok := m.binary()
 	if !ok {
@@ -308,7 +314,7 @@ func (m *LocalMouth) Synthesize(ctx context.Context, text, lang string) (Audio, 
 	if err != nil {
 		return Audio{}, err
 	}
-	defer os.Remove(output)
+	defer func() { _ = os.Remove(output) }()
 	// Piper reads one utterance per line; one line keeps it one file.
 	line := strings.Join(strings.Fields(text), " ")
 	// A commander takes his time.

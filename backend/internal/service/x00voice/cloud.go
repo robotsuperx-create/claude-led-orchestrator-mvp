@@ -47,12 +47,15 @@ type CloudEar struct {
 	Client *http.Client
 }
 
+// Kind reports that this ear is the cloud service.
 func (e *CloudEar) Kind() string { return KindCloud }
 
+// Available reports whether a key, address and model are set.
 func (e *CloudEar) Available() bool {
 	return e.Config.APIKey != "" && e.Config.BaseURL != "" && e.Config.TranscribeModel != ""
 }
 
+// Transcribe sends the recording to the service and returns its text.
 func (e *CloudEar) Transcribe(ctx context.Context, wav []byte, lang string) (string, error) {
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
@@ -103,12 +106,15 @@ type CloudMouth struct {
 	Client *http.Client
 }
 
+// Kind reports that this voice is the cloud service.
 func (m *CloudMouth) Kind() string { return KindCloud }
 
+// Available reports whether a key, address, model and voice are set.
 func (m *CloudMouth) Available() bool {
 	return m.Config.APIKey != "" && m.Config.BaseURL != "" && m.Config.SpeechModel != "" && m.Config.Voice != ""
 }
 
+// Synthesize asks the service to speak the line and returns MP3 audio.
 func (m *CloudMouth) Synthesize(ctx context.Context, text, _ string) (Audio, error) {
 	payload := map[string]string{
 		"model":           m.Config.SpeechModel,
@@ -149,7 +155,7 @@ func doCloud(client *http.Client, request *http.Request, limit int64) ([]byte, e
 		}
 		return nil, errors.New("the speech service could not be reached")
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
 		return nil, fmt.Errorf("the speech service answered %d", response.StatusCode)
