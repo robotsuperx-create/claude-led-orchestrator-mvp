@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { ClaudeOrchestratorRunState } from "../../shared/claude-orchestrator";
 import type { X00Action, X00Info, X00Mood, X00Screen } from "../../shared/x00";
 import { aoBridge } from "../lib/bridge";
-import { SpeechEnvelope, speak } from "../lib/x00-voice";
+import { SpeechEnvelope, speak, speechChunks, X00Player } from "../lib/x00-voice";
+import { X00Recorder, X00RecorderError } from "../lib/x00-ear";
 import { unavailableX00Bridge, type X00Bridge } from "../lib/x00-preview";
 import { conversationForClaude, useX00Store, x00Id, type X00Proposal } from "../stores/x00-store";
 import { useUiStore } from "../stores/ui-store";
@@ -32,6 +33,7 @@ export function useX00Info() {
 		queryFn: async () => {
 			const result = await bridge().info();
 			if (!result.ok) throw new Error(result.error);
+			engineVoice = result.value.speak !== undefined;
 			return result.value;
 		},
 		refetchInterval: (query) => (query.state.data?.enabled ? 60_000 : 10_000),
@@ -39,18 +41,29 @@ export function useX00Info() {
 	});
 }
 
-// One voice for the whole app: a new line cuts off the last.
+// One voice for the whole app: a new line cuts off the last. When the daemon
+// has a speech engine (local Piper or a cloud service) he speaks with it,
+// louder and clearer; otherwise, or if it fails, with the system's voice.
 const envelope = new SpeechEnvelope();
+const player = X00Player.supported() ? new X00Player() : null;
+let engineVoice = false;
 let stopCurrent: (() => void) | null = null;
+let lineToken = 0;
 
 /** How loud X-00 is right now (0..1), for his jaw. Stable across renders. */
-export const x00VoiceLevel = envelope.level;
+export const x00VoiceLevel = (now: number): number => (player?.playing ? player.level() : envelope.level(now));
 
-/** Reads a line aloud when the person has X-00's voice on. */
-export async function x00Say(text: string, mood: X00Mood, appLocale: string): Promise<void> {
+/**
+ * Reads a line aloud when the person has X-00's voice on. `voiceText` is the
+ * same line written for a speech engine (Arabic with full tashkeel).
+ */
+export async function x00Say(text: string, mood: X00Mood, appLocale: string, voiceText?: string): Promise<void> {
 	const store = useX00Store.getState();
 	if (!store.prefs.voice) return;
-	stopCurrent?.();
+	x00Hush();
+	const token = ++lineToken;
+	if (engineVoice && player && (await sayWithEngine(voiceText?.trim() || text, mood, appLocale, token))) return;
+	if (token !== lineToken) return;
 	stopCurrent = await speak(text, {
 		appLocale,
 		voiceURI: store.prefs.voiceURI,
@@ -60,11 +73,139 @@ export async function x00Say(text: string, mood: X00Mood, appLocale: string): Pr
 	});
 }
 
+/**
+ * Voices the line sentence by sentence: the first plays while the next is
+ * being made. False when the engine could not start, so the system voice
+ * takes over; once he has started, a later failure just ends the line.
+ */
+async function sayWithEngine(text: string, mood: X00Mood, locale: string, token: number): Promise<boolean> {
+	if (!player) return false;
+	const chunks = speechChunks(text);
+	if (chunks.length === 0) return true;
+	let stopped = false;
+	stopCurrent = () => {
+		stopped = true;
+		player.stop();
+	};
+	const make = async (chunk: string) => {
+		const result = await bridge().speak({ text: chunk, locale });
+		if (!result.ok) return null;
+		try {
+			return await player.decode(result.value.audio);
+		} catch {
+			return null;
+		}
+	};
+	let next = make(chunks[0]);
+	let started = false;
+	for (let index = 0; index < chunks.length; index += 1) {
+		const buffer = await next;
+		if (stopped || token !== lineToken) return true;
+		if (!buffer) {
+			if (!started) return false;
+			break;
+		}
+		next = index + 1 < chunks.length ? make(chunks[index + 1]) : Promise.resolve(null);
+		if (!started) {
+			started = true;
+			useX00Store.getState().setSpeaking(true, mood);
+		}
+		await player.play(buffer);
+	}
+	if (token === lineToken && !stopped) useX00Store.getState().setSpeaking(false);
+	return true;
+}
+
 /** Stops whatever X-00 is saying. */
 export function x00Hush(): void {
+	lineToken += 1;
 	stopCurrent?.();
 	stopCurrent = null;
+	player?.stop();
 	useX00Store.getState().setSpeaking(false);
+}
+
+const recorder = new X00Recorder();
+
+/** X-00's ears: press to talk; he stops listening when you pause, then answers. */
+export function useX00Listen(send: (text: string) => Promise<void>) {
+	const { i18n } = useTranslation();
+	const hearing = useX00Store((store) => store.hearing);
+	const level = useRef(0);
+
+	const fail = useCallback((code: string) => {
+		const store = useX00Store.getState();
+		store.setHearing("idle");
+		store.add({ id: x00Id("error"), kind: "error", code, at: Date.now() });
+	}, []);
+
+	const finish = useCallback(async () => {
+		const store = useX00Store.getState();
+		if (store.hearing !== "listening") return;
+		store.setHearing("transcribing");
+		level.current = 0;
+		const audio = await recorder.stop();
+		if (!audio) {
+			fail("no_speech");
+			return;
+		}
+		const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
+		const result = await bridge().listen({ audio, locale });
+		if (!result.ok) {
+			fail(result.error === "disabled" ? "voice_off" : result.error);
+			return;
+		}
+		useX00Store.getState().setHearing("idle");
+		const text = result.value.text.trim();
+		if (!text) {
+			fail("no_speech");
+			return;
+		}
+		await send(text);
+	}, [fail, i18n, send]);
+
+	const start = useCallback(async () => {
+		const store = useX00Store.getState();
+		if (store.hearing !== "idle" || store.thinking) return;
+		x00Hush();
+		store.setHearing("listening");
+		try {
+			await recorder.start({
+				onLevel: (value) => {
+					level.current = value;
+				},
+				onAutoStop: (verdict) => {
+					if (verdict === "no_speech") {
+						recorder.cancel();
+						fail("no_speech");
+					} else {
+						void finish();
+					}
+				},
+			});
+		} catch (error) {
+			fail(error instanceof X00RecorderError && error.code === "denied" ? "mic_denied" : "no_mic");
+		}
+	}, [fail, finish]);
+
+	const cancel = useCallback(() => {
+		recorder.cancel();
+		level.current = 0;
+		useX00Store.getState().setHearing("idle");
+	}, []);
+
+	const toggle = useCallback(() => {
+		const current = useX00Store.getState().hearing;
+		if (current === "idle") void start();
+		else if (current === "listening") void finish();
+	}, [finish, start]);
+
+	// Stop listening when the panel closes.
+	useEffect(() => () => {
+		if (recorder.recording) cancel();
+	}, [cancel]);
+
+	return { hearing, level, toggle, cancel, supported: X00Recorder.supported() };
 }
 
 function useCurrentScreen(): X00Screen | "other" {
@@ -98,7 +239,7 @@ export function useX00Conversation() {
 		const reply = result.value;
 		const proposals: X00Proposal[] = reply.actions.map((action) => ({ id: x00Id("action"), action, status: "proposed" }));
 		useX00Store.getState().add({ id: x00Id("x00"), kind: "turn", role: "assistant", content: reply.say, mood: reply.mood, proposals, at: Date.now() });
-		void x00Say(reply.say, reply.mood, locale);
+		void x00Say(reply.say, reply.mood, locale, reply.voice);
 	}, [i18n, screen]);
 }
 

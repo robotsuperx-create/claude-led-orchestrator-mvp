@@ -11,7 +11,7 @@ import {
 	type ClaudeOrchestratorSettingsView,
 } from "../../../shared/claude-orchestrator-settings";
 import { claudeOrchestratorQueryKeys } from "../../hooks/useClaudeOrchestrator";
-import { x00QueryKeys } from "../../hooks/useX00";
+import { useX00Info, x00QueryKeys } from "../../hooks/useX00";
 import { aoBridge } from "../../lib/bridge";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -40,6 +40,10 @@ const PLACEHOLDERS: Partial<Record<Key, string>> = {
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_INPUT_PER_MTOK: "3",
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_OUTPUT_PER_MTOK: "15",
 	AO_CLAUDE_ORCHESTRATOR_X00_MODEL: "claude-haiku-5-5",
+	AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL: "https://api.openai.com/v1",
+	AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL: "gpt-4o-mini-transcribe",
+	AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL: "gpt-4o-mini-tts",
+	AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME: "onyx",
 };
 const COMMAND_PLACEHOLDER = "npm ci\nnpm test";
 const DURATION = /^(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
@@ -69,10 +73,13 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	] as const) {
 		if (value(key) && !DECIMAL.test(value(key))) errors[key] = "number";
 	}
-	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL"] as const) {
+	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL"] as const) {
 		if (value(key) && !/^https?:\/\/\S+$/.test(value(key))) errors[key] = "url";
 	}
 	if (value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL") && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL"))) errors.AO_CLAUDE_ORCHESTRATOR_X00_MODEL = "model";
+	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME"] as const) {
+		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value(key))) errors[key] = "model";
+	}
 	if (commandsFromText(commands.worker).error) errors.WORKER_COMMANDS = "quote";
 	if (commandsFromText(commands.validator).error) errors.VALIDATOR_COMMANDS = "quote";
 	if (!isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED)) return errors;
@@ -292,6 +299,15 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				{field("AO_CLAUDE_ORCHESTRATOR_X00_MODEL", t("settings.x00.model"), { mono: true, description: t("settings.x00.modelDescription") })}
 			</SettingsSection>
 
+			<SettingsSection title={t("settings.x00.voice")} grouped>
+				<VoiceEnginesRow />
+				{secret("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY", t("settings.x00.voiceKey"))}
+				{field("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL", t("settings.x00.voiceBaseUrl"), { mono: true })}
+				{field("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", t("settings.x00.voiceSttModel"), { mono: true })}
+				{field("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", t("settings.x00.voiceTtsModel"), { mono: true })}
+				{field("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME", t("settings.x00.voiceName"), { mono: true, description: t("settings.x00.voiceNameDescription") })}
+			</SettingsSection>
+
 			<SettingsSection title={t("settings.missionControl.planner")} grouped>
 				{choice("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER", t("settings.missionControl.plannerProvider"), [
 					{ value: "claude", label: "Claude" },
@@ -430,6 +446,28 @@ function TextField({ id, label, description, value, placeholder, mono, inputMode
 				{action}
 			</div>
 		</FieldShell>
+	);
+}
+
+const ENGINE_KEYS = {
+	local: "settings.x00.engine.local",
+	cloud: "settings.x00.engine.cloud",
+	none: "settings.x00.engine.none",
+	system: "settings.x00.engine.system",
+} as const;
+
+/** Which engine hears and which speaks for X-00 right now, from the daemon. */
+function VoiceEnginesRow() {
+	const { t } = useTranslation();
+	const info = useX00Info();
+	const listen = info.data?.listen ?? "none";
+	const speak = info.data?.speak ?? "system";
+	return (
+		<SettingsRow label={t("settings.x00.voiceEngines")} description={t("settings.x00.voiceEnginesDescription")}>
+			<p className="text-right text-[12px] leading-5 text-muted-foreground rtl:text-left" data-testid="x00-voice-engines">
+				{t("settings.x00.voiceEnginesValue", { listen: t(ENGINE_KEYS[listen]), speak: t(ENGINE_KEYS[speak]) })}
+			</p>
+		</SettingsRow>
 	);
 }
 

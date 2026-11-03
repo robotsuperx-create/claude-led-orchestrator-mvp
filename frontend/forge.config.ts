@@ -129,6 +129,10 @@ const config: ForgeConfig = {
 		executableName: EXECUTABLE_NAME,
 		protocols: [AUTH_PROTOCOL],
 		appCategoryType: "public.app-category.developer-tools",
+		// macOS asks before the microphone is used; this is the reason it shows.
+		extendInfo: {
+			NSMicrophoneUsageDescription: "X-00 listens only after you press his microphone button, so you can talk to him instead of typing.",
+		},
 		// App icon. electron-packager appends the per-platform extension
 		// (.icns on macOS, .ico on Windows); Linux menu icons come from the
 		// deb/rpm makers below, and the runtime window icon from src/main.ts.

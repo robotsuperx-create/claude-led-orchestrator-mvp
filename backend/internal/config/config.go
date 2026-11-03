@@ -145,6 +145,101 @@ type ClaudeOrchestratorConfig struct {
 	// Commander is X-00, the Claude-backed assistant in the app. It needs only
 	// a Claude key, so it works whether or not runs are switched on.
 	Commander CommanderConfig
+	// Voice is how X-00 hears and speaks: local engines found on disk, and a
+	// cloud speech service when the person adds its key.
+	Voice X00VoiceConfig
+}
+
+// X-00 voice defaults. The cloud service speaks the OpenAI audio API, which
+// OpenAI and several other providers serve.
+const (
+	DefaultX00VoiceBaseURL         = "https://api.openai.com/v1"
+	DefaultX00VoiceTranscribeModel = "gpt-4o-mini-transcribe"
+	DefaultX00VoiceSpeechModel     = "gpt-4o-mini-tts"
+	DefaultX00VoiceName            = "onyx"
+	// X00SpeechDirName holds the local engines under the data dir.
+	X00SpeechDirName = "speech"
+)
+
+// X00VoiceConfig configures X-00's ears and voice. SpeechDir is where local
+// engines (Whisper, Piper) are looked for; Cloud is set only when a voice key
+// is saved and its settings are valid. CloudReason says why it is not.
+type X00VoiceConfig struct {
+	SpeechDir   string
+	Cloud       *X00CloudVoiceConfig
+	CloudReason string
+}
+
+// X00CloudVoiceConfig is an OpenAI-compatible speech service.
+type X00CloudVoiceConfig struct {
+	BaseURL         string
+	APIKey          string
+	TranscribeModel string
+	SpeechModel     string
+	Voice           string
+}
+
+// String keeps the API key out of ordinary formatting.
+func (c X00CloudVoiceConfig) String() string {
+	return fmt.Sprintf("X00CloudVoiceConfig{BaseURL:%q, TranscribeModel:%q, SpeechModel:%q, Voice:%q, APIKey:%s}", c.BaseURL, c.TranscribeModel, c.SpeechModel, c.Voice, redactedIfSet(c.APIKey))
+}
+
+// GoString keeps %#v dumps redacted as well.
+func (c X00CloudVoiceConfig) GoString() string { return c.String() }
+
+func redactedIfSet(value string) string {
+	if value == "" {
+		return `""`
+	}
+	return "[redacted]"
+}
+
+// loadX00VoiceConfig reads X-00's voice settings. Nothing here can stop the
+// daemon: a bad cloud setting only leaves the local engines in charge.
+func loadX00VoiceConfig(get func(string) string, dataDir string) X00VoiceConfig {
+	cfg := X00VoiceConfig{SpeechDir: filepath.Join(dataDir, X00SpeechDirName)}
+	if dir := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_SPEECH_DIR")); dir != "" && filepath.IsAbs(dir) {
+		cfg.SpeechDir = filepath.Clean(dir)
+	}
+	key := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY"))
+	if key == "" {
+		return cfg
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL")), "/")
+	if baseURL == "" {
+		baseURL = DefaultX00VoiceBaseURL
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.User != nil {
+		cfg.CloudReason = CommanderReasonInvalidURL
+		return cfg
+	}
+	if err := requireLoopbackForPlainHTTP("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL", baseURL); err != nil {
+		cfg.CloudReason = CommanderReasonInvalidURL
+		return cfg
+	}
+	cloud := &X00CloudVoiceConfig{
+		BaseURL:         baseURL,
+		APIKey:          key,
+		TranscribeModel: voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", DefaultX00VoiceTranscribeModel),
+		SpeechModel:     voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", DefaultX00VoiceSpeechModel),
+		Voice:           voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME", DefaultX00VoiceName),
+	}
+	for _, value := range []string{cloud.TranscribeModel, cloud.SpeechModel, cloud.Voice} {
+		if len(value) > 128 || strings.ContainsAny(value, "\r\n\x00 /?#") {
+			cfg.CloudReason = CommanderReasonBadModel
+			return cfg
+		}
+	}
+	cfg.Cloud = cloud
+	return cfg
+}
+
+func voiceSetting(get func(string) string, name, fallback string) string {
+	if value := strings.TrimSpace(get(name)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // X-00 defaults: a fast model, because its replies are spoken aloud.
@@ -718,6 +813,7 @@ func loadClaudeOrchestratorSection(dataDir string) (ClaudeOrchestratorConfig, er
 	// X-00 reads the same file and environment on its own, so whatever state
 	// runs are in, the assistant is configured from what the person saved.
 	cfg.Commander = loadCommanderConfig((&claudeOrchestratorEnv{file: file}).get)
+	cfg.Voice = loadX00VoiceConfig((&claudeOrchestratorEnv{file: file}).get, dataDir)
 	return cfg, err
 }
 

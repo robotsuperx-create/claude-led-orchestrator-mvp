@@ -22,12 +22,18 @@ export type X00Action =
 	| { type: "publish_run"; runId: string }
 	| { type: "open"; screen: X00Screen };
 
-export type X00Reply = { say: string; mood: X00Mood; actions: X00Action[] };
+/** voice: the line written for a speech engine (Arabic with full tashkeel). */
+export type X00Reply = { say: string; voice?: string; mood: X00Mood; actions: X00Action[] };
 
 /** Why X-00 is silent: no Claude key, turned off, or a setting needs fixing. */
 export type X00OffReason = "no_key" | "off" | "invalid_url" | "invalid_model";
 
-export type X00Info = { enabled: true; model: string } | { enabled: false; reason: X00OffReason };
+/** Which engine hears or speaks for X-00: a cloud speech service or one on this computer. */
+export type X00VoiceEngine = "local" | "cloud";
+
+export type X00VoiceStatus = { listen?: X00VoiceEngine; speak?: X00VoiceEngine };
+
+export type X00Info = ({ enabled: true; model: string } | { enabled: false; reason: X00OffReason }) & X00VoiceStatus;
 
 export type X00ChatInput = { turns: X00Turn[]; locale: string; screen?: X00Screen | "other" };
 
@@ -36,11 +42,28 @@ export type X00ErrorCode = "daemon_unavailable" | "disabled" | "busy" | "invalid
 
 export type X00Result<T> = { ok: true; value: T } | { ok: false; error: X00ErrorCode };
 
+/** A recording to transcribe: 16 kHz mono 16-bit WAV. */
+export type X00ListenInput = { audio: Uint8Array; locale: string };
+export type X00Heard = { text: string };
+/** A line to voice. */
+export type X00SpeakInput = { text: string; locale: string };
+export type X00SpeechType = "audio/wav" | "audio/mpeg";
+export type X00Speech = { audio: Uint8Array; type: X00SpeechType };
+
+// Mirrors backend/internal/service/x00voice.
+export const X00_SAMPLE_RATE = 16000;
+export const X00_MAX_LISTEN_SECONDS = 60;
+export const X00_MAX_AUDIO_BYTES = 44 + X00_SAMPLE_RATE * 2 * X00_MAX_LISTEN_SECONDS + 1024;
+export const X00_MAX_SPEAK_CHARS = 3000;
+export const X00_MAX_HEARD_CHARS = 4000;
+export const X00_MAX_SPEECH_BYTES = 16 * 1024 * 1024;
+
 // Mirrors the daemon's limits (backend/internal/service/x00).
 export const X00_MAX_TURNS = 24;
 export const X00_MAX_TURN_CHARS = 4000;
 export const X00_MAX_TOTAL_CHARS = 24000;
 const X00_MAX_SAY_CHARS = 1600;
+const X00_MAX_VOICE_CHARS = 3000;
 const X00_MAX_TASK_CHARS = 8000;
 const X00_MAX_ACTIONS = 3;
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/;
@@ -76,15 +99,49 @@ export function validX00ChatInput(input: unknown): input is X00ChatInput {
 	return true;
 }
 
+/** The two languages X-00's engines speak well; "" lets the engine decide. */
+export function x00SpeechLang(locale: string): "ar" | "en" | "" {
+	const lower = locale.toLowerCase();
+	return lower.startsWith("ar") ? "ar" : lower.startsWith("en") ? "en" : "";
+}
+
+/** A recording the daemon will accept: a WAV file within the size limit. */
+export function validX00ListenInput(input: unknown): input is X00ListenInput {
+	const candidate = record(input);
+	if (!candidate || !(candidate.audio instanceof Uint8Array)) return false;
+	const audio = candidate.audio;
+	if (audio.byteLength <= 44 || audio.byteLength > X00_MAX_AUDIO_BYTES) return false;
+	const riff = String.fromCharCode(audio[0], audio[1], audio[2], audio[3]);
+	const wave = String.fromCharCode(audio[8], audio[9], audio[10], audio[11]);
+	return riff === "RIFF" && wave === "WAVE" && typeof candidate.locale === "string" && LOCALE_PATTERN.test(candidate.locale);
+}
+
+/** A line the daemon will voice. */
+export function validX00SpeakInput(input: unknown): input is X00SpeakInput {
+	const candidate = record(input);
+	if (!candidate || typeof candidate.text !== "string" || typeof candidate.locale !== "string") return false;
+	const text = candidate.text.trim();
+	return Boolean(text) && length(text) <= X00_MAX_SPEAK_CHARS && !text.includes("\u0000") && LOCALE_PATTERN.test(candidate.locale);
+}
+
+function voiceEngine(value: unknown): X00VoiceEngine | undefined {
+	return value === "local" || value === "cloud" ? value : undefined;
+}
+
 /** Rebuilds the daemon's info from allowlisted fields. */
 export function parseX00Info(value: unknown): X00Info | null {
 	const body = record(value);
 	if (!body || typeof body.enabled !== "boolean") return null;
+	const voice: X00VoiceStatus = {};
+	const listen = voiceEngine(body.listen);
+	const speak = voiceEngine(body.speak);
+	if (listen) voice.listen = listen;
+	if (speak) voice.speak = speak;
 	if (body.enabled) {
-		return typeof body.model === "string" && MODEL_PATTERN.test(body.model) ? { enabled: true, model: body.model } : null;
+		return typeof body.model === "string" && MODEL_PATTERN.test(body.model) ? { enabled: true, model: body.model, ...voice } : null;
 	}
 	const reason = body.reason;
-	return { enabled: false, reason: reason === "off" || reason === "invalid_url" || reason === "invalid_model" ? reason : "no_key" };
+	return { enabled: false, reason: reason === "off" || reason === "invalid_url" || reason === "invalid_model" ? reason : "no_key", ...voice };
 }
 
 /** Rebuilds X-00's reply, keeping only well-formed actions. */
@@ -99,7 +156,15 @@ export function parseX00Reply(value: unknown): X00Reply | null {
 		const action = parseX00Action(item);
 		if (action) actions.push(action);
 	}
-	return { say, mood, actions };
+	const voice = typeof body.voice === "string" ? Array.from(body.voice.trim()).slice(0, X00_MAX_VOICE_CHARS).join("") : "";
+	return voice ? { say, voice, mood, actions } : { say, mood, actions };
+}
+
+/** Rebuilds a transcript from the daemon. */
+export function parseX00Heard(value: unknown): X00Heard | null {
+	const body = record(value);
+	if (!body || typeof body.text !== "string") return null;
+	return { text: Array.from(body.text.trim()).slice(0, X00_MAX_HEARD_CHARS).join("") };
 }
 
 function parseX00Action(value: unknown): X00Action | null {

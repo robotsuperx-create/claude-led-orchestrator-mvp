@@ -6259,6 +6259,49 @@ html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) .
 .x00-composer:focus-within {
 	box-shadow: inset 0 0 0 1px var(--ring);
 }
+/* Push to talk: ion while he listens, the ring swelling with your voice. */
+.x00-mic {
+	position: relative;
+	display: grid;
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	place-items: center;
+	border-radius: 999px;
+	color: var(--muted-foreground);
+	transition:
+		color 160ms ease,
+		background-color 160ms ease;
+}
+.x00-mic:hover:not(:disabled) {
+	color: var(--foreground);
+	background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+.x00-mic:focus-visible {
+	outline: 1px solid var(--ring);
+	outline-offset: 2px;
+}
+.x00-mic:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+.x00-mic-ring {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+}
+.x00-mic[data-hearing="listening"] {
+	color: var(--brand-void, var(--primary-foreground));
+	background: var(--brand-ion, var(--primary));
+}
+.x00-mic[data-hearing="listening"] .x00-mic-ring {
+	box-shadow: 0 0 0 calc(2px + var(--x00-level, 0) * 9px) color-mix(in oklab, var(--brand-ion, var(--primary)) 32%, transparent);
+	transition: box-shadow 90ms linear;
+}
+.x00-mic[data-hearing="transcribing"] {
+	color: var(--brand-ion, var(--primary));
+}
 
 @media (prefers-reduced-motion: reduce) {
 	.x00-talk,

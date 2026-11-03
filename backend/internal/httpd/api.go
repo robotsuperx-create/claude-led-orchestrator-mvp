@@ -84,6 +84,8 @@ type APIDeps struct {
 	// X00 answers the person as X-00 through Claude. Nil leaves only the
 	// info route, which says why X-00 cannot talk yet.
 	X00 X00Service
+	// X00Voice hears and speaks for X-00 (local engines, a cloud service).
+	X00Voice X00Voice
 
 	// Presence tracks which mobile devices are currently running the app.
 	// Nil disables presence tracking (the roster then reports every device offline).

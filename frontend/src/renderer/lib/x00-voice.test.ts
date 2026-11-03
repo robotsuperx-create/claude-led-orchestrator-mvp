@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickVoice, SpeechEnvelope, speechLanguage } from "./x00-voice";
+import { pickVoice, SpeechEnvelope, speechChunks, speechLanguage } from "./x00-voice";
 
 const voice = (name: string, lang: string, localService = true) => ({ name, lang, voiceURI: name, localService, default: false });
 
@@ -47,5 +47,19 @@ describe("SpeechEnvelope", () => {
 		expect(envelope.level(2005)).toBeGreaterThan(envelope.level(2400));
 		envelope.stop();
 		expect(envelope.level(2500)).toBe(0);
+	});
+});
+
+describe("speechChunks", () => {
+	it("splits a reply into sentences and joins the short ones", () => {
+		expect(speechChunks("All calm. One run is held for review and needs your eyes. Another is executing right now, three of five steps done.")).toEqual([
+			"All calm. One run is held for review and needs your eyes.",
+			"Another is executing right now, three of five steps done.",
+		]);
+		expect(speechChunks("الأُسْطُولُ هَادِئٌ. هُنَاكَ تَشْغِيلٌ وَاحِدٌ يَنْتَظِرُ مُوَافَقَتَكَ عَلَى الخُطَّةِ؟ نَعَمْ!")).toEqual([
+			"الأُسْطُولُ هَادِئٌ. هُنَاكَ تَشْغِيلٌ وَاحِدٌ يَنْتَظِرُ مُوَافَقَتَكَ عَلَى الخُطَّةِ؟ نَعَمْ!",
+		]);
+		expect(speechChunks("   ")).toEqual([]);
+		expect(speechChunks("No punctuation at all")).toEqual(["No punctuation at all"]);
 	});
 });

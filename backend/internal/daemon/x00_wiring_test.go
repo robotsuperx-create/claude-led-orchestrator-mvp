@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -59,5 +62,42 @@ func TestX00TalksToClaudeThroughTheConfiguredProvider(t *testing.T) {
 func TestX00StaysSilentWithoutAConnection(t *testing.T) {
 	if newX00(config.CommanderConfig{Reason: config.CommanderReasonNoKey}, slog.New(slog.DiscardHandler)) != nil {
 		t.Fatal("X-00 should be off without a key")
+	}
+}
+
+func TestX00VoiceFindsLocalEnginesWithoutARestart(t *testing.T) {
+	speech := t.TempDir()
+	voice := newX00Voice(config.X00VoiceConfig{SpeechDir: speech})
+	if status := voice.Status(); status.Listen != "" || status.Speak != "" {
+		t.Fatalf("status before install = %+v", status)
+	}
+	exe := func(name string) string {
+		if runtime.GOOS == "windows" {
+			return name + ".exe"
+		}
+		return name
+	}
+	for _, path := range []string{
+		filepath.Join(speech, "whisper", exe("whisper-cli")),
+		filepath.Join(speech, "whisper", "models", "ggml-base-q5_1.bin"),
+		filepath.Join(speech, "piper", exe("piper")),
+		filepath.Join(speech, "piper", "voices", "en_US-ryan-high.onnx"),
+		filepath.Join(speech, "piper", "voices", "en_US-ryan-high.onnx.json"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if status := voice.Status(); status.Listen != "local" || status.Speak != "local" {
+		t.Fatalf("status after install = %+v", status)
+	}
+	cloud := newX00Voice(config.X00VoiceConfig{SpeechDir: speech, Cloud: &config.X00CloudVoiceConfig{
+		BaseURL: "https://api.openai.com/v1", APIKey: "k", TranscribeModel: "gpt-4o-mini-transcribe", SpeechModel: "gpt-4o-mini-tts", Voice: "onyx",
+	}})
+	if status := cloud.Status(); status.Listen != "cloud" || status.Speak != "cloud" {
+		t.Fatalf("status with a cloud key = %+v", status)
 	}
 }

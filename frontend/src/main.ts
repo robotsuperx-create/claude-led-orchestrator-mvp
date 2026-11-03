@@ -2043,6 +2043,8 @@ const x00Client = new X00Client(
 const untrustedX00Caller = { ok: false, error: "failed" } as const;
 ipcMain.handle("x00:info", (event) => isTrustedShellSender(event) ? x00Client.info() : untrustedX00Caller);
 ipcMain.handle("x00:chat", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.chat(input) : untrustedX00Caller);
+ipcMain.handle("x00:listen", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.listen(input) : untrustedX00Caller);
+ipcMain.handle("x00:speak", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.speak(input) : untrustedX00Caller);
 
 // Mission control settings: saved owner-only under the AO data dir and read
 // by the daemon at start, so a save restarts the daemon. API keys are written

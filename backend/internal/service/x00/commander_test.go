@@ -121,6 +121,26 @@ func TestReplySpeaksPlainTextWhenTheModelSkipsJSON(t *testing.T) {
 	}
 }
 
+func TestReplyKeepsAVowelledVoiceLineForArabicOnly(t *testing.T) {
+	chatter := &fakeChatter{reply: `{"say":"الأسطول هادئ.","voice":"الأُسْطُولُ هَادِئٌ.","mood":"neutral","actions":[]}`}
+	commander, _ := New(chatter)
+	reply, err := commander.Reply(context.Background(), Request{Turns: ask("ما حال الأسطول؟"), Locale: "ar", Fleet: fleet()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.Say != "الأسطول هادئ." || reply.Voice != "الأُسْطُولُ هَادِئٌ." {
+		t.Fatalf("reply = %+v", reply)
+	}
+	if !strings.Contains(chatter.messages[0].Content, "full tashkeel") {
+		t.Fatal("the prompt does not ask for a vowelled voice line")
+	}
+	chatter.reply = `{"say":"All calm.","voice":"All calm.","mood":"neutral","actions":[]}`
+	reply, _ = commander.Reply(context.Background(), Request{Turns: ask("status?"), Fleet: fleet()})
+	if reply.Voice != "" {
+		t.Fatalf("an English voice line was kept: %q", reply.Voice)
+	}
+}
+
 func TestReplyHidesProviderErrors(t *testing.T) {
 	commander, _ := New(&fakeChatter{err: errors.New("401 invalid x-api-key sk-ant-secret")})
 	_, err := commander.Reply(context.Background(), Request{Turns: ask("hello")})

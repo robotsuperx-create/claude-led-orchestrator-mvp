@@ -1,15 +1,19 @@
-import type { X00ChatInput, X00Info, X00Reply, X00Result } from "../../shared/x00";
+import type { X00ChatInput, X00Heard, X00Info, X00ListenInput, X00Reply, X00Result, X00SpeakInput, X00Speech } from "../../shared/x00";
 
 /** The bridge surface the renderer depends on (matches preload's shape). */
 export type X00Bridge = {
 	info: () => Promise<X00Result<X00Info>>;
 	chat: (input: X00ChatInput) => Promise<X00Result<X00Reply>>;
+	listen: (input: X00ListenInput) => Promise<X00Result<X00Heard>>;
+	speak: (input: X00SpeakInput) => Promise<X00Result<X00Speech>>;
 };
 
 /** Used outside Electron when no preview data is wanted (tests, plain web). */
 export const unavailableX00Bridge: X00Bridge = {
 	info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
 	chat: async () => ({ ok: false, error: "disabled" }),
+	listen: async () => ({ ok: false, error: "disabled" }),
+	speak: async () => ({ ok: false, error: "disabled" }),
 };
 
 /**
@@ -18,7 +22,13 @@ export const unavailableX00Bridge: X00Bridge = {
  */
 export function createX00Preview(): X00Bridge {
 	return {
-		info: async () => ({ ok: true, value: { enabled: true, model: "claude-haiku-5-5" } }),
+		// The preview hears (a scripted line) but speaks with the browser's voice.
+		info: async () => ({ ok: true, value: { enabled: true, model: "claude-haiku-5-5", listen: "local" } }),
+		listen: async (input) => {
+			await new Promise((resolve) => setTimeout(resolve, 700));
+			return { ok: true, value: { text: input.locale.startsWith("ar") ? "ما حال الأسطول؟" : "How is the fleet?" } };
+		},
+		speak: async () => ({ ok: false, error: "disabled" }),
 		chat: async (input) => {
 			await new Promise((resolve) => setTimeout(resolve, 900));
 			const last = input.turns[input.turns.length - 1]?.content ?? "";

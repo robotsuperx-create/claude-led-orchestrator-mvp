@@ -18,6 +18,8 @@ type X00Store = {
 	entries: X00Entry[];
 	thinking: boolean;
 	speaking: boolean;
+	/** Listening to the person through the microphone, or turning it into text. */
+	hearing: "idle" | "listening" | "transcribing";
 	mood: X00Mood;
 	unseen: number;
 	prefs: X00Prefs;
@@ -27,6 +29,7 @@ type X00Store = {
 	setProposal: (entryId: string, proposalId: string, status: X00Proposal["status"]) => void;
 	setThinking: (thinking: boolean) => void;
 	setSpeaking: (speaking: boolean, mood?: X00Mood) => void;
+	setHearing: (hearing: "idle" | "listening" | "transcribing") => void;
 	setPrefs: (prefs: Partial<X00Prefs>) => void;
 	clear: () => void;
 };
@@ -88,6 +91,7 @@ export const useX00Store = create<X00Store>((set, get) => ({
 	entries: initial.entries,
 	thinking: false,
 	speaking: false,
+	hearing: "idle",
 	mood: "neutral",
 	unseen: 0,
 	prefs: initial.prefs,
@@ -113,6 +117,7 @@ export const useX00Store = create<X00Store>((set, get) => ({
 	},
 	setThinking: (thinking) => set({ thinking }),
 	setSpeaking: (speaking, mood) => set({ speaking, ...(mood ? { mood } : {}) }),
+	setHearing: (hearing) => set({ hearing }),
 	setPrefs: (prefs) => {
 		const next = { ...get().prefs, ...prefs };
 		set({ prefs: next });

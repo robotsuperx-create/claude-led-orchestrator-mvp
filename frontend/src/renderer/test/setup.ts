@@ -168,6 +168,8 @@ if (typeof window !== "undefined") {
 		x00: {
 			info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
 			chat: async () => ({ ok: false, error: "disabled" }),
+			listen: async () => ({ ok: false, error: "disabled" }),
+			speak: async () => ({ ok: false, error: "disabled" }),
 		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),

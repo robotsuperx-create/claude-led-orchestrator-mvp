@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -73,5 +74,62 @@ func TestCommanderReasons(t *testing.T) {
 	})
 	if !local.Enabled {
 		t.Fatalf("a keyless loopback endpoint should be allowed: %v", local)
+	}
+}
+
+func TestX00VoiceUsesLocalEnginesUntilACloudKeyIsSaved(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("AO_DATA_DIR", dataDir)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	voice := cfg.ClaudeOrchestrator.Voice
+	if voice.Cloud != nil || voice.CloudReason != "" || voice.SpeechDir != filepath.Join(dataDir, X00SpeechDirName) {
+		t.Fatalf("voice = %+v", voice)
+	}
+	writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{
+		"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY":"voice-secret",
+		"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME":"ash"
+	}}`)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cloud := cfg.ClaudeOrchestrator.Voice.Cloud
+	if cloud == nil || cloud.BaseURL != DefaultX00VoiceBaseURL || cloud.TranscribeModel != DefaultX00VoiceTranscribeModel || cloud.SpeechModel != DefaultX00VoiceSpeechModel || cloud.Voice != "ash" || cloud.APIKey != "voice-secret" {
+		t.Fatalf("cloud = %v", cloud)
+	}
+	if strings.Contains(cloud.String(), "voice-secret") || strings.Contains(cloud.GoString(), "voice-secret") {
+		t.Fatal("the voice key leaked into formatting")
+	}
+}
+
+func TestX00VoiceRejectsBadCloudSettingsWithoutStoppingTheDaemon(t *testing.T) {
+	for name, tc := range map[string]struct{ values, reason string }{
+		"plain http off-machine": {`"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL":"http://example.com/v1"`, CommanderReasonInvalidURL},
+		"credentials in URL":     {`"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL":"https://user:pw@example.com/v1"`, CommanderReasonInvalidURL},
+		"model with a path":      {`"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL":"../../admin"`, CommanderReasonBadModel},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			t.Setenv("AO_DATA_DIR", dataDir)
+			writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY":"k",`+tc.values+`}}`)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if voice := cfg.ClaudeOrchestrator.Voice; voice.Cloud != nil || voice.CloudReason != tc.reason {
+				t.Fatalf("voice = %+v", voice)
+			}
+		})
+	}
+	dataDir := t.TempDir()
+	t.Setenv("AO_DATA_DIR", dataDir)
+	speech := filepath.Join(t.TempDir(), "engines")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_X00_SPEECH_DIR", speech)
+	cfg, err := Load()
+	if err != nil || cfg.ClaudeOrchestrator.Voice.SpeechDir != speech {
+		t.Fatalf("speech dir = %q, %v", cfg.ClaudeOrchestrator.Voice.SpeechDir, err)
 	}
 }

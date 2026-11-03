@@ -23,7 +23,7 @@ import {
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
 import type { ClaudeOrchestratorInfo, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorStartInput } from "./shared/claude-orchestrator";
-import type { X00ChatInput, X00Info, X00Reply, X00Result } from "./shared/x00";
+import type { X00ChatInput, X00Heard, X00Info, X00ListenInput, X00Reply, X00Result, X00SpeakInput, X00Speech } from "./shared/x00";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
 import type { RemoteHealth } from "./main/remote-request";
@@ -369,6 +369,9 @@ const api = {
 			locale: input.locale,
 			...(input.screen ? { screen: input.screen } : {}),
 		}) as Promise<X00Result<X00Reply>>,
+		// A copy of the recording's bytes, nothing else, crosses the bridge.
+		listen: (input: X00ListenInput) => ipcRenderer.invoke("x00:listen", { audio: new Uint8Array(input.audio), locale: input.locale }) as Promise<X00Result<X00Heard>>,
+		speak: (input: X00SpeakInput) => ipcRenderer.invoke("x00:speak", { text: input.text, locale: input.locale }) as Promise<X00Result<X00Speech>>,
 	},
 	claudeOrchestratorSettings: {
 		get: () => ipcRenderer.invoke("claudeOrchestratorSettings:get") as Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>,

@@ -4,7 +4,7 @@ import { Bell, BellOff, Check, LoaderCircle, Mic, Send, Square, Trash2, Triangle
 import type { ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator";
 import type { X00Action, X00Mood } from "../../../shared/x00";
 import { useClaudeOrchestratorInfo, useClaudeOrchestratorRuns } from "../../hooks/useClaudeOrchestrator";
-import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, x00Hush, x00VoiceLevel } from "../../hooks/useX00";
+import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, useX00Listen, x00Hush, x00VoiceLevel } from "../../hooks/useX00";
 import { x00StateForRuns } from "../../lib/x00-fleet";
 import type { X00State } from "../../lib/x00-portrait";
 import { cn } from "../../lib/utils";
@@ -27,10 +27,11 @@ export function useX00PortraitState(): { state: X00State; speaking: boolean; ena
 	const runs = useClaudeOrchestratorRuns(orchestrator.data?.enabled === true);
 	const thinking = useX00Store((store) => store.thinking);
 	const speaking = useX00Store((store) => store.speaking);
+	const hearing = useX00Store((store) => store.hearing);
 	const mood = useX00Store((store) => store.mood);
 	const enabled = info.data?.enabled === true;
 	const fleet = x00StateForRuns(runs.data ?? []);
-	const state: X00State = !enabled ? "failed" : thinking ? "working" : speaking ? moodState(mood) : fleet;
+	const state: X00State = !enabled ? "failed" : thinking || hearing === "transcribing" ? "working" : speaking ? moodState(mood) : hearing === "listening" ? "watching" : fleet;
 	return { state, speaking, enabled };
 }
 
@@ -97,6 +98,8 @@ function X00Panel() {
 	const clear = useX00Store((store) => store.clear);
 	const { state, speaking, enabled } = useX00PortraitState();
 	const send = useX00Conversation();
+	const ear = useX00Listen(send);
+	const canListen = enabled && ear.supported && info.data?.listen !== undefined;
 	const orchestrator = useClaudeOrchestratorInfo();
 	const runs = useClaudeOrchestratorRuns(orchestrator.data?.enabled === true);
 	const [draft, setDraft] = useState("");
@@ -128,7 +131,17 @@ function X00Panel() {
 		}
 	};
 
-	const status = !enabled ? t("x00.status.offline") : thinking ? t("x00.status.thinking") : speaking ? t("x00.status.speaking") : t("x00.status.watching");
+	const status = !enabled
+		? t("x00.status.offline")
+		: ear.hearing === "listening"
+			? t("x00.status.listening")
+			: ear.hearing === "transcribing"
+				? t("x00.status.transcribing")
+				: thinking
+					? t("x00.status.thinking")
+					: speaking
+						? t("x00.status.speaking")
+						: t("x00.status.watching");
 
 	return (
 		<aside
@@ -139,7 +152,13 @@ function X00Panel() {
 			onKeyDown={(event) => {
 				if (event.key === "Escape") {
 					event.stopPropagation();
-					setOpen(false);
+					if (ear.hearing === "listening") ear.cancel();
+					else setOpen(false);
+				}
+				// Ctrl+Space talks, like a radio's push-to-talk.
+				if (event.code === "Space" && (event.ctrlKey || event.metaKey) && canListen) {
+					event.preventDefault();
+					ear.toggle();
 				}
 			}}
 		>
@@ -226,17 +245,61 @@ function X00Panel() {
 						onKeyDown={onKeyDown}
 						data-testid="x00-input"
 					/>
+					{canListen ? <MicButton hearing={ear.hearing} level={ear.level} disabled={thinking} onToggle={ear.toggle} /> : null}
 					<Button type="submit" variant="primary" size="icon-sm" aria-label={t("x00.send")} title={t("x00.send")} disabled={!enabled || thinking || !draft.trim()}>
 						<Send className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
 					</Button>
 				</div>
-				{isWindows ? (
+				{canListen ? (
+					<p className="mt-1.5 flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground">
+						<Mic className="size-3" aria-hidden="true" />{t("x00.micHint")}
+					</p>
+				) : isWindows && enabled ? (
 					<p className="mt-1.5 flex items-center gap-1.5 text-[11px] leading-4 text-muted-foreground">
 						<Mic className="size-3" aria-hidden="true" />{t("x00.dictateHint")}
 					</p>
 				) : null}
 			</form>
 		</aside>
+	);
+}
+
+/** Push to talk: a ring that swells with your voice while he listens. */
+function MicButton({ hearing, level, disabled, onToggle }: { hearing: "idle" | "listening" | "transcribing"; level: { current: number }; disabled: boolean; onToggle: () => void }) {
+	const { t } = useTranslation();
+	const ring = useRef<HTMLSpanElement>(null);
+	useEffect(() => {
+		if (hearing !== "listening") return;
+		let frame = 0;
+		const tick = () => {
+			ring.current?.style.setProperty("--x00-level", level.current.toFixed(3));
+			frame = window.requestAnimationFrame(tick);
+		};
+		frame = window.requestAnimationFrame(tick);
+		return () => window.cancelAnimationFrame(frame);
+	}, [hearing, level]);
+	const label = hearing === "listening" ? t("x00.listenStop") : hearing === "transcribing" ? t("x00.status.transcribing") : t("x00.listen");
+	return (
+		<button
+			type="button"
+			className="x00-mic"
+			data-hearing={hearing}
+			aria-label={label}
+			aria-pressed={hearing === "listening"}
+			title={hearing === "idle" ? `${label} (Ctrl+Space)` : label}
+			disabled={hearing === "transcribing" || (disabled && hearing === "idle")}
+			onClick={onToggle}
+			data-testid="x00-mic"
+		>
+			<span ref={ring} className="x00-mic-ring" aria-hidden="true" />
+			{hearing === "transcribing" ? (
+				<LoaderCircle className="relative size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+			) : hearing === "listening" ? (
+				<Square className="relative size-3.5" aria-hidden="true" />
+			) : (
+				<Mic className="relative size-4" aria-hidden="true" />
+			)}
+		</button>
 	);
 }
 
@@ -312,6 +375,10 @@ const ERROR_KEYS = {
 	timeout: "x00.error.timeout",
 	provider_failed: "x00.error.provider_failed",
 	failed: "x00.error.failed",
+	mic_denied: "x00.error.mic_denied",
+	no_mic: "x00.error.no_mic",
+	no_speech: "x00.error.no_speech",
+	voice_off: "x00.error.voice_off",
 } as const;
 
 function errorKey(code: string) {

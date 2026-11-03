@@ -937,6 +937,7 @@ func Run() error {
 		ClaudeOrchestratorHistory:   claudeOrchestratorHistory,
 		ClaudeOrchestratorPublisher: claudeOrchestratorPublisher,
 		X00:                         newX00(cfg.ClaudeOrchestrator.Commander, log),
+		X00Voice:                    newX00Voice(cfg.ClaudeOrchestrator.Voice),
 		Settings:                    settingsSvc,
 		CDC:                         store,
 		Events:                      cdcPipe.Broadcaster,
