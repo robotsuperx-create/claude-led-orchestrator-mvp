@@ -11,6 +11,7 @@ import {
 	type ClaudeOrchestratorSettingsView,
 } from "../../../shared/claude-orchestrator-settings";
 import { claudeOrchestratorQueryKeys } from "../../hooks/useClaudeOrchestrator";
+import { x00QueryKeys } from "../../hooks/useX00";
 import { aoBridge } from "../../lib/bridge";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -38,6 +39,7 @@ const PLACEHOLDERS: Partial<Record<Key, string>> = {
 	AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE: "ghcr.io/…/orchestrator-worker",
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_INPUT_PER_MTOK: "3",
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_OUTPUT_PER_MTOK: "15",
+	AO_CLAUDE_ORCHESTRATOR_X00_MODEL: "claude-haiku-5-5",
 };
 const COMMAND_PLACEHOLDER = "npm ci\nnpm test";
 const DURATION = /^(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
@@ -45,7 +47,7 @@ const WHOLE = /^\d+$/;
 const DECIMAL = /^\d+(\.\d+)?$/;
 
 type Draft = Partial<Record<Key, string>>;
-type FieldError = "required" | "duration" | "number" | "url" | "quote";
+type FieldError = "required" | "duration" | "number" | "url" | "quote" | "model";
 
 function isOn(value: string | undefined) {
 	return ["on", "true", "1", "yes"].includes((value ?? "").trim().toLowerCase());
@@ -70,6 +72,7 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL"] as const) {
 		if (value(key) && !/^https?:\/\/\S+$/.test(value(key))) errors[key] = "url";
 	}
+	if (value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL") && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL"))) errors.AO_CLAUDE_ORCHESTRATOR_X00_MODEL = "model";
 	if (commandsFromText(commands.worker).error) errors.WORKER_COMMANDS = "quote";
 	if (commandsFromText(commands.validator).error) errors.VALIDATOR_COMMANDS = "quote";
 	if (!isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED)) return errors;
@@ -185,6 +188,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 		setStatus("saved");
 		void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.info });
 		void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs });
+		void client.invalidateQueries({ queryKey: x00QueryKeys.info });
 	};
 
 	const errorText = (error: FieldError | undefined) => error && showErrors ? t(`settings.missionControl.error.${error}`) : undefined;
@@ -275,6 +279,19 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				/>
 			</SettingsSection>
 
+			<SettingsSection title={t("settings.x00")} grouped>
+				<SettingsRow label={t("settings.x00.enabled")} description={t("settings.x00.enabledDescription")}>
+					<Switch
+						aria-label={t("settings.x00.enabled")}
+						checked={!draft.AO_CLAUDE_ORCHESTRATOR_X00_ENABLED?.trim() || isOn(draft.AO_CLAUDE_ORCHESTRATOR_X00_ENABLED)}
+						disabled={fromEnv.has("AO_CLAUDE_ORCHESTRATOR_X00_ENABLED")}
+						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_X00_ENABLED", next ? "on" : "off")}
+					/>
+				</SettingsRow>
+				{secret("AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY", t("settings.missionControl.claudeApiKey"))}
+				{field("AO_CLAUDE_ORCHESTRATOR_X00_MODEL", t("settings.x00.model"), { mono: true, description: t("settings.x00.modelDescription") })}
+			</SettingsSection>
+
 			<SettingsSection title={t("settings.missionControl.planner")} grouped>
 				{choice("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER", t("settings.missionControl.plannerProvider"), [
 					{ value: "claude", label: "Claude" },
@@ -282,7 +299,6 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				], "claude", t("settings.missionControl.plannerProviderDescription"))}
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", t("settings.missionControl.claudeBaseUrl"), { mono: true })}
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", t("settings.missionControl.claudeModel"), { mono: true })}
-				{secret("AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY", t("settings.missionControl.claudeApiKey"))}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.workers")} grouped>

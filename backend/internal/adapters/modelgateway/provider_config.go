@@ -332,6 +332,20 @@ func (a *ProviderAdapter) Review(ctx context.Context, request ports.ReviewReques
 	return result, nil
 }
 
+// Converse sends a free-form conversation to the provider's default model and
+// returns the reply text. maxTokens of zero selects the configured maximum.
+func (a *ProviderAdapter) Converse(ctx context.Context, messages []ChatMessage, maxTokens int) (string, error) {
+	request, err := a.mapRequest("", messages, maxTokens)
+	if err != nil {
+		return "", err
+	}
+	response, err := a.complete(ctx, request)
+	if err != nil {
+		return "", err
+	}
+	return responseContent(response)
+}
+
 func responseContent(response ChatResponse) (string, error) {
 	if len(response.Choices) == 0 {
 		return "", errors.New("model gateway returned no completion choices")

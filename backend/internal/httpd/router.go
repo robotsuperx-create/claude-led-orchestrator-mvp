@@ -23,6 +23,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
 	agentswitchobs "github.com/aoagents/agent-orchestrator/backend/internal/observe/agentswitch"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/service/x00"
 	"github.com/aoagents/agent-orchestrator/backend/internal/telemetrymeta"
 	"github.com/aoagents/agent-orchestrator/backend/internal/terminal"
 )
@@ -85,7 +86,12 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	mountTelemetry(r, cfg, deps.Telemetry)
 	mountMobile(r, deps.Mobile)
 	mountMobileDevices(r, &controllers.MobileDevicesController{Registry: deps.DeviceRoster, Presence: deps.DeviceLive})
-	mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, deps.ClaudeOrchestratorHistory, deps.ClaudeOrchestratorPublisher, cfg.ClaudeOrchestrator, log)
+	orchestrator := mountClaudeOrchestrator(r, deps.ClaudeOrchestrator, deps.ClaudeOrchestratorHistory, deps.ClaudeOrchestratorPublisher, cfg.ClaudeOrchestrator, log)
+	var fleet func() x00.Fleet
+	if orchestrator != nil {
+		fleet = orchestrator.Fleet
+	}
+	mountX00(r, deps.X00, cfg.ClaudeOrchestrator.Commander, fleet)
 	api.Register(r)
 
 	return r
@@ -253,7 +259,7 @@ func mountMobileDevices(r chi.Router, c *controllers.MobileDevicesController) {
 // /api/v1 OpenAPI contract. The immutable daemon config supplies the only
 // feature-flag value; ClaudeOrchestratorAPI additionally requires localControlRequest
 // and explicit per-run opt-in. The separate LAN listener blocks /internal paths.
-func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, publisher ClaudeOrchestratorRunPublisher, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) {
+func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService, history ports.ClaudeOrchestratorRunHistory, publisher ClaudeOrchestratorRunPublisher, cfg config.ClaudeOrchestratorConfig, log *slog.Logger) *ClaudeOrchestratorAPI {
 	if !cfg.FeatureEnabled || service == nil {
 		if strings.TrimSpace(cfg.ConfigError) != "" {
 			// Off because the saved settings need fixing: report only that.
@@ -265,7 +271,7 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 				envelope.WriteJSON(w, http.StatusOK, ClaudeOrchestratorInfo{Enabled: false, ConfigError: cfg.ConfigError})
 			})
 		}
-		return
+		return nil
 	}
 	modelOf := func(provider ports.ModelProvider) string {
 		switch provider {
@@ -316,6 +322,7 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 		log.Warn("claude orchestrator run history could not be restored", "error", err)
 	}
 	api.Register(r)
+	return api
 }
 
 type cliInvokedRequest struct {

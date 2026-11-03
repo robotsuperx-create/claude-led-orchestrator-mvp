@@ -142,6 +142,85 @@ type ClaudeOrchestratorConfig struct {
 	// ConfigError explains why the orchestrator is off when its saved
 	// settings are incomplete or invalid. It names settings, never values.
 	ConfigError string
+	// Commander is X-00, the Claude-backed assistant in the app. It needs only
+	// a Claude key, so it works whether or not runs are switched on.
+	Commander CommanderConfig
+}
+
+// X-00 defaults: a fast model, because its replies are spoken aloud.
+const (
+	DefaultCommanderBaseURL   = "https://api.anthropic.com/v1"
+	DefaultCommanderModel     = "claude-haiku-5-5"
+	DefaultCommanderTimeout   = 60 * time.Second
+	DefaultCommanderMaxTokens = 1024
+)
+
+// CommanderConfig configures X-00. Reason says why it is off, in words that
+// name settings, never their values.
+type CommanderConfig struct {
+	Enabled  bool
+	Provider modelgateway.ProviderConfig
+	Reason   string
+}
+
+// String keeps the nested API key out of ordinary formatting.
+func (c CommanderConfig) String() string {
+	return fmt.Sprintf("CommanderConfig{Enabled:%t, Provider:%v, Reason:%q}", c.Enabled, c.Provider, c.Reason)
+}
+
+// GoString keeps %#v dumps redacted as well.
+func (c CommanderConfig) GoString() string { return c.String() }
+
+// Commander reasons, shown to the person as setup hints.
+const (
+	CommanderReasonOff        = "off"
+	CommanderReasonNoKey      = "no_key"
+	CommanderReasonInvalidURL = "invalid_url"
+	CommanderReasonBadModel   = "invalid_model"
+)
+
+// loadCommanderConfig reads X-00's settings: the Claude address and key that
+// Mission control uses, and its own model. Problems turn X-00 off with a
+// reason; they never stop the daemon.
+func loadCommanderConfig(get func(string) string) CommanderConfig {
+	if raw := get("AO_CLAUDE_ORCHESTRATOR_X00_ENABLED"); strings.TrimSpace(raw) != "" {
+		if on, err := parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_X00_ENABLED", raw); err == nil && !on {
+			return CommanderConfig{Reason: CommanderReasonOff}
+		}
+	}
+	baseURL := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL"))
+	if baseURL == "" {
+		baseURL = DefaultCommanderBaseURL
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+		return CommanderConfig{Reason: CommanderReasonInvalidURL}
+	}
+	if err := requireLoopbackForPlainHTTP("AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", baseURL); err != nil {
+		return CommanderConfig{Reason: CommanderReasonInvalidURL}
+	}
+	model := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_MODEL"))
+	if model == "" {
+		model = DefaultCommanderModel
+	}
+	if len(model) > 128 || strings.ContainsAny(model, "\r\n\x00 ") {
+		return CommanderConfig{Reason: CommanderReasonBadModel}
+	}
+	key := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY"))
+	if key == "" && parsed.Scheme == "https" {
+		return CommanderConfig{Reason: CommanderReasonNoKey}
+	}
+	return CommanderConfig{
+		Enabled: true,
+		Provider: modelgateway.ProviderConfig{
+			Provider:     ports.ModelProviderClaude,
+			BaseURL:      baseURL,
+			APIKey:       key,
+			DefaultModel: model,
+			Timeout:      DefaultCommanderTimeout,
+			MaxTokens:    DefaultCommanderMaxTokens,
+		},
+	}
 }
 
 // ClaudeOrchestratorBudgetConfig limits each run's model usage. Zero values
@@ -634,6 +713,15 @@ func (e *claudeOrchestratorEnv) get(name string) string {
 // saved from the app only turns the orchestrator off and reports why, so the
 // app keeps working and the person can fix it from the same screen.
 func loadClaudeOrchestratorSection(dataDir string) (ClaudeOrchestratorConfig, error) {
+	cfg, err := loadClaudeOrchestratorRuns(dataDir)
+	file, _ := readClaudeOrchestratorSettings(dataDir)
+	// X-00 reads the same file and environment on its own, so whatever state
+	// runs are in, the assistant is configured from what the person saved.
+	cfg.Commander = loadCommanderConfig((&claudeOrchestratorEnv{file: file}).get)
+	return cfg, err
+}
+
+func loadClaudeOrchestratorRuns(dataDir string) (ClaudeOrchestratorConfig, error) {
 	var cfg ClaudeOrchestratorConfig
 	file, fileErr := readClaudeOrchestratorSettings(dataDir)
 	env := &claudeOrchestratorEnv{file: file}

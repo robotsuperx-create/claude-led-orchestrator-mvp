@@ -24,6 +24,15 @@ const routeMocks = vi.hoisted(() => ({
 	cloudEnabled: false,
 }));
 
+// X-00 talks to Claude through react-query and his own bridge; these shell
+// harnesses render without either, so he stands in as a still placeholder.
+vi.mock("../components/x00/X00Commander", () => ({
+	X00Commander: () => null,
+	X00SidebarRow: () => null,
+	openX00: () => undefined,
+	useX00PortraitState: () => ({ state: "watching", speaking: false }),
+}));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-router")>()),
 	useNavigate: () => routeMocks.navigate,

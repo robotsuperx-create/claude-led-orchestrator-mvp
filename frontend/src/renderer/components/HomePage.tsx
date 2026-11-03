@@ -21,6 +21,8 @@ import {
 import { CreateProjectFlow } from "./CreateProjectFlow";
 import { XRobotWordmark } from "./BrandMark";
 import { X00Portrait } from "./X00Portrait";
+import { openX00, useX00PortraitState } from "./x00/X00Commander";
+import { x00VoiceLevel } from "../hooks/useX00";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { GitHubOnboardingNotice } from "./GitHubOnboardingNotice";
 import { NAV_ROW_HIGHLIGHT_HOST_CLASS, NavRowHighlight } from "./NavRowHighlight";
@@ -200,11 +202,11 @@ export function HomePage() {
 	}
 
 	return (
-		<div className="xr-cosmos flex min-h-full items-center justify-center px-6 py-16">
+		<div className="xr-cosmos xr-space-through flex min-h-full items-center justify-center px-6 py-16">
 			<div className="w-full max-w-[640px]">
 				<div className="space-y-6">
 					<div className="flex items-center gap-6 px-3 pb-2" data-testid="home-brand">
-						<X00Portrait state="watching" className="w-32 shrink-0" />
+						<HomeCommander />
 						<div className="min-w-0">
 							<p className="xr-arrive text-[32px] leading-10 [--xr-delay:500ms]"><XRobotWordmark /></p>
 							<p className="xr-display xr-arrive mt-1 text-[17px] leading-6 text-muted-foreground [--xr-delay:900ms]">{t("home.brandTagline")}</p>
@@ -291,5 +293,16 @@ export function HomePage() {
 				/>
 			</div>
 		</div>
+	);
+}
+
+/** X-00 on Home: alive, and a click away from a conversation. */
+function HomeCommander() {
+	const { t } = useTranslation();
+	const { state, speaking } = useX00PortraitState();
+	return (
+		<button type="button" className="x00-talk shrink-0" onClick={openX00} aria-label={t("x00.open")} title={t("x00.open")} data-testid="home-talk">
+			<X00Portrait state={state === "failed" ? "watching" : state} speaking={speaking} voice={x00VoiceLevel} className="w-32" />
+		</button>
 	);
 }

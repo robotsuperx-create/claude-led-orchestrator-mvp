@@ -165,6 +165,10 @@ if (typeof window !== "undefined") {
 			get: async () => ({ ok: false, error: "unavailable" }),
 			save: async () => ({ ok: false, error: "unavailable" }),
 		},
+		x00: {
+			info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
+			chat: async () => ({ ok: false, error: "disabled" }),
+		},
 		daemon: {
 			getStatus: async () => ({ state: "stopped" }),
 			start: async () => ({ state: "starting" }),

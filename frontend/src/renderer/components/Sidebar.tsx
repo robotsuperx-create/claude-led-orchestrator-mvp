@@ -123,6 +123,7 @@ import {
 } from "./ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { XRobotMark, XRobotWordmark } from "./BrandMark";
+import { X00SidebarRow } from "./x00/X00Commander";
 import { OrchestratorIcon } from "./icons";
 import { Badge } from "./ui/badge";
 import { cn } from "../lib/utils";
@@ -1226,6 +1227,7 @@ export function Sidebar({
 						status={updateStatus}
 						tabIndex={isCollapsed ? -1 : 0}
 					/>
+					<X00SidebarRow className={cn(FOOTER_NAV_BUTTON_CLASS, "gap-2.5")} tabIndex={isCollapsed ? -1 : 0} />
 					<button
 						aria-label={t("settings.connectMobile")}
 						className={FOOTER_NAV_BUTTON_CLASS}
@@ -1265,6 +1267,7 @@ export function Sidebar({
 					/>
 					<CloudSignInRailButton tabIndex={isCollapsed ? 0 : -1} />
 					<CloudAccountRailButton tabIndex={isCollapsed ? 0 : -1} />
+					<X00SidebarRow compact className={FOOTER_RAIL_BUTTON_CLASS} tabIndex={isCollapsed ? 0 : -1} />
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<button

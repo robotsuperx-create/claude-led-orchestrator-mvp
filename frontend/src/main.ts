@@ -173,6 +173,7 @@ import {
 } from "./main/notification-signals";
 import { buildLinuxAppMenuTemplate, buildMacAppMenuTemplate, buildWindowsAppMenuTemplate } from "./main/menu";
 import { editContextMenuTemplate } from "./main/edit-context-menu";
+import { X00Client } from "./main/x00-client";
 import { ancestorRepositorySetupWarning, resolveCheckedOutBranch, scanImportFolder } from "./main/import-folder-scan";
 import { parseOpenFolderPathArg } from "./main/open-folder-arg";
 import { registerRemotesIpc, remotesFilePath } from "./main/remotes-main";
@@ -2031,6 +2032,17 @@ ipcMain.handle("claudeOrchestrator:plan", (event, runId: unknown) => isTrustedSh
 ipcMain.handle("claudeOrchestrator:approve", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.approve(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.reject(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:publish", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.publish(runId) : untrustedOrchestratorCaller);
+
+// X-00, the commander: the daemon holds the Claude key and talks to Claude;
+// the renderer only sends the conversation and gets back what he says and the
+// actions he proposes (see main/x00-client.ts). Only the trusted shell may ask.
+const x00Client = new X00Client(
+	() => daemonStatus.state === "ready" && daemonStatus.port ? `http://127.0.0.1:${daemonStatus.port}` : null,
+	(url, init) => net.fetch(url, init),
+);
+const untrustedX00Caller = { ok: false, error: "failed" } as const;
+ipcMain.handle("x00:info", (event) => isTrustedShellSender(event) ? x00Client.info() : untrustedX00Caller);
+ipcMain.handle("x00:chat", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.chat(input) : untrustedX00Caller);
 
 // Mission control settings: saved owner-only under the AO data dir and read
 // by the daemon at start, so a save restarts the daemon. API keys are written

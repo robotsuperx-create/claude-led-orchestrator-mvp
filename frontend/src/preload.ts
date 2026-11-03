@@ -23,6 +23,7 @@ import {
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
 import type { ClaudeOrchestratorInfo, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorStartInput } from "./shared/claude-orchestrator";
+import type { X00ChatInput, X00Info, X00Reply, X00Result } from "./shared/x00";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
 import type { RemoteHealth } from "./main/remote-request";
@@ -359,6 +360,15 @@ const api = {
 		approve: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:approve", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 		reject: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:reject", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 		publish: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:publish", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
+	},
+	x00: {
+		info: () => ipcRenderer.invoke("x00:info") as Promise<X00Result<X00Info>>,
+		// Only the allowlisted fields cross the bridge; main rebuilds them again.
+		chat: (input: X00ChatInput) => ipcRenderer.invoke("x00:chat", {
+			turns: input.turns.map((turn) => ({ role: turn.role, content: turn.content })),
+			locale: input.locale,
+			...(input.screen ? { screen: input.screen } : {}),
+		}) as Promise<X00Result<X00Reply>>,
 	},
 	claudeOrchestratorSettings: {
 		get: () => ipcRenderer.invoke("claudeOrchestratorSettings:get") as Promise<ClaudeOrchestratorSettingsResult<ClaudeOrchestratorSettingsView>>,
