@@ -6018,7 +6018,11 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 	width: 100vw;
 	height: 100vh;
 }
-html[data-native-browser-composition="true"] .xr-space-app {
+/* The desktop shell always marks native composition; the stars step aside
+   only while a native browser page is live under the shell (docked, popped
+   out, or maximized), since they would paint over it. */
+html[data-native-browser-composition="true"] body:has(.browser-panel[data-browser-native-page="live"]) .xr-space-app,
+html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) .xr-space-app {
 	display: none !important;
 }
 :root[data-style-theme="x-robot"]:not([data-theme="light"]) body {
@@ -6105,6 +6109,21 @@ html[data-native-browser-composition="true"] .xr-space-app {
 }
 .x00-entry-dot--off {
 	background: var(--muted-foreground);
+}
+.x00-titlebar-button {
+	-webkit-app-region: no-drag;
+}
+.x00-titlebar-button .x00-entry-head .xr-mark {
+	box-shadow: none;
+}
+.x00-titlebar-badge {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-end: -3px;
+	min-width: 14px;
+	height: 14px;
+	padding: 0 3px;
+	font-size: 9.5px;
 }
 .x00-entry-badge {
 	display: inline-grid;

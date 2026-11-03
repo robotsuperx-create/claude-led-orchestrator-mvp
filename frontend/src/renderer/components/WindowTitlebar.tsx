@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { sidebarIsVisible, useUiStore } from "../stores/ui-store";
 import { useCanGoForward } from "./TitlebarNav";
+import { X00TitlebarButton } from "./x00/X00TitlebarButton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -256,6 +257,9 @@ export function WindowTitlebar() {
         </TooltipTrigger>
         <TooltipContent side="bottom">{t("titlebar.goForward")}</TooltipContent>
       </Tooltip>
+      {isSidebarOpen ? null : (
+        <X00TitlebarButton className="window-titlebar__toggle" />
+      )}
       <nav className="window-titlebar__menus">
         <TopMenu
           id="view"
