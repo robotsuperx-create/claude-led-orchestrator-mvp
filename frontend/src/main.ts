@@ -172,6 +172,7 @@ import {
 	toastSilent,
 } from "./main/notification-signals";
 import { buildLinuxAppMenuTemplate, buildMacAppMenuTemplate, buildWindowsAppMenuTemplate } from "./main/menu";
+import { editContextMenuTemplate } from "./main/edit-context-menu";
 import { ancestorRepositorySetupWarning, resolveCheckedOutBranch, scanImportFolder } from "./main/import-folder-scan";
 import { parseOpenFolderPathArg } from "./main/open-folder-arg";
 import { registerRemotesIpc, remotesFilePath } from "./main/remotes-main";
@@ -341,6 +342,8 @@ let pendingBounce: { id: number; critical: boolean } | null = null;
 // Live mirror of the persisted `soundNotificationsEnabled` UI setting, kept in sync by the
 // uiSettings:set handler so a toggle flip takes effect without an app restart.
 let soundNotificationsEnabled = DEFAULT_UI_SETTINGS.soundNotificationsEnabled;
+// The UI language, for menus the main process draws (the text-field context menu).
+let uiLocale = DEFAULT_UI_SETTINGS.locale;
 
 // Plays the bundled notification sound through the renderer (main has no
 // audio output). `shell.beep()` is only the fallback for when no shell is
@@ -658,6 +661,13 @@ async function createWindowInternal(): Promise<void> {
 	if (!shellWebContents) throw new Error("AO shell WebContents was not created");
 	trustedShellWebContents.set(shellWebContents.id, shellWebContents);
 	agentSwitchVisibilityController?.registerWindow(shellWebContents.id);
+	// Right-click in a text field: undo, cut, copy, paste, select all. Electron has
+	// no context menu of its own, so without this there is no mouse paste.
+	shellWebContents.on("context-menu", (_event, params) => {
+		const template = editContextMenuTemplate(params, shellWebContents, uiLocale);
+		if (!template || !mainWindow) return;
+		Menu.buildFromTemplate(template).popup({ window: mainWindow });
+	});
 	shellWebContents.once("destroyed", () => {
 		trustedShellWebContents.delete(shellWebContents.id);
 		agentSwitchVisibilityController?.destroyWindow(shellWebContents.id);
@@ -2436,6 +2446,7 @@ ipcMain.handle("uiSettings:get", async (): Promise<UiSettings> => {
 		const runFile = runFilePath();
 	const result = !runFile ? coerceUiSettings(settings) : await writeUiSettings(path.dirname(runFile), settings);
 	trayController?.setLocale(result.locale);
+	uiLocale = result.locale;
 	soundNotificationsEnabled = result.soundNotificationsEnabled;
 	terminalShellPreference = result.terminalShell;
 	shellEnvPromise = null;
@@ -2952,6 +2963,7 @@ app.whenReady().then(async () => {
 		? await readUiSettings(path.dirname(keybindingRunFile))
 		: { ...DEFAULT_UI_SETTINGS };
 	soundNotificationsEnabled = initialUiSettings.soundNotificationsEnabled;
+	uiLocale = initialUiSettings.locale;
 	terminalShellPreference = initialUiSettings.terminalShell;
 	if (isTrayEnabled(process.platform, app.isPackaged, app.getVersion())) {
 		trayController = createTrayController({
