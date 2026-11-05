@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { Archive, CalendarClock, Orbit, Folder, LayoutDashboard, Plus } from "lucide-react";
+import { Archive, CalendarClock, Orbit, Folder, LayoutDashboard, Plus, Store } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { animate, LayoutGroup, motion, useMotionValue, useReducedMotion } from "motion/react";
 import { NotificationCenter } from "./NotificationCenter";
@@ -123,6 +123,7 @@ export function ShellTopbar({
 	const isSessionRoute = Boolean(params.sessionId);
 	const isAutomationsRoute = location.pathname === "/automations";
 	const isOrchestratorRoute = location.pathname === "/orchestrator";
+	const isStoresRoute = location.pathname === "/stores";
 	const isStandaloneBoardRoute = location.pathname === "/sessions" || location.pathname === "/sessions/";
 	const isOrchestrator = session ? isOrchestratorSession(session) : false;
 	const isInspectorOpen = useUiStore((state) =>
@@ -135,7 +136,7 @@ export function ShellTopbar({
 	// route slug. "Board" is the root-board crumb only.
 	const projectId = session?.workspaceId ?? params.projectId;
 	const isProjectBoardRoute = !isSessionRoute && Boolean(projectId);
-	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute && !isAutomationsRoute && !isOrchestratorRoute && !isStandaloneBoardRoute;
+	const isRootBoardRoute = !isSessionRoute && !isProjectBoardRoute && !isAutomationsRoute && !isOrchestratorRoute && !isStoresRoute && !isStandaloneBoardRoute;
 	const project = workspaceScope?.project;
 	const supportsLocalCues = Boolean(!hostId && project && toProjectKind(project.kind));
 	const projectLabel = project?.name ?? session?.workspaceName ?? (projectId ? "" : t("shell.board"));
@@ -197,6 +198,13 @@ export function ShellTopbar({
 						<span className={cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5")}>
 							<Orbit aria-hidden="true" className="size-icon-md" />
 							{t("orchestrator.title")}
+						</span>
+					</div>
+				) : isStoresRoute ? (
+					<div className="inline-flex min-w-0 items-center gap-1.5" data-testid="stores-topbar-label">
+						<span className={cn(topbarProjectLabelClass, "inline-flex items-center gap-1.5")}>
+							<Store aria-hidden="true" className="size-icon-md" />
+							{t("stores.title")}
 						</span>
 					</div>
 				) : (isProjectBoardRoute && boardActionsInPanel) ||

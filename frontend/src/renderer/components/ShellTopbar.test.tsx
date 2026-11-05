@@ -260,6 +260,20 @@ describe("ShellTopbar route identity", () => {
 		expect(screen.getByTestId("orchestrator-topbar-label")).toHaveTextContent("Mission control");
 		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
 	});
+
+	it("identifies the Stores route instead of presenting it as the board", () => {
+		locationMock.pathname = "/stores";
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<TooltipProvider>
+					<ShellTopbar />
+				</TooltipProvider>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.getByTestId("stores-topbar-label")).toHaveTextContent("Stores");
+		expect(screen.queryByTestId("board-topbar-label")).not.toBeInTheDocument();
+	});
 });
 
 describe("ShellTopbar status pill", () => {

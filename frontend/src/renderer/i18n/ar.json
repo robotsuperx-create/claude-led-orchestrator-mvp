@@ -2788,5 +2788,17 @@
 	"settings.x00.voiceSttModel": "نموذج الاستماع",
 	"settings.x00.voiceTtsModel": "نموذج الكلام",
 	"settings.x00.voiceName": "الصوت",
-	"settings.x00.voiceNameDescription": "اسم الصوت في الخدمة. onyx عميق وهادئ."
+	"settings.x00.voiceNameDescription": "اسم الصوت في الخدمة. onyx عميق وهادئ.",
+	"stores.title": "المتاجر",
+	"stores.description": "متاجرك كما تعمل على هذا الجهاز.",
+	"stores.address.label": "عنوان معاينة المتاجر",
+	"stores.address.invalid": "أدخل عنوان المعاينة بحيث يبدأ بـ http:// أو https://.",
+	"stores.address.notLocal": "لا تُفتح هنا إلا العناوين الموجودة على هذا الجهاز (localhost أو 127.0.0.1).",
+	"stores.open": "فتح",
+	"stores.reload": "إعادة التحميل",
+	"stores.checking": "جارٍ التحقق من معاينة المتاجر…",
+	"stores.frameTitle": "معاينة المتاجر",
+	"stores.unreachable.title": "معاينة المتاجر غير مشغّلة",
+	"stores.unreachable.body": "شغّل هذا الأمر في مجلد {{folder}}، ثم أعد المحاولة.",
+	"stores.unreachable.retry": "إعادة المحاولة"
 }

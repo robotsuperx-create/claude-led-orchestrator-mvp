@@ -2684,5 +2684,17 @@
 	"settings.x00.voiceSttModel": "聞き取りモデル",
 	"settings.x00.voiceTtsModel": "発話モデル",
 	"settings.x00.voiceName": "声",
-	"settings.x00.voiceNameDescription": "サービス上の声の名前。onyx は低く落ち着いた声です。"
+	"settings.x00.voiceNameDescription": "サービス上の声の名前。onyx は低く落ち着いた声です。",
+	"stores.title": "ストア",
+	"stores.description": "このコンピューターで動いているストア。",
+	"stores.address.label": "ストアプレビューのアドレス",
+	"stores.address.invalid": "http:// または https:// で始まるプレビューのアドレスを入力してください。",
+	"stores.address.notLocal": "ここで開けるのは、このコンピューター上のアドレス（localhost または 127.0.0.1）だけです。",
+	"stores.open": "開く",
+	"stores.reload": "再読み込み",
+	"stores.checking": "ストアプレビューを確認しています…",
+	"stores.frameTitle": "ストアプレビュー",
+	"stores.unreachable.title": "ストアプレビューが起動していません",
+	"stores.unreachable.body": "{{folder}} フォルダーでこのコマンドを実行してから、再試行してください。",
+	"stores.unreachable.retry": "再試行"
 }

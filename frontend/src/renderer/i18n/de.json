@@ -2684,5 +2684,17 @@
 	"settings.x00.voiceSttModel": "Modell zum Zuhören",
 	"settings.x00.voiceTtsModel": "Modell zum Sprechen",
 	"settings.x00.voiceName": "Stimme",
-	"settings.x00.voiceNameDescription": "Der Name der Stimme beim Dienst. onyx ist tief und ruhig."
+	"settings.x00.voiceNameDescription": "Der Name der Stimme beim Dienst. onyx ist tief und ruhig.",
+	"stores.title": "Shops",
+	"stores.description": "Deine Shops, auf diesem Computer bereitgestellt.",
+	"stores.address.label": "Adresse der Shop-Vorschau",
+	"stores.address.invalid": "Gib die Adresse der Vorschau ein, beginnend mit http:// oder https://.",
+	"stores.address.notLocal": "Hier öffnen sich nur Adressen auf diesem Computer (localhost oder 127.0.0.1).",
+	"stores.open": "Öffnen",
+	"stores.reload": "Neu laden",
+	"stores.checking": "Shop-Vorschau wird geprüft…",
+	"stores.frameTitle": "Shop-Vorschau",
+	"stores.unreachable.title": "Die Shop-Vorschau läuft nicht",
+	"stores.unreachable.body": "Führe diesen Befehl im Ordner {{folder}} aus und versuche es dann erneut.",
+	"stores.unreachable.retry": "Erneut versuchen"
 }

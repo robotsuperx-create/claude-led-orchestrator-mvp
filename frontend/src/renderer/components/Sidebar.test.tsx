@@ -616,6 +616,17 @@ describe("Sidebar", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/" });
 	});
 
+	it("opens the Stores page from its row beside the other top-level pages", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		const stores = screen.getByRole("button", { name: "Stores" });
+		expect(stores.closest("ul")).toBe(screen.getByRole("button", { name: "Automations" }).closest("ul"));
+		await user.click(stores);
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/stores" });
+	});
+
 	it("suppresses focus chrome without removing keyboard focusability", () => {
 		renderSidebar();
 
