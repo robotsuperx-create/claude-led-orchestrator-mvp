@@ -2666,5 +2666,17 @@
 	"settings.x00.voiceSttModel": "聆听模型",
 	"settings.x00.voiceTtsModel": "说话模型",
 	"settings.x00.voiceName": "声音",
-	"settings.x00.voiceNameDescription": "服务中的声音名称。onyx 低沉而平静。"
+	"settings.x00.voiceNameDescription": "服务中的声音名称。onyx 低沉而平静。",
+	"stores.title": "商店",
+	"stores.description": "在这台电脑上运行的商店。",
+	"stores.address.label": "商店预览地址",
+	"stores.address.invalid": "请输入以 http:// 或 https:// 开头的预览地址。",
+	"stores.address.notLocal": "这里只能打开这台电脑上的地址（localhost 或 127.0.0.1）。",
+	"stores.open": "打开",
+	"stores.reload": "重新加载",
+	"stores.checking": "正在检查商店预览…",
+	"stores.frameTitle": "商店预览",
+	"stores.unreachable.title": "商店预览未运行",
+	"stores.unreachable.body": "在 {{folder}} 文件夹中运行此命令，然后重试。",
+	"stores.unreachable.retry": "重试"
 }

@@ -2715,5 +2715,17 @@
 	"settings.x00.voiceSttModel": "Modelo para escuchar",
 	"settings.x00.voiceTtsModel": "Modelo para hablar",
 	"settings.x00.voiceName": "Voz",
-	"settings.x00.voiceNameDescription": "El nombre de la voz en el servicio. onyx es grave y tranquila."
+	"settings.x00.voiceNameDescription": "El nombre de la voz en el servicio. onyx es grave y tranquila.",
+	"stores.title": "Tiendas",
+	"stores.description": "Tus tiendas, servidas en este equipo.",
+	"stores.address.label": "Dirección de la vista previa de tiendas",
+	"stores.address.invalid": "Escribe la dirección de la vista previa, empezando por http:// o https://.",
+	"stores.address.notLocal": "Aquí solo se abren direcciones de este equipo (localhost o 127.0.0.1).",
+	"stores.open": "Abrir",
+	"stores.reload": "Recargar",
+	"stores.checking": "Comprobando la vista previa de tiendas…",
+	"stores.frameTitle": "Vista previa de tiendas",
+	"stores.unreachable.title": "La vista previa de tiendas no está en marcha",
+	"stores.unreachable.body": "En la carpeta {{folder}}, ejecuta este comando y vuelve a intentarlo.",
+	"stores.unreachable.retry": "Reintentar"
 }

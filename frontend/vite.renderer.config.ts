@@ -122,6 +122,9 @@ function contentSecurityPolicy(mode: "build" | "serve"): string {
 			"connect-src",
 			"'self'",
 			"http://127.0.0.1:*",
+			// The Stores page checks that the local stores preview answers before
+			// framing it (lib/stores-hub.ts); "localhost" is the same loopback host.
+			"http://localhost:*",
 			"ws://127.0.0.1:*",
 			// Vite serves on localhost, which 'self' does not cover for the ws://
 			// HMR socket.
@@ -133,7 +136,10 @@ function contentSecurityPolicy(mode: "build" | "serve"): string {
 			.join(" "),
 		"object-src 'none'",
 		"base-uri 'self'",
-		"frame-src 'none'",
+		// Only the Stores page frames content: the owner's storefront preview hub,
+		// served on this computer. Loopback http(s) only; every other origin stays
+		// blocked, and the frame itself is sandboxed (components/StoresView.tsx).
+		"frame-src http://localhost:* http://127.0.0.1:*",
 	].join("; ");
 }
 

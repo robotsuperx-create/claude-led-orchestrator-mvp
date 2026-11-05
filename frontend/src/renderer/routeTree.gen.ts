@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ShellIndexRouteImport } from './routes/_shell.index'
 import { Route as ShellTerminalsRouteImport } from './routes/_shell.terminals'
+import { Route as ShellStoresRouteImport } from './routes/_shell.stores'
 import { Route as ShellSettingsRouteImport } from './routes/_shell.settings'
 import { Route as ShellSessionsRouteImport } from './routes/_shell.sessions'
 import { Route as ShellOrchestratorRouteImport } from './routes/_shell.orchestrator'
@@ -37,6 +38,11 @@ const ShellIndexRoute = ShellIndexRouteImport.update({
 const ShellTerminalsRoute = ShellTerminalsRouteImport.update({
   id: '/terminals',
   path: '/terminals',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellStoresRoute = ShellStoresRouteImport.update({
+  id: '/stores',
+  path: '/stores',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellSettingsRoute = ShellSettingsRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/orchestrator': typeof ShellOrchestratorRoute
   '/sessions': typeof ShellSessionsRouteWithChildren
   '/settings': typeof ShellSettingsRoute
+  '/stores': typeof ShellStoresRoute
   '/terminals': typeof ShellTerminalsRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/sessions/$sessionId': typeof ShellSessionsSessionIdRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/automations': typeof ShellAutomationsRoute
   '/orchestrator': typeof ShellOrchestratorRoute
   '/settings': typeof ShellSettingsRoute
+  '/stores': typeof ShellStoresRoute
   '/terminals': typeof ShellTerminalsRoute
   '/': typeof ShellIndexRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/_shell/orchestrator': typeof ShellOrchestratorRoute
   '/_shell/sessions': typeof ShellSessionsRouteWithChildren
   '/_shell/settings': typeof ShellSettingsRoute
+  '/_shell/stores': typeof ShellStoresRoute
   '/_shell/terminals': typeof ShellTerminalsRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/projects/$projectId': typeof ShellProjectsProjectIdRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/orchestrator'
     | '/sessions'
     | '/settings'
+    | '/stores'
     | '/terminals'
     | '/projects/$projectId'
     | '/sessions/$sessionId'
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/orchestrator'
     | '/settings'
+    | '/stores'
     | '/terminals'
     | '/'
     | '/projects/$projectId'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/_shell/orchestrator'
     | '/_shell/sessions'
     | '/_shell/settings'
+    | '/_shell/stores'
     | '/_shell/terminals'
     | '/_shell/'
     | '/_shell/projects/$projectId'
@@ -230,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/terminals'
       fullPath: '/terminals'
       preLoaderRoute: typeof ShellTerminalsRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/stores': {
+      id: '/_shell/stores'
+      path: '/stores'
+      fullPath: '/stores'
+      preLoaderRoute: typeof ShellStoresRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/settings': {
@@ -338,6 +357,7 @@ interface ShellRouteChildren {
   ShellOrchestratorRoute: typeof ShellOrchestratorRoute
   ShellSessionsRoute: typeof ShellSessionsRouteWithChildren
   ShellSettingsRoute: typeof ShellSettingsRoute
+  ShellStoresRoute: typeof ShellStoresRoute
   ShellTerminalsRoute: typeof ShellTerminalsRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellProjectsProjectIdRoute: typeof ShellProjectsProjectIdRoute
@@ -353,6 +373,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellOrchestratorRoute: ShellOrchestratorRoute,
   ShellSessionsRoute: ShellSessionsRouteWithChildren,
   ShellSettingsRoute: ShellSettingsRoute,
+  ShellStoresRoute: ShellStoresRoute,
   ShellTerminalsRoute: ShellTerminalsRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellProjectsProjectIdRoute: ShellProjectsProjectIdRoute,

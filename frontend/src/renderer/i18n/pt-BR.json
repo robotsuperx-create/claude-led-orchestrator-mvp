@@ -2715,5 +2715,17 @@
 	"settings.x00.voiceSttModel": "Modelo para ouvir",
 	"settings.x00.voiceTtsModel": "Modelo para falar",
 	"settings.x00.voiceName": "Voz",
-	"settings.x00.voiceNameDescription": "O nome da voz no serviço. onyx é grave e calma."
+	"settings.x00.voiceNameDescription": "O nome da voz no serviço. onyx é grave e calma.",
+	"stores.title": "Lojas",
+	"stores.description": "Suas lojas, servidas neste computador.",
+	"stores.address.label": "Endereço da prévia das lojas",
+	"stores.address.invalid": "Digite o endereço da prévia, começando com http:// ou https://.",
+	"stores.address.notLocal": "Só abrem aqui endereços deste computador (localhost ou 127.0.0.1).",
+	"stores.open": "Abrir",
+	"stores.reload": "Recarregar",
+	"stores.checking": "Verificando a prévia das lojas…",
+	"stores.frameTitle": "Prévia das lojas",
+	"stores.unreachable.title": "A prévia das lojas não está em execução",
+	"stores.unreachable.body": "Na pasta {{folder}}, execute este comando e tente novamente.",
+	"stores.unreachable.retry": "Tentar novamente"
 }

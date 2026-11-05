@@ -2715,5 +2715,17 @@
 	"settings.x00.voiceSttModel": "Modèle d’écoute",
 	"settings.x00.voiceTtsModel": "Modèle de parole",
 	"settings.x00.voiceName": "Voix",
-	"settings.x00.voiceNameDescription": "Le nom de la voix chez le service. onyx est grave et posée."
+	"settings.x00.voiceNameDescription": "Le nom de la voix chez le service. onyx est grave et posée.",
+	"stores.title": "Boutiques",
+	"stores.description": "Vos boutiques, servies sur cet ordinateur.",
+	"stores.address.label": "Adresse de l’aperçu des boutiques",
+	"stores.address.invalid": "Saisissez l’adresse de l’aperçu, commençant par http:// ou https://.",
+	"stores.address.notLocal": "Seules les adresses de cet ordinateur (localhost ou 127.0.0.1) s’ouvrent ici.",
+	"stores.open": "Ouvrir",
+	"stores.reload": "Recharger",
+	"stores.checking": "Vérification de l’aperçu des boutiques…",
+	"stores.frameTitle": "Aperçu des boutiques",
+	"stores.unreachable.title": "L’aperçu des boutiques n’est pas lancé",
+	"stores.unreachable.body": "Dans le dossier {{folder}}, lancez cette commande, puis réessayez.",
+	"stores.unreachable.retry": "Réessayer"
 }

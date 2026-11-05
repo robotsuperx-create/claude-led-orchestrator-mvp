@@ -2664,5 +2664,17 @@
 	"settings.x00.voiceSttModel": "Listening model",
 	"settings.x00.voiceTtsModel": "Speaking model",
 	"settings.x00.voiceName": "Voice",
-	"settings.x00.voiceNameDescription": "The service's name for the voice. onyx is deep and calm."
+	"settings.x00.voiceNameDescription": "The service's name for the voice. onyx is deep and calm.",
+	"stores.title": "Stores",
+	"stores.description": "Your stores, served on this computer.",
+	"stores.address.label": "Stores preview address",
+	"stores.address.invalid": "Enter the preview address, starting with http:// or https://.",
+	"stores.address.notLocal": "Only addresses on this computer (localhost or 127.0.0.1) open here.",
+	"stores.open": "Open",
+	"stores.reload": "Reload",
+	"stores.checking": "Checking the stores preview…",
+	"stores.frameTitle": "Stores preview",
+	"stores.unreachable.title": "The stores preview isn't running",
+	"stores.unreachable.body": "In the {{folder}} folder, run this command, then retry.",
+	"stores.unreachable.retry": "Retry"
 }
