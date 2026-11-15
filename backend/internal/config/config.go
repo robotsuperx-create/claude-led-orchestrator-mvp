@@ -118,7 +118,11 @@ const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
-	FeatureEnabled   bool
+	FeatureEnabled bool
+	// ClaudeOnly runs the whole crew on the one Claude key: Claude plans,
+	// writes every subtask through its API, and reviews. No other provider
+	// is used, and independent subtasks are written at the same time.
+	ClaudeOnly       bool
 	ClaudeProvider   modelgateway.ProviderConfig
 	DeepSeekProvider modelgateway.ProviderConfig
 	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
@@ -393,8 +397,9 @@ type ClaudeOrchestratorWorkerConfig struct {
 	// empty, the registered project whose path is ProjectRoot is used.
 	AgentProjectID string
 	// MaxParallelSubtasks bounds how many independent subtasks run at once in
-	// agents mode. Model mode always runs one at a time, since model edits are
-	// applied straight into the shared run worktree.
+	// agents mode, and in model mode when ClaudeOnly is on, where each subtask
+	// is written in its own worktree. Otherwise model mode runs one at a time,
+	// since model edits are applied straight into the shared run worktree.
 	MaxParallelSubtasks int
 	Commands            []ClaudeOrchestratorCommandConfig
 	Timeout             time.Duration
@@ -541,7 +546,9 @@ func (c Config) Addr() string {
 // (claude|deepseek, default deepseek), optional *_WORKER_MODE (model|agents,
 // default model; agents hands each subtask to a real AO agent session using
 // *_AGENT_HARNESS_{CLAUDE,DEEPSEEK} and optional *_AGENT_PROJECT_ID, and makes
-// the DeepSeek API settings optional), optional per-provider *_TIMEOUT and
+// the DeepSeek API settings optional), optional *_CLAUDE_ONLY (off|on: the
+// one Claude key plans, writes every subtask and reviews, and independent
+// subtasks are written at the same time), optional per-provider *_TIMEOUT and
 // *_MAX_TOKENS, *_WORKER_COMMANDS (JSON argv),
 // *_WORKER_TIMEOUT, *_VALIDATOR_COMMANDS (JSON argv), and *_VALIDATOR_TIMEOUT
 // configure provider clients and fixed worker/validator commands. API keys are
@@ -887,6 +894,11 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 		return providerConfig, nil
 	}
 	var err error
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY")); raw != "" {
+		if cfg.ClaudeOnly, err = parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", raw); err != nil {
+			return err
+		}
+	}
 	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
 		return err
 	}
@@ -935,6 +947,12 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 	}
 	if cfg.Worker.Mode != ClaudeOrchestratorWorkerModeModel && cfg.Worker.Mode != ClaudeOrchestratorWorkerModeAgents {
 		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE must be %q or %q", ClaudeOrchestratorWorkerModeModel, ClaudeOrchestratorWorkerModeAgents)
+	}
+	if cfg.ClaudeOnly {
+		// One Claude key runs everything, whatever the other choices say.
+		cfg.PlannerProvider = ports.ModelProviderClaude
+		cfg.Worker.DefaultProvider = ports.ModelProviderClaude
+		cfg.Worker.Mode = ClaudeOrchestratorWorkerModeModel
 	}
 	cfg.Worker.AgentHarnesses = map[ports.ModelProvider]domain.AgentHarness{
 		ports.ModelProviderClaude:   domain.HarnessClaudeCode,

@@ -72,6 +72,37 @@ describe("MissionControlSettingsSection", () => {
 		expect(screen.getByLabelText("Claude API key")).toHaveAttribute("placeholder", "Leave empty to keep the saved key");
 	});
 
+	it("runs everything on one Claude key, asking for no other provider", async () => {
+		mocks.get.mockResolvedValue({ ok: true, value: empty });
+		mocks.chooseDirectory.mockResolvedValue("/work/shop");
+		mocks.save.mockImplementation(async (update) => ({ ok: true, value: { values: update.values, secretsSet: { AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY: true }, fromEnvironment: [] } }));
+		renderSection();
+		const user = userEvent.setup();
+		await user.click(await screen.findByRole("switch", { name: "Turn on Mission control" }));
+		await user.click(screen.getByRole("switch", { name: "One Claude key for everything" }));
+		// Only Claude is asked for: no DeepSeek, local model, or writer choices.
+		expect(screen.queryByLabelText("DeepSeek API key")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Local model")).not.toBeInTheDocument();
+		expect(screen.queryByText("Plans and reviews")).not.toBeInTheDocument();
+		expect(screen.getByTestId("mission-control-claude-writers")).toHaveTextContent("Claude, up to 3 subtasks at once");
+		await user.type(screen.getByLabelText("Subtasks at once"), "5");
+		expect(screen.getByTestId("mission-control-claude-writers")).toHaveTextContent("up to 5 subtasks");
+
+		await user.click(screen.getByRole("button", { name: "Choose folder" }));
+		await user.type(screen.getByLabelText("Claude API address"), "https://api.anthropic.com/v1");
+		await user.type(screen.getByLabelText("Claude model"), "claude-opus-5-5");
+		await user.type(screen.getByLabelText("Claude API key"), "sk-claude");
+		await user.type(screen.getByLabelText("After each change"), "npm test");
+		await user.type(screen.getByLabelText("Final checks"), "npm test");
+		await user.click(screen.getByRole("button", { name: "Save and restart" }));
+
+		expect(mocks.save).toHaveBeenCalledTimes(1);
+		const update = mocks.save.mock.calls[0][0];
+		expect(update.values.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY).toBe("on");
+		expect(update.values.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS).toBe("5");
+		expect(update.secrets).toEqual({ AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY: "sk-claude" });
+	});
+
 	it("shows environment overrides read-only and leaves them out of a save", async () => {
 		mocks.get.mockResolvedValue({ ok: true, value: {
 			values: { AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL: "saved-model" },

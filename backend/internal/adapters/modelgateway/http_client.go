@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +20,16 @@ const (
 	defaultTimeout          = 30 * time.Second
 	defaultMaxRequestBytes  = 1 << 20
 	defaultMaxResponseBytes = 4 << 20
+)
+
+// Busy providers are asked again, briefly. Several writers sharing one key
+// can hit a rate limit together, and a provider can be momentarily overloaded;
+// neither should fail a whole subtask. A Retry-After header is honored up to
+// maxRetryDelay; otherwise the wait doubles from firstRetryDelay.
+const (
+	defaultMaxRetries = 3
+	firstRetryDelay   = 2 * time.Second
+	maxRetryDelay     = 30 * time.Second
 )
 
 // Errors returned by Client. Provider response bodies are never included.
@@ -51,6 +63,10 @@ type Client struct {
 	httpClient       *http.Client
 	maxRequestBytes  int64
 	maxResponseBytes int64
+	// maxRetries is how many times a busy answer is retried; sleep waits
+	// between tries and returns early with the context's error.
+	maxRetries int
+	sleep      func(context.Context, time.Duration) error
 }
 
 // NewClient validates configuration and creates a client. APIKey is optional
@@ -100,7 +116,51 @@ func NewClient(config Config) (*Client, error) {
 		httpClient:       httpClient,
 		maxRequestBytes:  maxRequestBytes,
 		maxResponseBytes: maxResponseBytes,
+		maxRetries:       defaultMaxRetries,
+		sleep:            sleepContext,
 	}, nil
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// retryable reports whether a status means "busy, ask again shortly": rate
+// limited (429), overloaded (529, Anthropic's), or a passing server fault.
+func retryable(status int) bool {
+	switch status {
+	case http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadGateway,
+		http.StatusServiceUnavailable, http.StatusGatewayTimeout, 529:
+		return true
+	default:
+		return false
+	}
+}
+
+// retryDelay prefers the provider's Retry-After (seconds or an HTTP date),
+// capped, and otherwise doubles from firstRetryDelay with a little jitter so
+// writers sharing a key do not all come back at once.
+func retryDelay(header http.Header, attempt int, now time.Time) time.Duration {
+	if value := strings.TrimSpace(header.Get("Retry-After")); value != "" {
+		if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
+			return min(time.Duration(seconds)*time.Second, maxRetryDelay)
+		}
+		if when, err := http.ParseTime(value); err == nil {
+			return min(max(when.Sub(now), 0), maxRetryDelay)
+		}
+	}
+	delay := firstRetryDelay << attempt
+	if delay <= 0 || delay > maxRetryDelay {
+		delay = maxRetryDelay
+	}
+	return delay - time.Duration(rand.Int64N(int64(delay/4)+1)) //nolint:gosec // Retry jitter is not security-sensitive.
 }
 
 // ChatMessage is one message in a chat-completions request. Content is a
@@ -178,9 +238,35 @@ func (c *Client) CreateChatCompletion(ctx context.Context, request ChatRequest) 
 		return empty, ErrRequestTooLarge
 	}
 
+	for attempt := 0; ; attempt++ {
+		response, retryAfter, err := c.send(ctx, body)
+		if err != nil {
+			return empty, err
+		}
+		var status *HTTPError
+		if attempt >= c.maxRetries || !errors.As(response.err, &status) || !retryable(status.StatusCode) {
+			return response.value, response.err
+		}
+		if err := c.sleep(ctx, retryDelay(retryAfter, attempt, time.Now())); err != nil {
+			return empty, fmt.Errorf("model gateway request interrupted: %w", err)
+		}
+	}
+}
+
+// sendResult is one answer: a response or a provider error such as HTTPError.
+type sendResult struct {
+	value ChatResponse
+	err   error
+}
+
+// send makes one request. A transport failure is returned as err; anything the
+// provider answered, including an error status, is in the result, with the
+// headers needed to decide on a retry.
+func (c *Client) send(ctx context.Context, body []byte) (sendResult, http.Header, error) {
+	var empty ChatResponse
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return empty, errors.New("model gateway request could not be created")
+		return sendResult{}, nil, errors.New("model gateway request could not be created")
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
 	httpRequest.Header.Set("Accept", "application/json")
@@ -191,30 +277,30 @@ func (c *Client) CreateChatCompletion(ctx context.Context, request ChatRequest) 
 	response, err := c.httpClient.Do(httpRequest)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return empty, fmt.Errorf("model gateway request interrupted: %w", ctxErr)
+			return sendResult{}, nil, fmt.Errorf("model gateway request interrupted: %w", ctxErr)
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return empty, fmt.Errorf("model gateway request timed out: %w", context.DeadlineExceeded)
+			return sendResult{}, nil, fmt.Errorf("model gateway request timed out: %w", context.DeadlineExceeded)
 		}
 		if errors.Is(err, context.Canceled) {
-			return empty, fmt.Errorf("model gateway request interrupted: %w", context.Canceled)
+			return sendResult{}, nil, fmt.Errorf("model gateway request interrupted: %w", context.Canceled)
 		}
-		return empty, ErrRequestFailed
+		return sendResult{}, nil, ErrRequestFailed
 	}
 	defer func() { _ = response.Body.Close() }()
 
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, c.maxResponseBytes+1))
 	if err != nil {
-		return empty, ErrResponseRead
+		return sendResult{err: ErrResponseRead}, response.Header, nil
 	}
 	if int64(len(responseBody)) > c.maxResponseBytes {
-		return empty, ErrResponseTooLarge
+		return sendResult{err: ErrResponseTooLarge}, response.Header, nil
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return empty, &HTTPError{StatusCode: response.StatusCode}
+		return sendResult{err: &HTTPError{StatusCode: response.StatusCode}}, response.Header, nil
 	}
 	if err := json.Unmarshal(responseBody, &empty); err != nil {
-		return ChatResponse{}, ErrResponseDecode
+		return sendResult{err: ErrResponseDecode}, response.Header, nil
 	}
-	return empty, nil
+	return sendResult{value: empty}, response.Header, nil
 }

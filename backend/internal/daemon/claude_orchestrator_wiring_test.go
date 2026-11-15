@@ -161,3 +161,67 @@ func TestClaudeOrchestratorWiringRunsOnALocalModelAlone(t *testing.T) {
 		t.Fatalf("missing local model error = %v", err)
 	}
 }
+
+func TestClaudeOrchestratorWiringRunsOnTheOneClaudeKey(t *testing.T) {
+	cfg := configuredClaudeOrchestratorConfig()
+	cfg.ClaudeOnly = true
+	cfg.DeepSeekProvider = modelgateway.ProviderConfig{}
+	// Ignored with the one key in charge.
+	cfg.PlannerProvider = ports.ModelProviderLocal
+	cfg.Worker.DefaultProvider = ports.ModelProviderDeepSeek
+	cfg.Worker.Mode = config.ClaudeOrchestratorWorkerModeAgents
+	if err := validateClaudeOrchestratorConfig(cfg); err != nil {
+		t.Fatalf("validate = %v, want only Claude required", err)
+	}
+	wiring, err := newClaudeOrchestratorWiring(config.Config{ClaudeOrchestrator: cfg}, claudeOrchestratorBuildDeps{
+		Worker: &fakeOrchestratorWorker{}, Validator: &fakeOrchestratorValidator{}, Memory: &fakeOrchestratorMemory{},
+	})
+	if err != nil {
+		t.Fatalf("newClaudeOrchestratorWiring: %v", err)
+	}
+	if providers := wiring.providers.Providers(); len(providers) != 1 || providers[0] != ports.ModelProviderClaude {
+		t.Fatalf("providers = %v, want Claude alone", providers)
+	}
+	if wiring.agents != nil {
+		t.Fatal("agent sessions were wired although the one Claude key writes the code")
+	}
+	if plannerProvider(cfg) != ports.ModelProviderClaude || workerProvider(cfg) != ports.ModelProviderClaude || pinnedWriter(cfg) != ports.ModelProviderClaude {
+		t.Fatalf("planner %q writer %q pinned %q, want Claude for all", plannerProvider(cfg), workerProvider(cfg), pinnedWriter(cfg))
+	}
+
+	cfg.ClaudeProvider = modelgateway.ProviderConfig{}
+	if err := validateClaudeOrchestratorConfig(cfg); err == nil || !strings.Contains(err.Error(), "CLAUDE_BASE_URL") || strings.Contains(err.Error(), "DEEPSEEK") {
+		t.Fatalf("missing Claude error = %v, want Claude named and nothing else", err)
+	}
+}
+
+func TestParallelModelWritingNeedsTheOneKeyOwnWorktreesAndALimit(t *testing.T) {
+	cfg := configuredClaudeOrchestratorConfig()
+	cfg.Worker.MaxParallelSubtasks = 3
+	if parallelModelWriting(cfg, true) {
+		t.Fatal("parallel writing turned on without the one Claude key")
+	}
+	cfg.ClaudeOnly = true
+	if !parallelModelWriting(cfg, true) {
+		t.Fatal("parallel writing stayed off with the one Claude key")
+	}
+	if parallelModelWriting(cfg, false) {
+		t.Fatal("parallel writing turned on without a worktree manager")
+	}
+	pinned := cfg
+	pinned.Worker.WorktreePath = "/tmp/pinned"
+	if parallelModelWriting(pinned, true) {
+		t.Fatal("parallel writing turned on for a single pinned worktree")
+	}
+	single := cfg
+	single.Worker.MaxParallelSubtasks = 1
+	if parallelModelWriting(single, true) {
+		t.Fatal("parallel writing turned on with a limit of one")
+	}
+	if got := maxParallelSubtasks(cfg.Worker, true); got != 3 {
+		t.Fatalf("maxParallelSubtasks = %d, want 3 with own worktrees", got)
+	}
+	if got := maxParallelSubtasks(cfg.Worker, false); got != 1 {
+		t.Fatalf("maxParallelSubtasks = %d, want 1 in a shared worktree", got)
+	}
+}

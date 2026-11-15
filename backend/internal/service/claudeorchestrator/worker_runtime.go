@@ -369,9 +369,16 @@ func (e *authorAttemptError) Unwrap() error { return e.err }
 // picks files to read, then proposes whole-file edits, which are applied in
 // the verified worktree. Failures the model can fix are *authorAttemptError.
 func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, request ports.WorkerRequest) (string, error) {
-	files, err := r.repositoryFiles(ctx, worktreePath)
+	summary, _, err := authorInWorktree(ctx, r.runner, r.author, worktreePath, request)
+	return summary, err
+}
+
+// authorInWorktree is authorCode for any trusted worktree: the shared run
+// worktree, or a model writer's own worktree. It also reports what changed.
+func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author ports.CodeAuthor, worktreePath string, request ports.WorkerRequest) (string, appliedEdits, error) {
+	files, err := listRepositoryFiles(ctx, runner, worktreePath)
 	if err != nil {
-		return "", err
+		return "", appliedEdits{}, err
 	}
 	authorRequest := ports.CodeAuthorRequest{
 		Provider:        request.Task.Provider,
@@ -381,21 +388,21 @@ func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, req
 		PreviousFailure: request.PreviousFailure,
 		RepositoryFiles: files,
 	}
-	selection, err := r.author.SelectFiles(ctx, authorRequest)
+	selection, err := author.SelectFiles(ctx, authorRequest)
 	if err != nil {
-		return "", &authorAttemptError{stage: "select files to read", err: err}
+		return "", appliedEdits{}, &authorAttemptError{stage: "select files to read", err: err}
 	}
 	authorRequest.Files, err = readSnapshots(worktreePath, selection.Paths, files)
 	if err != nil {
-		return "", err
+		return "", appliedEdits{}, err
 	}
-	proposal, err := r.author.ProposeEdits(ctx, authorRequest)
+	proposal, err := author.ProposeEdits(ctx, authorRequest)
 	if err != nil {
-		return "", &authorAttemptError{stage: "propose edits", err: err}
+		return "", appliedEdits{}, &authorAttemptError{stage: "propose edits", err: err}
 	}
 	applied, err := applyEdits(worktreePath, proposal.Edits)
 	if err != nil {
-		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+		return "", appliedEdits{}, &authorAttemptError{stage: "the proposed edits were rejected", err: err}
 	}
 	var parts []string
 	if text := strings.TrimSpace(proposal.Summary); text != "" {
@@ -412,13 +419,14 @@ func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, req
 			parts = append(parts, "deleted "+strings.Join(applied.Deleted, ", "))
 		}
 	}
-	return strings.Join(parts, "; "), nil
+	return strings.Join(parts, "; "), applied, nil
 }
 
-// repositoryFiles lists tracked and untracked, non-ignored files with a fixed
-// Git argv on the host. Protected paths are omitted, and the list is bounded.
-func (r *WorkerRuntime) repositoryFiles(ctx context.Context, worktreePath string) ([]string, error) {
-	output, err := r.runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
+// listRepositoryFiles lists tracked and untracked, non-ignored files with a
+// fixed Git argv on the host. Protected paths are omitted, and the list is
+// bounded.
+func listRepositoryFiles(ctx context.Context, runner WorktreeCommandRunner, worktreePath string) ([]string, error) {
+	output, err := runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
 	if err != nil {
 		return nil, fmt.Errorf("list repository files: %s", boundedRedacted(err.Error()))
 	}

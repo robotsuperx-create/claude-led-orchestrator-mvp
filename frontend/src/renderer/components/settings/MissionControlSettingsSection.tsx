@@ -85,9 +85,11 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	if (!isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED)) return errors;
 
 	// Turning it on needs a project, a planner, a writer in model mode, and checks.
+	// With one Claude key for everything, Claude is the only model needed.
 	if (!value("AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT")) errors.AO_CLAUDE_ORCHESTRATOR_WORKER_PROJECT_ROOT = "required";
-	const needs = new Set<string>([value("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER") || "claude"]);
-	if ((value("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE") || "model") === "model") needs.add(value("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER") || "deepseek");
+	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
+	const needs = new Set<string>([claudeOnly ? "claude" : value("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER") || "claude"]);
+	if (!claudeOnly && (value("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE") || "model") === "model") needs.add(value("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER") || "deepseek");
 	const providerKeys = {
 		claude: ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL"],
 		deepseek: ["AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL"],
@@ -245,7 +247,9 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 		{ value: "local", label: t("orchestrator.provider.local") },
 	];
 	const enabled = isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED);
+	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const workerMode = draft.AO_CLAUDE_ORCHESTRATOR_WORKER_MODE || "model";
+	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "3";
 
 	return (
 		<div className="flex flex-col gap-(--size-settings-section-gap,1.5rem)" data-testid="mission-control-settings">
@@ -256,6 +260,14 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 						checked={enabled}
 						disabled={fromEnv.has("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED")}
 						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", next ? "on" : "off")}
+					/>
+				</SettingsRow>
+				<SettingsRow label={t("settings.missionControl.claudeOnly")} description={t("settings.missionControl.claudeOnlyDescription")}>
+					<Switch
+						aria-label={t("settings.missionControl.claudeOnly")}
+						checked={claudeOnly}
+						disabled={fromEnv.has("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY")}
+						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", next ? "on" : "off")}
 					/>
 				</SettingsRow>
 				<TextField
@@ -309,7 +321,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.planner")} grouped>
-				{choice("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER", t("settings.missionControl.plannerProvider"), [
+				{claudeOnly ? null : choice("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER", t("settings.missionControl.plannerProvider"), [
 					{ value: "claude", label: "Claude" },
 					{ value: "local", label: t("orchestrator.provider.local") },
 				], "claude", t("settings.missionControl.plannerProviderDescription"))}
@@ -318,16 +330,26 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.workers")} grouped>
-				{choice("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE", t("settings.missionControl.workerMode"), [
-					{ value: "model", label: t("settings.missionControl.workerModeModel") },
-					{ value: "agents", label: t("settings.missionControl.workerModeAgents") },
-				], "model", t(workerMode === "agents" ? "settings.missionControl.workerModeAgentsDescription" : "settings.missionControl.workerModeModelDescription"))}
-				{choice("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER", t("settings.missionControl.workerProvider"), providers, "deepseek")}
-				{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", t("settings.missionControl.deepseekBaseUrl"), { mono: true })}
-				{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL", t("settings.missionControl.deepseekModel"), { mono: true })}
-				{secret("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_API_KEY", t("settings.missionControl.deepseekApiKey"))}
-				{field("AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", t("settings.missionControl.localBaseUrl"), { mono: true, description: t("settings.missionControl.localDescription") })}
-				{field("AO_CLAUDE_ORCHESTRATOR_LOCAL_MODEL", t("settings.missionControl.localModel"), { mono: true })}
+				{claudeOnly ? (
+					<SettingsRow label={t("settings.missionControl.workerMode")} description={t("settings.missionControl.claudeOnlyWritersDescription")}>
+						<p className="text-right text-[12px] leading-5 text-muted-foreground rtl:text-left" data-testid="mission-control-claude-writers">
+							{t("settings.missionControl.claudeOnlyWriters", { limit: parallelLimit })}
+						</p>
+					</SettingsRow>
+				) : (
+					<>
+						{choice("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE", t("settings.missionControl.workerMode"), [
+							{ value: "model", label: t("settings.missionControl.workerModeModel") },
+							{ value: "agents", label: t("settings.missionControl.workerModeAgents") },
+						], "model", t(workerMode === "agents" ? "settings.missionControl.workerModeAgentsDescription" : "settings.missionControl.workerModeModelDescription"))}
+						{choice("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER", t("settings.missionControl.workerProvider"), providers, "deepseek")}
+						{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", t("settings.missionControl.deepseekBaseUrl"), { mono: true })}
+						{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL", t("settings.missionControl.deepseekModel"), { mono: true })}
+						{secret("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_API_KEY", t("settings.missionControl.deepseekApiKey"))}
+						{field("AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", t("settings.missionControl.localBaseUrl"), { mono: true, description: t("settings.missionControl.localDescription") })}
+						{field("AO_CLAUDE_ORCHESTRATOR_LOCAL_MODEL", t("settings.missionControl.localModel"), { mono: true })}
+					</>
+				)}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.checks")} grouped>
@@ -367,11 +389,11 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 			<SettingsSection title={t("settings.missionControl.limits")} grouped>
 				{field("AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET", t("settings.missionControl.tokenBudget"), { inputMode: "numeric", description: t("settings.missionControl.tokenBudgetDescription") })}
 				{choice("AO_CLAUDE_ORCHESTRATOR_MAX_REPLANS", t("settings.missionControl.maxReplans"), ["0", "1", "2", "3"].map((value) => ({ value, label: value })), "1", t("settings.missionControl.maxReplansDescription"))}
-				{field("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS", t("settings.missionControl.parallel"), { inputMode: "numeric", description: t("settings.missionControl.parallelDescription") })}
+				{field("AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS", t("settings.missionControl.parallel"), { inputMode: "numeric", description: t(claudeOnly ? "settings.missionControl.parallelDescriptionClaudeOnly" : "settings.missionControl.parallelDescription") })}
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_INPUT_PER_MTOK", t("settings.missionControl.claudePriceInput"), { inputMode: "decimal", description: t("settings.missionControl.priceDescription") })}
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_OUTPUT_PER_MTOK", t("settings.missionControl.claudePriceOutput"), { inputMode: "decimal" })}
-				{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_PRICE_INPUT_PER_MTOK", t("settings.missionControl.deepseekPriceInput"), { inputMode: "decimal" })}
-				{field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_PRICE_OUTPUT_PER_MTOK", t("settings.missionControl.deepseekPriceOutput"), { inputMode: "decimal" })}
+				{claudeOnly ? null : field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_PRICE_INPUT_PER_MTOK", t("settings.missionControl.deepseekPriceInput"), { inputMode: "decimal" })}
+				{claudeOnly ? null : field("AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_PRICE_OUTPUT_PER_MTOK", t("settings.missionControl.deepseekPriceOutput"), { inputMode: "decimal" })}
 			</SettingsSection>
 
 			<div className="flex flex-wrap items-center gap-3 px-1 pb-2">
