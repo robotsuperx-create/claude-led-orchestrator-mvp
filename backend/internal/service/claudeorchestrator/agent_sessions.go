@@ -276,9 +276,17 @@ func (a *AgentSessions) spawn(ctx context.Context, backend *agentBackend, reques
 }
 
 // createAgentBranch cuts a fresh branch for the agent from the run's HEAD.
-// It is a sibling of the run branch, not a child, because Git cannot hold
-// both refs/heads/a and refs/heads/a/b.
 func (a *AgentSessions) createAgentBranch(ctx context.Context, worktree, runBranch, subtaskID, head string) (string, error) {
+	return createSubtaskBranch(ctx, a.gitOutput, worktree, runBranch, subtaskID, head)
+}
+
+// gitFunc runs one fixed git argv in dir and returns its trimmed output.
+type gitFunc func(ctx context.Context, dir string, args ...string) (string, error)
+
+// createSubtaskBranch cuts a fresh branch for one subtask from the run's
+// HEAD. It is a sibling of the run branch, not a child, because Git cannot
+// hold both refs/heads/a and refs/heads/a/b.
+func createSubtaskBranch(ctx context.Context, git gitFunc, worktree, runBranch, subtaskID, head string) (string, error) {
 	slug := strings.Trim(unsafeBranchChars.ReplaceAllString(subtaskID, "-"), "-.")
 	if runes := []rune(slug); len(runes) > 40 {
 		slug = string(runes[:40])
@@ -292,18 +300,18 @@ func (a *AgentSessions) createAgentBranch(ctx context.Context, worktree, runBran
 		if suffix > 1 {
 			branch = fmt.Sprintf("%s-%d", base, suffix)
 		}
-		if _, err := a.gitOutput(ctx, worktree, "check-ref-format", "--branch", branch); err != nil {
-			return "", fmt.Errorf("agent branch name is invalid: %w", err)
+		if _, err := git(ctx, worktree, "check-ref-format", "--branch", branch); err != nil {
+			return "", fmt.Errorf("subtask branch name is invalid: %w", err)
 		}
-		if _, err := a.gitOutput(ctx, worktree, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
+		if _, err := git(ctx, worktree, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
 			continue
 		}
-		if _, err := a.gitOutput(ctx, worktree, "branch", branch, head); err != nil {
+		if _, err := git(ctx, worktree, "branch", branch, head); err != nil {
 			return "", err
 		}
 		return branch, nil
 	}
-	return "", fmt.Errorf("no unused agent branch name for %q", base)
+	return "", fmt.Errorf("no unused subtask branch name for %q", base)
 }
 
 func (a *AgentSessions) sendRetry(ctx context.Context, backend *agentBackend, binding agentBinding, request ports.AgentImplementRequest, runHead string) error {
@@ -483,20 +491,28 @@ func (a *AgentSessions) Integrate(ctx context.Context, worktree string, work por
 	if a == nil {
 		return errors.New("agent sessions are not configured")
 	}
+	return integrateWorkBranch(ctx, a.gitOutput, worktree, work, a.authorName, a.authorEmail)
+}
+
+// integrateWorkBranch brings one subtask's committed branch into the run
+// worktree: a fast-forward when the run has not moved, otherwise a merge.
+// It never rewrites history, and a conflict is aborted and reported as a
+// failed attempt so the subtask is retried on top of the run's latest work.
+func integrateWorkBranch(ctx context.Context, git gitFunc, worktree string, work ports.AgentWork, authorName, authorEmail string) error {
 	if worktree == "" || work.Branch == "" || work.Base == "" {
 		return errors.New("agent work is missing its branch or base")
 	}
-	tip, err := a.gitOutput(ctx, worktree, "rev-parse", "refs/heads/"+work.Branch)
+	tip, err := git(ctx, worktree, "rev-parse", "refs/heads/"+work.Branch)
 	if err != nil {
 		return err
 	}
 	if tip == work.Base {
 		return agentAttemptFailure("the agent made no changes")
 	}
-	if _, err := a.gitOutput(ctx, worktree, "merge-base", "--is-ancestor", work.Base, tip); err != nil {
+	if _, err := git(ctx, worktree, "merge-base", "--is-ancestor", work.Base, tip); err != nil {
 		return agentAttemptFailure("the agent rewrote history; its branch no longer builds on the run")
 	}
-	changed, err := a.gitOutput(ctx, worktree, "diff", "--name-only", "-z", work.Base, tip)
+	changed, err := git(ctx, worktree, "diff", "--name-only", "-z", work.Base, tip)
 	if err != nil {
 		return err
 	}
@@ -509,26 +525,26 @@ func (a *AgentSessions) Integrate(ctx context.Context, worktree string, work por
 			return agentAttemptFailure("the agent changed a protected path %q", boundedRedacted(name))
 		}
 	}
-	head, err := a.gitOutput(ctx, worktree, "rev-parse", "HEAD")
+	head, err := git(ctx, worktree, "rev-parse", "HEAD")
 	if err != nil {
 		return err
 	}
 	if head == tip {
 		return nil
 	}
-	if _, err := a.gitOutput(ctx, worktree, "merge-base", "--is-ancestor", head, tip); err == nil {
-		if _, err := a.gitOutput(ctx, worktree, "merge", "--ff-only", "--quiet", tip); err != nil {
+	if _, err := git(ctx, worktree, "merge-base", "--is-ancestor", head, tip); err == nil {
+		if _, err := git(ctx, worktree, "merge", "--ff-only", "--quiet", tip); err != nil {
 			return fmt.Errorf("fast-forward the run worktree: %w", err)
 		}
 		return nil
 	}
 	// Another subtask moved the run on: merge, never rewrite.
-	if _, err := a.gitOutput(ctx, worktree,
-		"-c", "user.name="+a.authorName, "-c", "user.email="+a.authorEmail,
-		"merge", "--no-ff", "--no-edit", "--no-verify", "--quiet", "-m", "Merge agent work from "+work.Branch, tip); err != nil {
-		conflicts, _ := a.gitOutput(ctx, worktree, "diff", "--name-only", "--diff-filter=U")
-		_, _ = a.gitOutput(context.WithoutCancel(ctx), worktree, "merge", "--abort")
-		return agentAttemptFailure("the agent's changes conflict with another subtask's work in: %s",
+	if _, err := git(ctx, worktree,
+		"-c", "user.name="+authorName, "-c", "user.email="+authorEmail,
+		"merge", "--no-ff", "--no-edit", "--no-verify", "--quiet", "-m", "Merge subtask work from "+work.Branch, tip); err != nil {
+		conflicts, _ := git(ctx, worktree, "diff", "--name-only", "--diff-filter=U")
+		_, _ = git(context.WithoutCancel(ctx), worktree, "merge", "--abort")
+		return agentAttemptFailure("this subtask's changes conflict with another subtask's work in: %s",
 			boundedRedacted(strings.Join(strings.Fields(conflicts), ", ")))
 	}
 	return nil

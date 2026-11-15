@@ -120,3 +120,37 @@ func TestPlansWithBadDependenciesAreRejected(t *testing.T) {
 		})
 	}
 }
+
+func TestAPinnedWriterWritesEverySubtaskWhateverThePlanNames(t *testing.T) {
+	plan := ports.ExecutionPlan{Subtasks: []ports.PlannedSubtask{
+		{ID: "a", WorkerID: "w", Provider: ports.ModelProviderDeepSeek},
+		{ID: "b", WorkerID: "w", Provider: ports.ModelProviderLocal},
+		{ID: "c", WorkerID: "w"},
+	}}
+	var mu sync.Mutex
+	providers := map[string]ports.ModelProvider{}
+	service := parallelService(plan, 3, func(_ context.Context, request ports.WorkerRequest) (ports.WorkerExecution, error) {
+		mu.Lock()
+		providers[request.Task.ID] = request.Task.Provider
+		mu.Unlock()
+		return ports.WorkerExecution{Status: ports.WorkerOutcomeCompleted}, nil
+	})
+	service.writer = ports.ModelProviderClaude
+	result, err := service.Run(context.Background(), ports.OrchestrationRequest{RunID: "r", Task: "t"})
+	if err != nil || result.State != ports.RunStateCompleted {
+		t.Fatalf("Run = %+v, %v", result, err)
+	}
+	for _, id := range []string{"a", "b", "c"} {
+		if providers[id] != ports.ModelProviderClaude {
+			t.Fatalf("subtask %s was written by %q, want claude: %v", id, providers[id], providers)
+		}
+	}
+	for _, task := range result.Plan.Subtasks {
+		if task.Provider != ports.ModelProviderClaude {
+			t.Fatalf("the recorded plan still names %q for %s", task.Provider, task.ID)
+		}
+	}
+	if stored, ok := service.PlanFor("r"); !ok || stored.Subtasks[0].Provider != ports.ModelProviderClaude {
+		t.Fatalf("the plan shown to people names %+v", stored.Subtasks)
+	}
+}

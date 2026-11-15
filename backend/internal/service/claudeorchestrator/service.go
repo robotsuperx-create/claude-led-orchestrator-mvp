@@ -38,6 +38,9 @@ type Dependencies struct {
 	// PlannerProvider is the executive that plans and reviews; empty selects
 	// Claude.
 	PlannerProvider ports.ModelProvider
+	// WriterProvider, when set, writes every subtask whatever provider the
+	// plan names, so a plan never asks for a model that is not in use.
+	WriterProvider ports.ModelProvider
 	// Budget limits each run's model usage; the zero value is unlimited.
 	Budget UsageBudget
 	// MaxReplans is how many times Claude may revise the plan when subtasks
@@ -58,6 +61,7 @@ type Service struct {
 	workspaces          ports.RunWorkspaceProvisioner
 	maxParallel         int
 	planner             ports.ModelProvider
+	writer              ports.ModelProvider
 	budget              UsageBudget
 	maxReplans          int
 
@@ -94,6 +98,7 @@ func New(deps Dependencies) *Service {
 		workspaces:          deps.Workspaces,
 		maxParallel:         max(1, deps.MaxParallelSubtasks),
 		planner:             plannerOrClaude(deps.PlannerProvider),
+		writer:              deps.WriterProvider,
 		budget:              deps.Budget,
 		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
 
@@ -292,6 +297,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
+	plan = s.pinWriter(plan)
 	if proceed, stopped := s.approvePlan(runCtx, request, plan); !proceed {
 		result.Plan = plan
 		return stopped(result)
@@ -708,6 +714,19 @@ func (s *Service) workspaceFor(ctx context.Context, request ports.OrchestrationR
 	return ports.RunWorkspace{}, nil
 }
 
+// pinWriter gives every subtask the configured writer, when there is one.
+func (s *Service) pinWriter(plan ports.ExecutionPlan) ports.ExecutionPlan {
+	if s.writer == "" {
+		return plan
+	}
+	pinned := ports.ExecutionPlan{Summary: plan.Summary, Subtasks: make([]ports.PlannedSubtask, len(plan.Subtasks))}
+	for i, task := range plan.Subtasks {
+		task.Provider = s.writer
+		pinned.Subtasks[i] = task
+	}
+	return pinned
+}
+
 // bindTrustedWorkspace replaces all subtask metadata with server-owned values.
 // A model plan must never choose where commands run or what gets mounted, so
 // any metadata an implementation decoded from model output is discarded.
@@ -816,6 +835,7 @@ func (s *Service) replan(ctx context.Context, request ports.OrchestrationRequest
 	if err := validatePlan(revised); err != nil {
 		return ports.ExecutionPlan{}, err
 	}
+	revised = s.pinWriter(revised)
 	prefix := fmt.Sprintf("r%d-", round)
 	for i, task := range revised.Subtasks {
 		task.ID = prefix + task.ID

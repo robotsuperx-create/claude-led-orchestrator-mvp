@@ -81,7 +81,7 @@ func validateClaudeOrchestratorConfig(cfg config.ClaudeOrchestratorConfig) error
 		}
 	}
 	required := map[ports.ModelProvider]bool{plannerProvider(cfg): true}
-	if cfg.Worker.Mode != config.ClaudeOrchestratorWorkerModeAgents {
+	if cfg.ClaudeOnly || cfg.Worker.Mode != config.ClaudeOrchestratorWorkerModeAgents {
 		// In agents mode each agent harness brings its own credentials.
 		required[workerProvider(cfg)] = true
 	}
@@ -138,12 +138,12 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 
 	model := injected.Model
 	author := injected.Author
-	agentsMode := cfg.ClaudeOrchestrator.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents
+	agentsMode := cfg.ClaudeOrchestrator.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents && !cfg.ClaudeOrchestrator.ClaudeOnly
 	if model == nil {
 		// Register every provider that is configured; validation above made
 		// sure the planner and, in model mode, the default worker are.
 		var providers []modelgateway.ProviderConfig
-		for _, provider := range []ports.ModelProvider{ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal} {
+		for _, provider := range orchestratorProviders(cfg.ClaudeOrchestrator) {
 			if candidate := providerConfig(cfg.ClaudeOrchestrator, provider); strings.TrimSpace(candidate.BaseURL) != "" {
 				providers = append(providers, candidate)
 			}
@@ -164,7 +164,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		if author == nil && !agentsMode {
 			// Claude plans and reviews; each subtask's code is written by the
 			// provider its plan names, defaulting to the configured worker.
-			author, err = modelgateway.NewAuthorRouter(registry, cfg.ClaudeOrchestrator.Worker.DefaultProvider)
+			author, err = modelgateway.NewAuthorRouter(registry, workerProvider(cfg.ClaudeOrchestrator))
 			if err != nil {
 				return nil, fmt.Errorf("configure Claude orchestrator code author: %w", err)
 			}
@@ -175,6 +175,9 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 	if runner == nil {
 		runner = claudeorchestrator.ExecCommandRunner{}
 	}
+	// parallelWriters is set when model-written subtasks get worktrees of
+	// their own and may therefore run at the same time.
+	parallelWriters := false
 	sandbox := injected.Sandbox
 	if sandbox == nil && cfg.ClaudeOrchestrator.Worker.SandboxEnabled {
 		executor, sandboxErr := sandboxrunner.NewDockerExecutor(sandboxrunner.DockerConfig{
@@ -230,6 +233,17 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 			return nil, errors.New("the Claude orchestrator worker requires a worktree-capable command runner")
 		}
 		var agents ports.AgentImplementer
+		if !agentsMode && author != nil && parallelModelWriting(cfg.ClaudeOrchestrator, injected.Worktrees != nil) {
+			// Each subtask is written in its own worktree, so independent
+			// subtasks can be written at the same time on the same key.
+			writers, err := claudeorchestrator.NewModelWriters(worktreeRunner, author)
+			if err != nil {
+				return nil, fmt.Errorf("configure Claude orchestrator parallel writers: %w", err)
+			}
+			agents = writers
+			author = nil
+			parallelWriters = true
+		}
 		if agentsMode {
 			sessions, err := claudeorchestrator.NewAgentSessions(worktreeRunner, claudeorchestrator.AgentSessionsConfig{
 				Harnesses:       cfg.ClaudeOrchestrator.Worker.AgentHarnesses,
@@ -289,8 +303,9 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
 		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
 		Workspaces:          workspaces,
-		MaxParallelSubtasks: maxParallelSubtasks(cfg.ClaudeOrchestrator.Worker, agentsMode),
+		MaxParallelSubtasks: maxParallelSubtasks(cfg.ClaudeOrchestrator.Worker, agentsMode || parallelWriters),
 		PlannerProvider:     plannerProvider(cfg.ClaudeOrchestrator),
+		WriterProvider:      pinnedWriter(cfg.ClaudeOrchestrator),
 		Budget:              runBudget(cfg.ClaudeOrchestrator.Budget),
 		MaxReplans:          cfg.ClaudeOrchestrator.MaxReplans,
 	})
@@ -298,13 +313,16 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 }
 
 func plannerProvider(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {
-	if cfg.PlannerProvider == "" {
+	if cfg.ClaudeOnly || cfg.PlannerProvider == "" {
 		return ports.ModelProviderClaude
 	}
 	return cfg.PlannerProvider
 }
 
 func workerProvider(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {
+	if cfg.ClaudeOnly {
+		return ports.ModelProviderClaude
+	}
 	if cfg.Worker.DefaultProvider == "" {
 		return ports.ModelProviderDeepSeek
 	}
@@ -339,13 +357,42 @@ func runBudget(budget config.ClaudeOrchestratorBudgetConfig) claudeorchestrator.
 	return result
 }
 
-// maxParallelSubtasks allows parallel subtasks only in agents mode, where each
-// agent codes in its own worktree; model edits share the run worktree.
-func maxParallelSubtasks(worker config.ClaudeOrchestratorWorkerConfig, agentsMode bool) int {
-	if !agentsMode || worker.MaxParallelSubtasks < 1 {
+// maxParallelSubtasks allows parallel subtasks only when each subtask codes in
+// its own worktree: in agents mode, or with parallel model writers. Otherwise
+// model edits share the run worktree and go one at a time.
+func maxParallelSubtasks(worker config.ClaudeOrchestratorWorkerConfig, ownWorktrees bool) int {
+	if !ownWorktrees || worker.MaxParallelSubtasks < 1 {
 		return 1
 	}
 	return worker.MaxParallelSubtasks
+}
+
+// orchestratorProviders lists the providers a run may call. With the one
+// Claude key in charge, no other provider is registered even when one is
+// configured, so nothing in a plan can reach it.
+func orchestratorProviders(cfg config.ClaudeOrchestratorConfig) []ports.ModelProvider {
+	if cfg.ClaudeOnly {
+		return []ports.ModelProvider{ports.ModelProviderClaude}
+	}
+	return []ports.ModelProvider{ports.ModelProviderClaude, ports.ModelProviderDeepSeek, ports.ModelProviderLocal}
+}
+
+// pinnedWriter is the provider that writes every subtask, when one is fixed.
+func pinnedWriter(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {
+	if cfg.ClaudeOnly {
+		return ports.ModelProviderClaude
+	}
+	return ""
+}
+
+// parallelModelWriting reports whether model-written subtasks get worktrees of
+// their own. That needs per-run worktrees (not one pinned worktree) and a
+// parallel limit above one, and is part of running on the one Claude key.
+func parallelModelWriting(cfg config.ClaudeOrchestratorConfig, haveWorktrees bool) bool {
+	return cfg.ClaudeOnly &&
+		strings.TrimSpace(cfg.Worker.WorktreePath) == "" &&
+		haveWorktrees &&
+		cfg.Worker.MaxParallelSubtasks > 1
 }
 
 func toOrchestratorCommands(commands []config.ClaudeOrchestratorCommandConfig) []claudeorchestrator.ValidationCommand {

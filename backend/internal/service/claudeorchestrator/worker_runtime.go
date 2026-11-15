@@ -369,7 +369,13 @@ func (e *authorAttemptError) Unwrap() error { return e.err }
 // picks files to read, then proposes whole-file edits, which are applied in
 // the verified worktree. Failures the model can fix are *authorAttemptError.
 func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, request ports.WorkerRequest) (string, error) {
-	files, err := r.repositoryFiles(ctx, worktreePath)
+	return authorInWorktree(ctx, r.runner, r.author, worktreePath, request)
+}
+
+// authorInWorktree is authorCode for any trusted worktree: the shared run
+// worktree, or a model writer's own worktree.
+func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author ports.CodeAuthor, worktreePath string, request ports.WorkerRequest) (string, error) {
+	files, err := listRepositoryFiles(ctx, runner, worktreePath)
 	if err != nil {
 		return "", err
 	}
@@ -381,7 +387,7 @@ func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, req
 		PreviousFailure: request.PreviousFailure,
 		RepositoryFiles: files,
 	}
-	selection, err := r.author.SelectFiles(ctx, authorRequest)
+	selection, err := author.SelectFiles(ctx, authorRequest)
 	if err != nil {
 		return "", &authorAttemptError{stage: "select files to read", err: err}
 	}
@@ -389,7 +395,7 @@ func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, req
 	if err != nil {
 		return "", err
 	}
-	proposal, err := r.author.ProposeEdits(ctx, authorRequest)
+	proposal, err := author.ProposeEdits(ctx, authorRequest)
 	if err != nil {
 		return "", &authorAttemptError{stage: "propose edits", err: err}
 	}
@@ -415,10 +421,11 @@ func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, req
 	return strings.Join(parts, "; "), nil
 }
 
-// repositoryFiles lists tracked and untracked, non-ignored files with a fixed
-// Git argv on the host. Protected paths are omitted, and the list is bounded.
-func (r *WorkerRuntime) repositoryFiles(ctx context.Context, worktreePath string) ([]string, error) {
-	output, err := r.runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
+// listRepositoryFiles lists tracked and untracked, non-ignored files with a
+// fixed Git argv on the host. Protected paths are omitted, and the list is
+// bounded.
+func listRepositoryFiles(ctx context.Context, runner WorktreeCommandRunner, worktreePath string) ([]string, error) {
+	output, err := runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
 	if err != nil {
 		return nil, fmt.Errorf("list repository files: %s", boundedRedacted(err.Error()))
 	}

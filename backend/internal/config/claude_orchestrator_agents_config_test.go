@@ -120,3 +120,41 @@ func TestLoadClaudeOrchestratorBudgetLocalModelAndReplans(t *testing.T) {
 		t.Fatalf("an https endpoint elsewhere should be allowed: %v", err)
 	}
 }
+
+func TestLoadClaudeOrchestratorClaudeOnly(t *testing.T) {
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", "on")
+	cfg, err := Load()
+	if err != nil || cfg.ClaudeOrchestrator.ClaudeOnly {
+		t.Fatalf("ClaudeOnly = %v, %v; want off by default", cfg.ClaudeOrchestrator.ClaudeOnly, err)
+	}
+
+	// Whatever the other choices say, the one Claude key runs everything.
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "on")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER", "local")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER", "deepseek")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE", "agents")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	orchestrator := cfg.ClaudeOrchestrator
+	if !orchestrator.ClaudeOnly || orchestrator.PlannerProvider != ports.ModelProviderClaude ||
+		orchestrator.Worker.DefaultProvider != ports.ModelProviderClaude ||
+		orchestrator.Worker.Mode != ClaudeOrchestratorWorkerModeModel {
+		t.Fatalf("Claude-only config = only %v planner %q writer %q mode %q", orchestrator.ClaudeOnly,
+			orchestrator.PlannerProvider, orchestrator.Worker.DefaultProvider, orchestrator.Worker.Mode)
+	}
+	// Only the key is needed: the address and model have defaults.
+	if orchestrator.ClaudeProvider.BaseURL != DefaultCommanderBaseURL || orchestrator.ClaudeProvider.DefaultModel != DefaultClaudeOrchestratorClaudeModel {
+		t.Fatalf("Claude provider = %v, want the default address and model", orchestrator.ClaudeProvider)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", "claude-sonnet-5-5")
+	if cfg, err = Load(); err != nil || cfg.ClaudeOrchestrator.ClaudeProvider.DefaultModel != "claude-sonnet-5-5" {
+		t.Fatalf("a chosen model was not kept: %v, %v", cfg.ClaudeOrchestrator.ClaudeProvider, err)
+	}
+
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "sometimes")
+	if _, err := Load(); err == nil {
+		t.Fatal("an invalid Claude-only toggle was accepted")
+	}
+}
