@@ -88,9 +88,8 @@ describe("MissionControlSettingsSection", () => {
 		await user.type(screen.getByLabelText("Subtasks at once"), "5");
 		expect(screen.getByTestId("mission-control-claude-writers")).toHaveTextContent("up to 5 subtasks");
 
+		// The Claude address and model may stay empty: they have defaults.
 		await user.click(screen.getByRole("button", { name: "Choose folder" }));
-		await user.type(screen.getByLabelText("Claude API address"), "https://api.anthropic.com/v1");
-		await user.type(screen.getByLabelText("Claude model"), "claude-opus-5-5");
 		await user.type(screen.getByLabelText("Claude API key"), "sk-claude");
 		await user.type(screen.getByLabelText("After each change"), "npm test");
 		await user.type(screen.getByLabelText("Final checks"), "npm test");

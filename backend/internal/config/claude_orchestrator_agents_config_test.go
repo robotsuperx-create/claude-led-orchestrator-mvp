@@ -144,6 +144,14 @@ func TestLoadClaudeOrchestratorClaudeOnly(t *testing.T) {
 		t.Fatalf("Claude-only config = only %v planner %q writer %q mode %q", orchestrator.ClaudeOnly,
 			orchestrator.PlannerProvider, orchestrator.Worker.DefaultProvider, orchestrator.Worker.Mode)
 	}
+	// Only the key is needed: the address and model have defaults.
+	if orchestrator.ClaudeProvider.BaseURL != DefaultCommanderBaseURL || orchestrator.ClaudeProvider.DefaultModel != DefaultClaudeOrchestratorClaudeModel {
+		t.Fatalf("Claude provider = %v, want the default address and model", orchestrator.ClaudeProvider)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", "claude-sonnet-5-5")
+	if cfg, err = Load(); err != nil || cfg.ClaudeOrchestrator.ClaudeProvider.DefaultModel != "claude-sonnet-5-5" {
+		t.Fatalf("a chosen model was not kept: %v, %v", cfg.ClaudeOrchestrator.ClaudeProvider, err)
+	}
 
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "sometimes")
 	if _, err := Load(); err == nil {

@@ -115,6 +115,10 @@ type GitLabConfig struct {
 // provider's *_TIMEOUT is unset. Planning and code generation are long calls.
 const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
 
+// DefaultClaudeOrchestratorClaudeModel plans, writes and reviews when one
+// Claude key runs everything and no model is set.
+const DefaultClaudeOrchestratorClaudeModel = "claude-opus-5-5"
+
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
@@ -901,6 +905,16 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 	}
 	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
 		return err
+	}
+	if cfg.ClaudeOnly {
+		// With one key for everything, only the key is required: the address
+		// and model default to Anthropic's API and the model shown in the app.
+		if cfg.ClaudeProvider.BaseURL == "" {
+			cfg.ClaudeProvider.BaseURL = DefaultCommanderBaseURL
+		}
+		if cfg.ClaudeProvider.DefaultModel == "" {
+			cfg.ClaudeProvider.DefaultModel = DefaultClaudeOrchestratorClaudeModel
+		}
 	}
 	if cfg.DeepSeekProvider, err = loadProvider(ports.ModelProviderDeepSeek, "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK"); err != nil {
 		return err

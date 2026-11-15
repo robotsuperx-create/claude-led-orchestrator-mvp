@@ -90,8 +90,10 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const needs = new Set<string>([claudeOnly ? "claude" : value("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER") || "claude"]);
 	if (!claudeOnly && (value("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE") || "model") === "model") needs.add(value("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER") || "deepseek");
+	// With one Claude key, the address and model default to the placeholders.
+	const claudeKeys: readonly Key[] = claudeOnly ? [] : ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL"];
 	const providerKeys = {
-		claude: ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL"],
+		claude: claudeKeys,
 		deepseek: ["AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL"],
 		local: ["AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_MODEL"],
 	} as const;
