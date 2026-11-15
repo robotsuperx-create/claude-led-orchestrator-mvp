@@ -333,10 +333,8 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 
 			<SettingsSection title={t("settings.missionControl.workers")} grouped>
 				{claudeOnly ? (
-					<SettingsRow label={t("settings.missionControl.workerMode")} description={t("settings.missionControl.claudeOnlyWritersDescription")}>
-						<p className="text-right text-[12px] leading-5 text-muted-foreground rtl:text-left" data-testid="mission-control-claude-writers">
-							{t("settings.missionControl.claudeOnlyWriters", { limit: parallelLimit })}
-						</p>
+					<SettingsRow label={t("settings.missionControl.workerMode")} description={t("settings.missionControl.claudeOnlyWriters", { limit: parallelLimit })}>
+						{null}
 					</SettingsRow>
 				) : (
 					<>
