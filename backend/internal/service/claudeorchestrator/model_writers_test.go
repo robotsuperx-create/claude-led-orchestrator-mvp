@@ -43,15 +43,33 @@ func writerRequest(worktree, id string) ports.AgentImplementRequest {
 	}
 }
 
+// writerGit runs git the way the writers do, with the machine's own Git
+// configuration (core.autocrlf on Windows, for example), and returns its
+// trimmed output.
+func writerGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	output, err := ExecCommandRunner{}.RunInDirectory(context.Background(), dir, append([]string{"git"}, args...))
+	if err != nil || output.ExitCode != 0 {
+		t.Fatalf("git %s: %v %s", strings.Join(args, " "), err, output.Stderr)
+	}
+	return strings.TrimSpace(output.Stdout)
+}
+
+// readText reads a checked-out file with its line endings normalized.
+func readText(t *testing.T, path string) string {
+	t.Helper()
+	return strings.ReplaceAll(mustRead(t, path), "\r\n", "\n")
+}
+
 // assertNoWriterLeftovers checks that every attempt removed its worktree and
 // that no writer branch is left behind.
 func assertNoWriterLeftovers(t *testing.T, worktree string) {
 	t.Helper()
-	list := runGit(t, worktree, "worktree", "list", "--porcelain")
+	list := writerGit(t, worktree, "worktree", "list", "--porcelain")
 	if count := strings.Count(list, "worktree "); count != 2 {
 		t.Fatalf("worktrees = %d, want only the project and the run:\n%s", count, list)
 	}
-	if branches := runGit(t, worktree, "branch", "--list", "ao/claude-orchestrator/run-1--*"); branches != "" {
+	if branches := writerGit(t, worktree, "branch", "--list", "ao/claude-orchestrator/run-1--*"); branches != "" {
 		t.Fatalf("writer branches were left behind: %q", branches)
 	}
 	matches, err := filepath.Glob(worktree + ".writer-*")
@@ -95,11 +113,11 @@ func TestModelWritersWriteIndependentSubtasksAtTheSameTime(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"left.txt", "right.txt"} {
-		if got := mustRead(t, filepath.Join(worktree, name)); !strings.HasPrefix(got, "work of ") {
+		if got := readText(t, filepath.Join(worktree, name)); !strings.HasPrefix(got, "work of ") {
 			t.Fatalf("%s = %q", name, got)
 		}
 	}
-	if status := runGit(t, worktree, "status", "--porcelain"); status != "" {
+	if status := writerGit(t, worktree, "status", "--porcelain"); status != "" {
 		t.Fatalf("run worktree is dirty: %q", status)
 	}
 	assertNoWriterLeftovers(t, worktree)
@@ -129,7 +147,7 @@ func TestModelWritersConflictsFailTheAttemptAndLeaveTheRunAlone(t *testing.T) {
 	if after := runGit(t, worktree, "rev-parse", "HEAD"); after != head {
 		t.Fatal("a conflicting merge moved the run")
 	}
-	if got := mustRead(t, filepath.Join(worktree, "README.md")); got != "rewritten by one\n" {
+	if got := readText(t, filepath.Join(worktree, "README.md")); got != "rewritten by one\n" {
 		t.Fatalf("README.md = %q, want the first subtask's work", got)
 	}
 	assertNoWriterLeftovers(t, worktree)
@@ -205,7 +223,7 @@ func TestModelWritersKeepTheRunsCheckOutputBeforeMerging(t *testing.T) {
 			t.Fatalf("%s is missing: %v", name, err)
 		}
 	}
-	if status := runGit(t, worktree, "status", "--porcelain"); status != "" {
+	if status := writerGit(t, worktree, "status", "--porcelain"); status != "" {
 		t.Fatalf("run worktree is dirty: %q", status)
 	}
 }

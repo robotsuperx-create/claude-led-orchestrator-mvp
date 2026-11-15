@@ -92,17 +92,17 @@ func (m *ModelWriters) Implement(ctx context.Context, request ports.AgentImpleme
 		return ports.AgentWork{}, err
 	}
 	work := ports.AgentWork{Summary: boundedRedacted(summary), Base: base}
-	status, err := m.gitOutput(ctx, scratch, "status", "--porcelain")
+	if _, err := m.gitOutput(ctx, scratch, "add", "--all"); err != nil {
+		return ports.AgentWork{}, err
+	}
+	changed, err := m.hasStagedChanges(ctx, scratch)
 	if err != nil {
 		return ports.AgentWork{}, err
 	}
-	if status == "" {
+	if !changed {
 		// Nothing changed; the fixed commands and the validator still decide
 		// whether the subtask is done, as they do in the shared worktree.
 		return work, nil
-	}
-	if _, err := m.gitOutput(ctx, scratch, "add", "--all"); err != nil {
-		return ports.AgentWork{}, err
 	}
 	// Hooks are skipped so repository scripts never run on the host.
 	if _, err := m.gitOutput(ctx, scratch,
@@ -197,10 +197,32 @@ func (m *ModelWriters) checkpoint(ctx context.Context, worktree string) error {
 	if _, err := m.gitOutput(ctx, worktree, "add", "--all"); err != nil {
 		return err
 	}
+	if changed, err := m.hasStagedChanges(ctx, worktree); err != nil || !changed {
+		return err
+	}
 	_, err = m.gitOutput(ctx, worktree,
 		"-c", "user.name="+m.authorName, "-c", "user.email="+m.authorEmail,
 		"commit", "--no-verify", "--quiet", "-m", "Keep the run's work so far")
 	return err
+}
+
+// hasStagedChanges asks Git, after `add --all`, whether a commit would record
+// anything. Status alone can list a file whose only difference is line endings
+// that Git normalizes away (core.autocrlf, the Git for Windows default), and
+// committing then fails with "nothing to commit".
+func (m *ModelWriters) hasStagedChanges(ctx context.Context, dir string) (bool, error) {
+	output, err := m.git.RunInDirectory(ctx, dir, []string{"git", "diff", "--cached", "--quiet"})
+	if err != nil {
+		return false, fmt.Errorf("git diff: %s", boundedRedacted(err.Error()))
+	}
+	switch output.ExitCode {
+	case 0:
+		return false, nil
+	case 1:
+		return true, nil
+	default:
+		return false, fmt.Errorf("git diff exited with code %d: %s", output.ExitCode, boundedRedacted(strings.TrimSpace(output.Stderr)))
+	}
 }
 
 func (m *ModelWriters) gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
