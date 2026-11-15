@@ -78,7 +78,7 @@ func (m *ModelWriters) Implement(ctx context.Context, request ports.AgentImpleme
 		m.release(cleanupCtx, request.WorktreePath, scratch, branch, committed)
 	}()
 
-	summary, _, err := authorInWorktree(ctx, m.git, m.author, scratch, ports.WorkerRequest{
+	summary, err := authorInWorktree(ctx, m.git, m.author, scratch, ports.WorkerRequest{
 		Task:            request.Task,
 		Attempt:         request.Attempt,
 		PreviousFailure: request.PreviousFailure,
