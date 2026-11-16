@@ -2934,5 +2934,7 @@
 	"settings.media.idleDescription": "Avec un pod RunPod : arrête le serveur après ce délai sans travail (5 à 240). Il redémarre seul pour un nouveau travail.",
 	"settings.media.runpodPod": "ID du pod RunPod",
 	"settings.media.runpodPodDescription": "Permet à l'app de démarrer le pod pour le travail et de l'arrêter s'il est inactif.",
-	"settings.media.runpodKey": "Clé API RunPod"
+	"settings.media.runpodKey": "Clé API RunPod",
+	"x00.handsFreeOn": "Mains libres activé : dites « X-00 » puis parlez",
+	"x00.handsFreeOff": "Mains libres : répondre quand je dis « X-00 »"
 }

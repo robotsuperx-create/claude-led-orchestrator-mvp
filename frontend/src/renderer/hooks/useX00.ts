@@ -7,6 +7,7 @@ import type { X00Action, X00Info, X00Mood, X00Screen } from "../../shared/x00";
 import { aoBridge } from "../lib/bridge";
 import { SpeechEnvelope, speak, speechChunks, X00Player } from "../lib/x00-voice";
 import { X00Recorder, X00RecorderError } from "../lib/x00-ear";
+import { wakeCommand } from "../lib/x00-wake";
 import { unavailableX00Bridge, type X00Bridge } from "../lib/x00-preview";
 import { conversationForClaude, useX00Store, x00Id, type X00Proposal } from "../stores/x00-store";
 import { useUiStore } from "../stores/ui-store";
@@ -128,6 +129,101 @@ export function x00Hush(): void {
 
 const recorder = new X00Recorder();
 
+// Hands-free listening shares the one recorder; pressing to talk takes it over.
+let handsFreeTake: ((audio: Uint8Array | null) => void) | null = null;
+
+function releaseHandsFree(): void {
+	const take = handsFreeTake;
+	handsFreeTake = null;
+	if (take) {
+		recorder.cancel();
+		take(null);
+	}
+}
+
+/** One stretch of speech from the open microphone, or null on silence. */
+function hearOnce(): Promise<Uint8Array | null> {
+	return new Promise((resolve, reject) => {
+		handsFreeTake = resolve;
+		recorder
+			.start({
+				onAutoStop: (verdict) => {
+					if (handsFreeTake !== resolve) return;
+					handsFreeTake = null;
+					if (verdict === "no_speech") {
+						recorder.cancel();
+						resolve(null);
+					} else {
+						void recorder.stop().then(resolve, () => resolve(null));
+					}
+				},
+			})
+			.catch((error: unknown) => {
+				handsFreeTake = null;
+				reject(error);
+			});
+	});
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Hands-free: while the person has turned it on, X-00 listens to the room and
+ * answers only a line that starts with his name ("X-00, ..."); his name alone
+ * keeps him listening for the next line. Each line goes to the speech engine
+ * (this computer's, or the person's GPU server) and is never kept.
+ */
+export function useX00HandsFree(send: (text: string) => Promise<void>) {
+	const { i18n } = useTranslation();
+	const on = useX00Store((store) => store.prefs.handsFree);
+	useEffect(() => {
+		if (!on || !X00Recorder.supported()) return;
+		let alive = true;
+		let awakeUntil = 0;
+		void (async () => {
+			while (alive) {
+				const store = useX00Store.getState();
+				if (store.hearing !== "idle" || store.thinking || store.speaking || recorder.recording) {
+					await sleep(400);
+					continue;
+				}
+				let audio: Uint8Array | null;
+				try {
+					audio = await hearOnce();
+				} catch (error) {
+					useX00Store.getState().setPrefs({ handsFree: false });
+					useX00Store.getState().add({ id: x00Id("error"), kind: "error", code: error instanceof X00RecorderError && error.code === "denied" ? "mic_denied" : "no_mic", at: Date.now() });
+					return;
+				}
+				if (!alive || !audio) continue;
+				const result = await bridge().listen({ audio, locale: i18n.resolvedLanguage ?? i18n.language ?? "en" });
+				if (!alive) return;
+				if (!result.ok) {
+					await sleep(3_000);
+					continue;
+				}
+				const text = result.value.text.trim();
+				const command = wakeCommand(text);
+				const forHim = command !== null ? command : Date.now() < awakeUntil ? text : null;
+				if (forHim === null) continue;
+				if (forHim === "") {
+					// Only his name: he listens for the next line.
+					awakeUntil = Date.now() + 10_000;
+					useX00Store.getState().setOpen(true);
+					continue;
+				}
+				awakeUntil = 0;
+				useX00Store.getState().setOpen(true);
+				await send(forHim);
+			}
+		})();
+		return () => {
+			alive = false;
+			releaseHandsFree();
+		};
+	}, [on, send, i18n]);
+}
+
 /** X-00's ears: press to talk; he stops listening when you pause, then answers. */
 export function useX00Listen(send: (text: string) => Promise<void>) {
 	const { i18n } = useTranslation();
@@ -169,6 +265,7 @@ export function useX00Listen(send: (text: string) => Promise<void>) {
 		const store = useX00Store.getState();
 		if (store.hearing !== "idle" || store.thinking) return;
 		x00Hush();
+		releaseHandsFree();
 		store.setHearing("listening");
 		try {
 			await recorder.start({

@@ -2883,5 +2883,7 @@
 	"settings.media.idleDescription": "With a RunPod pod set: stop the server after this long with nothing to do (5 to 240). It starts again by itself for new work.",
 	"settings.media.runpodPod": "RunPod pod id",
 	"settings.media.runpodPodDescription": "Let the app start the pod for work and stop it when idle.",
-	"settings.media.runpodKey": "RunPod API key"
+	"settings.media.runpodKey": "RunPod API key",
+	"x00.handsFreeOn": "Hands-free is on: say \"X-00\" and speak",
+	"x00.handsFreeOff": "Hands-free: answer when I say \"X-00\""
 }

@@ -2934,5 +2934,7 @@
 	"settings.media.idleDescription": "Com um pod RunPod: para o servidor após esse tempo sem trabalho (5 a 240). Ele liga sozinho para novo trabalho.",
 	"settings.media.runpodPod": "ID do pod RunPod",
 	"settings.media.runpodPodDescription": "Permite que o app ligue o pod para trabalhar e o desligue quando ocioso.",
-	"settings.media.runpodKey": "Chave de API RunPod"
+	"settings.media.runpodKey": "Chave de API RunPod",
+	"x00.handsFreeOn": "Mãos livres ligado: diga “X-00” e fale",
+	"x00.handsFreeOff": "Mãos livres: responder quando eu disser “X-00”"
 }

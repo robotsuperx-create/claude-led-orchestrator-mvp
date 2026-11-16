@@ -2885,5 +2885,7 @@
 	"settings.media.idleDescription": "设置 RunPod pod 后：无任务超过此时间即停止服务器（5 到 240）。有新任务时自动启动。",
 	"settings.media.runpodPod": "RunPod pod ID",
 	"settings.media.runpodPodDescription": "让应用在有任务时启动 pod，空闲时停止。",
-	"settings.media.runpodKey": "RunPod API 密钥"
+	"settings.media.runpodKey": "RunPod API 密钥",
+	"x00.handsFreeOn": "免提已开启：先说“X-00”再讲话",
+	"x00.handsFreeOff": "免提：我说“X-00”时回应"
 }

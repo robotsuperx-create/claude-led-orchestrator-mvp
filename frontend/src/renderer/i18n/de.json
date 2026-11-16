@@ -2903,5 +2903,7 @@
 	"settings.media.idleDescription": "Mit einem RunPod-Pod: stoppt den Server nach dieser Zeit ohne Arbeit (5 bis 240). Für neue Arbeit startet er von selbst.",
 	"settings.media.runpodPod": "RunPod-Pod-ID",
 	"settings.media.runpodPodDescription": "Lässt die App den Pod für Arbeit starten und im Leerlauf stoppen.",
-	"settings.media.runpodKey": "RunPod-API-Schlüssel"
+	"settings.media.runpodKey": "RunPod-API-Schlüssel",
+	"x00.handsFreeOn": "Freihändig an: sag „X-00“ und sprich",
+	"x00.handsFreeOff": "Freihändig: antworten, wenn ich „X-00“ sage"
 }

@@ -2903,5 +2903,7 @@
 	"settings.media.idleDescription": "RunPod pod를 설정하면 작업 없이 이 시간이 지나면 서버를 정지합니다 (5~240). 새 작업이 오면 스스로 시작합니다.",
 	"settings.media.runpodPod": "RunPod pod ID",
 	"settings.media.runpodPodDescription": "앱이 작업할 때 pod를 시작하고 유휴 시 정지하게 합니다.",
-	"settings.media.runpodKey": "RunPod API 키"
+	"settings.media.runpodKey": "RunPod API 키",
+	"x00.handsFreeOn": "핸즈프리 켜짐: \"X-00\"이라고 말한 뒤 말하세요",
+	"x00.handsFreeOff": "핸즈프리: \"X-00\"이라고 하면 응답"
 }

@@ -2903,5 +2903,7 @@
 	"settings.media.idleDescription": "RunPodのpodを設定すると、作業がないままこの時間が過ぎたらサーバーを停止します（5〜240）。新しい作業で自動的に起動します。",
 	"settings.media.runpodPod": "RunPodのpod ID",
 	"settings.media.runpodPodDescription": "アプリが作業時にpodを起動し、アイドル時に停止できるようにします。",
-	"settings.media.runpodKey": "RunPod APIキー"
+	"settings.media.runpodKey": "RunPod APIキー",
+	"x00.handsFreeOn": "ハンズフリー中：「X-00」と言ってから話す",
+	"x00.handsFreeOff": "ハンズフリー：「X-00」と言ったら応答"
 }

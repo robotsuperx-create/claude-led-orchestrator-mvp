@@ -3007,5 +3007,7 @@
 	"settings.media.idleDescription": "مع ضبط RunPod: يوقف السيرفر بعد هذه المدة بلا عمل (من 5 إلى 240)، ويشغّله وحده عند عمل جديد.",
 	"settings.media.runpodPod": "معرّف الـ pod في RunPod",
 	"settings.media.runpodPodDescription": "يسمح للتطبيق بتشغيل السيرفر للعمل وإيقافه عند الخمول.",
-	"settings.media.runpodKey": "مفتاح RunPod API"
+	"settings.media.runpodKey": "مفتاح RunPod API",
+	"x00.handsFreeOn": "الاستماع الدائم مفعّل: قل «X-00» ثم تكلم",
+	"x00.handsFreeOff": "الاستماع الدائم: يرد حين أقول «X-00»"
 }
