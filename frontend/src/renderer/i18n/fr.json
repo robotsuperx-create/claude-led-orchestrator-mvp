@@ -2912,5 +2912,11 @@
 	"settings.x00.engine.gpu": "Serveur GPU",
 	"x00.action.make_media.image": "Créer une image",
 	"x00.action.make_media.video": "Créer une vidéo",
-	"x00.action.make_media.audio": "Créer de la musique ou des sons"
+	"x00.action.make_media.audio": "Créer de la musique ou des sons",
+	"deck.media.kind.upscale": "Agrandir 4x",
+	"deck.media.kind.restyle": "Nouvelle scène",
+	"deck.media.kind.animate": "Animer",
+	"deck.media.adPack": "Pack pub",
+	"deck.media.adPackHint": "Une nouvelle scène en 9:16, 1:1 et 16:9, et une vidéo de 4 secondes, à partir de cette image",
+	"deck.media.placeholder.input": "Décrivez la nouvelle scène autour, ou laissez vide pour agrandir"
 }

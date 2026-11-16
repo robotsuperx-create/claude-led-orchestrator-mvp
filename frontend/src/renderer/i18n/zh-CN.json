@@ -2863,5 +2863,11 @@
 	"settings.x00.engine.gpu": "GPU 服务器",
 	"x00.action.make_media.image": "制作图片",
 	"x00.action.make_media.video": "制作视频",
-	"x00.action.make_media.audio": "制作音乐或音效"
+	"x00.action.make_media.audio": "制作音乐或音效",
+	"deck.media.kind.upscale": "放大 4 倍",
+	"deck.media.kind.restyle": "新场景",
+	"deck.media.kind.animate": "动起来",
+	"deck.media.adPack": "广告包",
+	"deck.media.adPackHint": "用这张图片生成 9:16、1:1、16:9 的新场景和一段 4 秒视频",
+	"deck.media.placeholder.input": "描述周围的新场景，留空则放大"
 }

@@ -45,7 +45,22 @@ function ServerLine() {
 	);
 }
 
-const BUILT_IN_NAMES = { image: "deck.media.kind.image", video: "deck.media.kind.video", music: "deck.media.kind.music" } as const;
+const BUILT_IN_NAMES = {
+	image: "deck.media.kind.image",
+	video: "deck.media.kind.video",
+	music: "deck.media.kind.music",
+	upscale: "deck.media.kind.upscale",
+	restyle: "deck.media.kind.restyle",
+	animate: "deck.media.kind.animate",
+} as const;
+
+/** The ad pack: from one product picture, a new scene in the three shapes the stores and reels use, and a short video. */
+const AD_PACK = [
+	{ capability: "restyle", width: 768, height: 1344 },
+	{ capability: "restyle", width: 1024, height: 1024 },
+	{ capability: "restyle", width: 1344, height: 768 },
+	{ capability: "animate", seconds: 4 },
+] as const;
 
 function capabilityName(t: TFunction, capability: MediaCapability): string {
 	const key = capability.builtIn ? BUILT_IN_NAMES[capability.id as keyof typeof BUILT_IN_NAMES] : undefined;
@@ -70,13 +85,17 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 		if (capability && chosen !== capability.id) setChosen(capability.id);
 	}, [capability, chosen]);
 
+	// A tool working on a picture may need no words: the picture's own stand in.
+	const words = prompt.trim() || (input ? input.prompt.trim() || capability?.id || "" : "");
+	const canPack = Boolean(input) && AD_PACK.every((step) => capabilities.some((item) => item.id === step.capability && item.input === "image"));
+
 	const submit = () => {
-		if (!capability || !prompt.trim()) return;
+		if (!capability || !words) return;
 		const size = SHAPES.find((item) => item.id === shape) ?? SHAPES[0];
 		create.mutate(
 			{
 				capability: capability.id,
-				prompt: prompt.trim(),
+				prompt: words,
 				...(capability.kind === "image" && !capability.input ? { width: size.width, height: size.height } : {}),
 				...(capability.kind === "video" ? { seconds } : {}),
 				...(capability.kind === "audio" ? { seconds: Math.min(47, seconds * 5) } : {}),
@@ -84,6 +103,12 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 			},
 			{ onSuccess: () => setPrompt("") },
 		);
+	};
+
+	const pack = () => {
+		if (!input || !prompt.trim()) return;
+		for (const step of AD_PACK) create.mutate({ ...step, prompt: prompt.trim(), input: input.id });
+		setPrompt("");
 	};
 
 	const pick = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -115,7 +140,7 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 				rows={3}
 				maxLength={MEDIA_MAX_PROMPT_CHARS}
 				value={prompt}
-				placeholder={t(`deck.media.placeholder.${capability?.kind ?? "image"}`)}
+				placeholder={input ? t("deck.media.placeholder.input") : t(`deck.media.placeholder.${capability?.kind ?? "image"}`)}
 				aria-label={t("deck.media.prompt")}
 				onChange={(event) => setPrompt(event.target.value)}
 				onKeyDown={(event) => {
@@ -143,7 +168,12 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 				<span className="grow" />
 				<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void pick(event)} data-testid="media-upload-input" />
 				<button type="button" className="btn btn-text" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>{t("deck.media.upload")}</button>
-				<button type="button" className="btn btn-primary" onClick={submit} disabled={!capability || !prompt.trim() || create.isPending} data-testid="media-make">
+				{canPack ? (
+					<button type="button" className="btn btn-text" onClick={pack} disabled={!prompt.trim() || create.isPending} title={t("deck.media.adPackHint")} data-testid="media-ad-pack">
+						{t("deck.media.adPack")}
+					</button>
+				) : null}
+				<button type="button" className="btn btn-primary" onClick={submit} disabled={!capability || !words || create.isPending} data-testid="media-make">
 					{t("deck.media.make")}
 				</button>
 			</div>

@@ -2861,5 +2861,11 @@
 	"settings.x00.engine.gpu": "GPU server",
 	"x00.action.make_media.image": "Make a picture",
 	"x00.action.make_media.video": "Make a video",
-	"x00.action.make_media.audio": "Make music or sound"
+	"x00.action.make_media.audio": "Make music or sound",
+	"deck.media.kind.upscale": "Upscale 4x",
+	"deck.media.kind.restyle": "New scene",
+	"deck.media.kind.animate": "Animate",
+	"deck.media.adPack": "Ad pack",
+	"deck.media.adPackHint": "A new scene in 9:16, 1:1 and 16:9, and a 4-second video, from this picture",
+	"deck.media.placeholder.input": "Describe the new scene around it, or leave empty to upscale"
 }
