@@ -10,7 +10,6 @@ import type { X00State } from "../../lib/x00-portrait";
 import { cn } from "../../lib/utils";
 import { useUiStore } from "../../stores/ui-store";
 import { useX00Store, type X00Entry, type X00Proposal } from "../../stores/x00-store";
-import { SpaceBackdrop } from "../SpaceBackdrop";
 import { Button } from "../ui/button";
 import { X00Mark, X00Portrait } from "../X00Portrait";
 
@@ -162,7 +161,6 @@ function X00Panel() {
 				}
 			}}
 		>
-			<SpaceBackdrop className="x00-panel-space" />
 			<header className="relative z-[1] flex items-center gap-1 px-3 pt-2.5">
 				<div className="min-w-0 flex-1 px-1">
 					<h2 className="xr-wordmark text-[17px] leading-6">{t("x00.title")}</h2>

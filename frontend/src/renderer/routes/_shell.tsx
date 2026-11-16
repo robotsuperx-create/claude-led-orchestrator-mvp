@@ -3,11 +3,10 @@ import { AppBrowserLinkContext } from "../components/AppLink";
 import { useSessionBrowserLink } from "../hooks/useSessionBrowserLink";
 import { createFileRoute, Outlet, useMatchRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { isCancelledError, useQueryClient } from "@tanstack/react-query";
-import { memo, type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FolderPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CommandPalette } from "../components/CommandPalette";
-import { SpaceBackdrop } from "../components/SpaceBackdrop";
 import { X00Commander } from "../components/x00/X00Commander";
 import { CenterPanelShell } from "../components/CenterPanelShell";
 import { DaemonFailureBanner } from "../components/DaemonFailureBanner";
@@ -356,6 +355,11 @@ function ShellLayout() {
 	// The root route is the intentionally minimal home surface, regardless of
 	// whether projects have already been registered.
 	const isHomeRoute = Boolean(matchRoute({ to: "/" }));
+	// Home is the X-ROBOT deck: no sidebar unless it is opened there.
+	const setOnHome = useUiStore((state) => state.setOnHome);
+	useLayoutEffect(() => {
+		setOnHome(isHomeRoute);
+	}, [isHomeRoute, setOnHome]);
 	useEffect(() => {
 		if (!routeParams.hostId && routeParams.projectId) recordProjectOpened(routeParams.projectId);
 	}, [routeParams.hostId, routeParams.projectId]);
@@ -366,10 +370,10 @@ function ShellLayout() {
 	// Welcome/settings always self-frame. Platforms that hide the shell-owned
 	// topbar (macOS) use the same full-height inset; session actions mount
 	// inside SessionView.
-	// Home keeps the shell's topbar hidden, but still renders inside the shared
-	// rounded center panel. Settings owns its complete frame and remains
-	// self-framed.
-	const selfFramedCenterPanel = isSettingsRoute;
+	// Home keeps the shell's topbar hidden and paints the X-ROBOT deck edge to
+	// edge. Settings owns its complete frame and remains self-framed.
+	// Home (the X-ROBOT deck) paints its own full-bleed room, so it is self-framed too.
+	const selfFramedCenterPanel = isSettingsRoute || isHomeRoute;
 	const hideShellTopbar = isHomeRoute || selfFramedCenterPanel || shellTopbarHiddenByPlatform;
 	const restartingProjectIds = useUiStore((state) => state.restartingProjectIds);
 	const setProjectRestarting = useUiStore((state) => state.setProjectRestarting);
@@ -1158,8 +1162,6 @@ function ShellLayout() {
 					isFullScreen && "native-fullscreen",
 				)}
 			>
-				{/* Deep space behind the whole app (x-robot dark only; see .xr-space-app). */}
-				<SpaceBackdrop className="xr-space-app" />
 				{/* Windows-only custom title bar (sidebar toggle + File/Edit/View/…
             menu); paints the chrome the frameless window drops. Renders null on
             macOS/Linux. */}

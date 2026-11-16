@@ -110,6 +110,9 @@ export type UiState = {
 	workbenchTab: WorkbenchTab;
 	/** The user's durable sidebar preference. */
 	isSidebarOpen: boolean;
+	/** Home (the X-ROBOT deck) hides the sidebar; a toggle there opens it until you leave Home. */
+	onHome: boolean;
+	homeSidebarOpen: boolean;
 	inspectorSessions: Record<string, InspectorSessionState>;
 	isCommandPaletteOpen: boolean;
 	settingsModal: SettingsModal | null;
@@ -182,6 +185,7 @@ export type UiState = {
 	/** Refresh resolvedTheme from OS without writing light/dark to storage. */
 	syncSystemTheme: () => void;
 	toggleSidebar: () => void;
+	setOnHome: (onHome: boolean) => void;
 	setInspectorOpen: (sessionId: string, isOpen: boolean) => void;
 	toggleInspector: (sessionId: string) => void;
 	setInspectorView: (sessionId: string, view: InspectorView) => void;
@@ -279,13 +283,16 @@ export function rememberedFileDisplayMode(
 	return remembered?.requestKey === requestKey ? remembered.mode : undefined;
 }
 
-export function sidebarIsVisible(state: Pick<UiState, "isSidebarOpen">): boolean {
-	return state.isSidebarOpen;
+type SidebarState = Pick<UiState, "isSidebarOpen"> & Partial<Pick<UiState, "onHome" | "homeSidebarOpen">>;
+
+/** On Home the sidebar is hidden unless opened there; elsewhere it follows the remembered choice. */
+export function sidebarIsVisible(state: SidebarState): boolean {
+	return state.onHome ? state.homeSidebarOpen === true : state.isSidebarOpen;
 }
 
 /** The expanded sidebar occupies shell layout; a user close does not. */
-export function sidebarOccupiesLayout(state: Pick<UiState, "isSidebarOpen">): boolean {
-	return state.isSidebarOpen;
+export function sidebarOccupiesLayout(state: SidebarState): boolean {
+	return sidebarIsVisible(state);
 }
 
 const initialThemePreference = readStoredThemePreference();
@@ -295,6 +302,8 @@ const initialDeveloperModeValue = initialDeveloperMode();
 export const useUiStore = create<UiState>((set, get) => ({
 	workbenchTab: "changes",
 	isSidebarOpen: initialSidebarOpen(),
+	onHome: false,
+	homeSidebarOpen: false,
 	inspectorSessions: {},
 	isCommandPaletteOpen: false,
 	settingsModal: null,
@@ -389,10 +398,14 @@ export const useUiStore = create<UiState>((set, get) => ({
 	},
 	toggleSidebar: () =>
 		set((state) => {
+			// Home's own toggle is not remembered: the deck opens without the sidebar.
+			if (state.onHome) return { homeSidebarOpen: !state.homeSidebarOpen };
 			const isSidebarOpen = !state.isSidebarOpen;
 			getLocalStorage()?.setItem(sidebarStorageKey, String(isSidebarOpen));
 			return { isSidebarOpen };
 		}),
+	setOnHome: (onHome) =>
+		set((state) => (state.onHome === onHome ? state : { onHome, homeSidebarOpen: false })),
 	setInspectorOpen: (sessionId, isOpen) =>
 		set((state) => {
 			const current = inspectorState(state.inspectorSessions, sessionId);

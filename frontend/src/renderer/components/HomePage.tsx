@@ -13,49 +13,35 @@ import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store";
-import { useX00Store } from "../stores/x00-store";
 import {
 	STANDALONE_PROJECT_KIND,
 	STANDALONE_WORKSPACE_ID,
 	type WorkspaceSummary,
 } from "../types/workspace";
 import { CreateProjectFlow } from "./CreateProjectFlow";
-import { XRobotWordmark } from "./BrandMark";
-import { X00Portrait } from "./X00Portrait";
-import { openX00, useX00PortraitState } from "./x00/X00Commander";
-import { x00VoiceLevel } from "../hooks/useX00";
+import { HomeDeck } from "./deck/HomeDeck";
 import { DaemonStartupLoader } from "./DaemonStartupLoader";
 import { GitHubOnboardingNotice } from "./GitHubOnboardingNotice";
-import { NAV_ROW_HIGHLIGHT_HOST_CLASS, NavRowHighlight } from "./NavRowHighlight";
 import { Badge } from "./ui/badge";
 
 /**
- * Home landing layout contracts (do not regress without explicit design sign-off):
- * - One centered column (`max-w-[640px]`); no upward translate hack.
- * - "Star us" is a quiet text link with dashed underline on hover — NOT a
- *   TopbarButton / accent pill / bordered card.
+ * Home is the X-ROBOT observation deck (see deck/HomeDeck). Its projects
+ * section keeps the landing contracts:
+ * - "Star us" is a quiet text link with dashed underline on hover.
  * - Primary actions are a 2×2 grid that always includes the standalone-agent
  *   action. With Developer Mode and Cloud enabled, a full-width Cloud action
  *   sits beneath the grid rather than displacing standalone.
  *   Connect Mobile is settings-only — not here.
- * - Recent rows use shared {@link NavRowHighlight} (same as sidebar), not a
- *   flat `hover:bg-interactive-hover` wash.
- * - Section titles share {@link HOME_SECTION_TITLE_CLASS}. With no projects the
- *   heading is Get started and Recent projects stays hidden; otherwise keep
- *   Jump back paired with Recent projects. The Scratchpad (standalone agents)
- *   is not a project: it never appears in Recent projects or counts toward
- *   the heading — the grid's standalone action and the sidebar own it.
+ * - With no projects the heading is Get started and Recent projects stays
+ *   hidden; otherwise keep Jump back paired with Recent projects. The
+ *   Scratchpad (standalone agents) is not a project: it never appears in
+ *   Recent projects or counts toward the heading.
  */
 const GITHUB_REPOSITORY_URL = "https://github.com/robotsuperx-create/claude-led-orchestrator-mvp";
 const RECENT_PROJECT_LIMIT = 3;
-const HOME_BUTTON_CLASS =
-	"flex w-full items-center gap-3 rounded-lg bg-[var(--color-bg-import-card)] px-4 py-3 text-start transition-[scale] duration-fast ease-out hover:bg-interactive-hover hover:text-foreground active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 motion-reduce:transform-none";
-const HOME_ICON_SLOT_CLASS =
-	"grid size-8 shrink-0 place-items-center text-muted-foreground [&_svg]:size-4";
-const HOME_PROJECT_ICON_CLASS =
-	"grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground [&_svg]:size-4";
-const HOME_SECTION_TITLE_CLASS =
-	"text-base font-medium tracking-tight text-foreground";
+const HOME_BUTTON_CLASS = "deck-action";
+const HOME_ICON_SLOT_CLASS = "deck-action-icon";
+const HOME_PROJECT_ICON_CLASS = "deck-action-icon";
 
 function latestProjectTimestamp(project: WorkspaceSummary): string {
 	return [
@@ -90,28 +76,23 @@ function ProjectRow({ project, onClick, emptyTimeLabel, justNowLabel }: { projec
 	return (
 		<button
 			// Host must use NAV_ROW_HIGHLIGHT_HOST_CLASS — pill owns the fill.
-			className={cn(
-				"flex w-full items-center gap-3 rounded-lg px-4 py-3 text-start text-muted-foreground",
-				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
-				NAV_ROW_HIGHLIGHT_HOST_CLASS,
-			)}
+			className="deck-project"
 			onClick={onClick}
 			type="button"
 		>
-			<NavRowHighlight />
-			<span className={cn(HOME_PROJECT_ICON_CLASS, "relative z-[1]")} aria-hidden="true">
+			<span className={HOME_PROJECT_ICON_CLASS} aria-hidden="true">
 				{project.folderMissing ? <AlertTriangle strokeWidth={1.8} className="text-warning" /> : <Folder strokeWidth={1.8} />}
 			</span>
-			<span className="relative z-[1] min-w-0 text-sm leading-5">
-				<span className="flex items-center gap-1.5">
-					<span className="block truncate font-medium text-foreground">{project.name}</span>
+			<span className="deck-project-text">
+				<span className="deck-project-name">
+					<span className="truncate">{project.name}</span>
 					{project.folderMissing ? (
 						<Badge variant="warning" className="h-4 shrink-0 px-1.5 text-2xs">{t("home.folderMissing")}</Badge>
 					) : null}
 				</span>
-				<span className="block truncate text-caption text-muted-foreground"><bdi>{project.path}</bdi></span>
+				<span className="small t-2 truncate"><bdi>{project.path}</bdi></span>
 			</span>
-			<span className="relative z-[1] ms-auto shrink-0 text-end text-caption tabular-nums text-muted-foreground">
+			<span className="deck-project-when small t-2 n">
 				{relativeProjectTime(latestProjectFact, emptyTimeLabel, justNowLabel)}
 			</span>
 		</button>
@@ -133,11 +114,7 @@ function HomeActionCard({
 }) {
 	return (
 		<button
-			className={cn(
-				HOME_BUTTON_CLASS,
-				centerContent && "justify-center",
-				"disabled:pointer-events-none disabled:opacity-50",
-			)}
+			className={cn(HOME_BUTTON_CLASS, centerContent && "deck-action--center")}
 			disabled={disabled}
 			onClick={onClick}
 			type="button"
@@ -145,7 +122,7 @@ function HomeActionCard({
 			<span className={HOME_ICON_SLOT_CLASS} aria-hidden="true">
 				{icon}
 			</span>
-			<span className="min-w-0 text-sm font-medium leading-5 text-foreground">{label}</span>
+			<span className="deck-action-label">{label}</span>
 		</button>
 	);
 }
@@ -203,30 +180,19 @@ export function HomePage() {
 	}
 
 	return (
-		<div className="xr-cosmos xr-space-through xr-deck-host flex min-h-full items-center justify-center px-6 py-12">
-			<div className="xr-deck w-full">
-				<HomeCommander />
-				<div className="min-w-0 space-y-6">
-					<div className="px-3 pb-2" data-testid="home-brand">
-						<p className="xr-arrive text-[32px] leading-10 [--xr-delay:500ms]"><XRobotWordmark /></p>
-						<p className="xr-display xr-arrive mt-1 text-[17px] leading-6 text-muted-foreground [--xr-delay:900ms]">{t("home.brandTagline")}</p>
-						<HomeSayLine />
-					</div>
-					<section className="space-y-3 px-3">
-						<div className="flex items-baseline justify-between gap-4">
-							<h1 className={HOME_SECTION_TITLE_CLASS}>{recentProjects.length === 0 ? t("home.getStarted") : t("home.jumpBack")}</h1>
-							{/* Quiet text link — not TopbarButton / accent. Dashed underline only on hover. */}
-							<button
-								className="inline-flex shrink-0 items-center gap-1.5 border-b border-dashed border-transparent pb-px text-sm text-muted-foreground hover:border-current hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-								onClick={() => void aoBridge.app.openExternal(GITHUB_REPOSITORY_URL)}
-								type="button"
-							>
+		<>
+			<HomeDeck
+				projects={
+					<>
+						<div className="sec-h">
+							<h2 className="d1">{recentProjects.length === 0 ? t("home.getStarted") : t("home.jumpBack")}</h2>
+							{/* Quiet text link — not a button or accent. Dashed underline only on hover. */}
+							<button className="deck-star" onClick={() => void aoBridge.app.openExternal(GITHUB_REPOSITORY_URL)} type="button">
 								<Star className="size-3.5" strokeWidth={1.8} aria-hidden="true" />
 								{t("home.starUs")}
 							</button>
 						</div>
-
-						<div className="grid grid-cols-2 gap-3">
+						<div className="deck-actions">
 							<HomeActionCard
 								icon={<GitFork strokeWidth={1.8} />}
 								label={t("createProject.cloneFromGit")}
@@ -248,7 +214,7 @@ export function HomePage() {
 								onClick={() => requestNewTask(STANDALONE_WORKSPACE_ID)}
 							/>
 							{developerMode && cloudEnabled ? (
-								<div className="col-span-2">
+								<div className="deck-actions-wide">
 									<HomeActionCard
 										centerContent
 										icon={<Cloud strokeWidth={1.8} />}
@@ -258,28 +224,28 @@ export function HomePage() {
 								</div>
 							) : null}
 						</div>
-					</section>
 
-					{recentProjects.length > 0 && (
-						<section className="space-y-3 px-3">
-							<h2 className={HOME_SECTION_TITLE_CLASS}>{t("home.recentProjects")}</h2>
-							<div>
-								{recentProjects.map((project) => (
-									<ProjectRow
-										key={project.id}
-										project={project}
-										onClick={() => openProject(project.id)}
-										emptyTimeLabel={t("home.never")}
-										justNowLabel={t("time.justNow")}
-									/>
-								))}
-							</div>
-						</section>
-					)}
+						{recentProjects.length > 0 && (
+							<>
+								<h3 className="d2">{t("home.recentProjects")}</h3>
+								<div className="deck-projects">
+									{recentProjects.map((project) => (
+										<ProjectRow
+											key={project.id}
+											project={project}
+											onClick={() => openProject(project.id)}
+											emptyTimeLabel={t("home.never")}
+											justNowLabel={t("time.justNow")}
+										/>
+									))}
+								</div>
+							</>
+						)}
 
-					<GitHubOnboardingNotice />
-				</div>
-			</div>
+						<GitHubOnboardingNotice />
+					</>
+				}
+			/>
 
 			<CreateProjectFlow
 				existingProjectNames={projects.map((project) => project.name)}
@@ -292,37 +258,6 @@ export function HomePage() {
 				onOpenExistingProject={openExistingProject}
 				sourceSignal={sourceSignal}
 			/>
-		</div>
-	);
-}
-
-/**
- * X-00 on Home, as on the X-ROBOT observation deck: the one living thing in
- * the room, at full size, and a click away from a conversation.
- */
-function HomeCommander() {
-	const { t } = useTranslation();
-	const { state, speaking } = useX00PortraitState();
-	return (
-		<button type="button" className="x00-talk xr-deck-portrait" onClick={openX00} aria-label={t("x00.open")} title={t("x00.open")} data-testid="home-talk">
-			<X00Portrait state={state === "failed" ? "watching" : state} speaking={speaking} voice={x00VoiceLevel} className="w-full" />
-		</button>
-	);
-}
-
-/** What X-00 said last, as the deck shows it under the commander. */
-function HomeSayLine() {
-	const last = useX00Store((store) => {
-		for (let i = store.entries.length - 1; i >= 0; i -= 1) {
-			const entry = store.entries[i];
-			if (entry.kind === "alert" || (entry.kind === "turn" && entry.role === "assistant")) return entry.content;
-		}
-		return "";
-	});
-	if (!last) return null;
-	return (
-		<p className="xr-deck-say xr-arrive [--xr-delay:1300ms]" dir="auto" aria-live="polite" data-testid="home-say">
-			{last}
-		</p>
+		</>
 	);
 }
