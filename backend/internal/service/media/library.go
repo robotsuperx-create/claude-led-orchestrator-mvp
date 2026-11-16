@@ -103,15 +103,15 @@ func (l *library) readLocked(id string) (Item, error) {
 }
 
 // update reads an item, changes it and writes it back, under the lock.
-func (l *library) update(id string, change func(*Item)) (Item, error) {
+func (l *library) update(id string, change func(*Item)) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	item, err := l.readLocked(id)
 	if err != nil {
-		return Item{}, err
+		return err
 	}
 	change(&item)
-	return item, l.saveLocked(item)
+	return l.saveLocked(item)
 }
 
 // list returns every readable item, newest first.

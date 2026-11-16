@@ -205,7 +205,8 @@ func render(workflow map[string]any, values renderValues) map[string]any {
 			return typed
 		}
 	}
-	return walk(workflow).(map[string]any)
+	rendered, _ := walk(workflow).(map[string]any)
+	return rendered
 }
 
 // usesPlaceholder is true when any string in the workflow holds the placeholder.
