@@ -25,6 +25,8 @@ type cdpClient struct {
 	err     error
 	events  chan cdpMessage
 	done    chan struct{}
+	// stop ends the read loop when the client is closed.
+	stop context.CancelFunc
 }
 
 type cdpMessage struct {
@@ -49,20 +51,23 @@ func dialCDP(ctx context.Context, url string) (*cdpClient, error) {
 		return nil, fmt.Errorf("connect to the browser: %w", err)
 	}
 	conn.SetReadLimit(maxCDPMessage)
+	// The connection outlives the dial's deadline; close() ends it.
+	readCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
 	client := &cdpClient{
+		stop:    stop,
 		conn:    conn,
 		pending: make(map[int64]chan cdpMessage),
 		events:  make(chan cdpMessage, 512),
 		done:    make(chan struct{}),
 	}
-	go client.read()
+	go client.read(readCtx)
 	return client, nil
 }
 
-func (c *cdpClient) read() {
+func (c *cdpClient) read(ctx context.Context) {
 	defer close(c.done)
 	for {
-		_, data, err := c.conn.Read(context.Background())
+		_, data, err := c.conn.Read(ctx)
 		if err != nil {
 			c.mu.Lock()
 			c.err = errCDPClosed
@@ -156,4 +161,5 @@ func (c *cdpClient) drain() {
 
 func (c *cdpClient) close() {
 	_ = c.conn.Close(websocket.StatusNormalClosure, "")
+	c.stop()
 }

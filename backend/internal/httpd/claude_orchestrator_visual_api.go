@@ -30,7 +30,7 @@ const (
 
 // visualShotName is how the camera names a kept picture: the round, the page
 // and the screen size.
-var visualShotName = regexp.MustCompile(`^r[0-9]{1,2}-[a-z0-9-]{1,64}-[a-z0-9-]{1,64}\.jpg$`)
+var visualShotName = regexp.MustCompile(`^r\d{1,2}-[a-z0-9-]{1,64}-[a-z0-9-]{1,64}\.jpg$`)
 
 // ClaudeOrchestratorVisual is a run's visual review as shown to a person.
 type ClaudeOrchestratorVisual struct {
