@@ -2,7 +2,10 @@
 // that appears on scroll is revealed for the screenshot, waits for fonts, and
 // reports what a visitor would notice. Findings are short English sentences
 // for the critic; at most a few of each kind.
-(async (mobile) => {
+(async (mobile, screenWidth) => {
+	// A phone browser zooms out to fit content wider than the screen, so the
+	// window can report the content's width; the screen's is what counts.
+	const innerWidth = screenWidth || window.innerWidth;
 	const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 	const findings = [];
 	const limit = (list, n) => list.slice(0, n);

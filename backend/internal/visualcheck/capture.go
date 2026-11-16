@@ -322,7 +322,7 @@ func capturePage(parent context.Context, client *cdpClient, options Options, pag
 		} `json:"result"`
 		ExceptionDetails *json.RawMessage `json:"exceptionDetails"`
 	}
-	expression := auditScript + "(" + strconv.FormatBool(viewport.Mobile) + ")"
+	expression := auditScript + "(" + strconv.FormatBool(viewport.Mobile) + ", " + strconv.Itoa(viewport.Width) + ")"
 	if err := client.call(ctx, session, "Runtime.evaluate", map[string]any{
 		"expression": expression, "returnByValue": true, "awaitPromise": true,
 	}, &audit); err != nil {
