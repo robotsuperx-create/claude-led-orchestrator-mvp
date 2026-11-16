@@ -28,11 +28,16 @@ type fakeComfy struct {
 	body     []byte
 	submitAs int
 	failRun  bool
+	offline  bool
 }
 
 func (f *fakeComfy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.offline {
+		w.WriteHeader(http.StatusBadGateway)
+		return
+	}
 	if r.Header.Get("Authorization") != "Bearer "+f.token {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -180,8 +185,14 @@ func TestGatewayReportsTheServerAndItsCapabilities(t *testing.T) {
 	for _, capability := range info.Capabilities {
 		kinds[capability.ID] = capability.Kind
 	}
-	if kinds["image"] != KindImage || kinds["video"] != KindVideo || kinds["music"] != KindAudio {
+	if kinds["image"] != KindImage || kinds["video"] != KindVideo || kinds["music"] != KindAudio || kinds["upscale"] != KindImage || kinds["restyle"] != KindImage || kinds["animate"] != KindVideo {
 		t.Errorf("built-in capabilities = %+v", info.Capabilities)
+	}
+	for _, capability := range info.Capabilities {
+		wantsPicture := capability.ID == "upscale" || capability.ID == "restyle" || capability.ID == "animate"
+		if capability.BuiltIn != true || (capability.Input == KindImage) != wantsPicture {
+			t.Errorf("capability %+v: built in, and takes a picture only for the editing tools", capability)
+		}
 	}
 }
 
@@ -236,7 +247,7 @@ func TestAPictureFromTheComputerFeedsACapabilityThatWorksOnOne(t *testing.T) {
 			t.Errorf("an unusable workflow became a capability: %+v", capability)
 		}
 	}
-	if animate == nil || animate.Input != KindImage || animate.BuiltIn || animate.Title != "Animate a picture" {
+	if animate == nil || animate.Input != KindImage || animate.Title != "Animate a picture" {
 		t.Fatalf("animate = %+v", animate)
 	}
 	if _, err := service.Create(Request{Capability: "animate", Prompt: "slow push in"}); !errors.Is(err, ErrInvalidRequest) {

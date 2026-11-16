@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, BellOff, Check, LoaderCircle, Mic, Send, Square, Trash2, TriangleAlert, Volume2, VolumeX, X } from "lucide-react";
+import { Bell, BellOff, Check, Ear, EarOff, LoaderCircle, Mic, Send, Square, Trash2, TriangleAlert, Volume2, VolumeX, X } from "lucide-react";
 import type { ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator";
 import type { X00Action, X00Mood } from "../../../shared/x00";
 import { useClaudeOrchestratorInfo, useClaudeOrchestratorRuns } from "../../hooks/useClaudeOrchestrator";
-import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, useX00Listen, x00Hush } from "../../hooks/useX00";
+import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, useX00HandsFree, useX00Listen, x00Hush } from "../../hooks/useX00";
 import { x00StateForRuns } from "../../lib/x00-fleet";
 import type { X00State } from "../../lib/x00-portrait";
 import { cn } from "../../lib/utils";
@@ -41,6 +41,7 @@ export function useX00PortraitState(): { state: X00State; speaking: boolean; ena
  */
 export function X00Commander() {
 	useX00Alerts();
+	useX00HandsFree(useX00Conversation());
 	const open = useX00Store((store) => store.open);
 	return open ? <X00Panel /> : null;
 }
@@ -193,6 +194,17 @@ function X00Panel() {
 					onClick={() => setPrefs({ alerts: !prefs.alerts })}
 				>
 					{prefs.alerts ? <Bell className="size-icon-md" aria-hidden="true" /> : <BellOff className="size-icon-md" aria-hidden="true" />}
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={prefs.handsFree ? t("x00.handsFreeOn") : t("x00.handsFreeOff")}
+					aria-pressed={prefs.handsFree}
+					title={prefs.handsFree ? t("x00.handsFreeOn") : t("x00.handsFreeOff")}
+					onClick={() => setPrefs({ handsFree: !prefs.handsFree })}
+					data-testid="x00-hands-free"
+				>
+					{prefs.handsFree ? <Ear className="size-icon-md" aria-hidden="true" /> : <EarOff className="size-icon-md" aria-hidden="true" />}
 				</Button>
 				<Button variant="ghost" size="icon-sm" aria-label={t("x00.clear")} title={t("x00.clear")} disabled={entries.length === 0} onClick={() => { x00Hush(); clear(); }}>
 					<Trash2 className="size-icon-md" aria-hidden="true" />

@@ -15,6 +15,11 @@ func newMedia(cfg config.MediaConfig, log *slog.Logger) *media.Service {
 		gateway.BaseURL = cfg.GPU.BaseURL
 		gateway.Token = cfg.GPU.Token
 		gateway.Voice = cfg.GPU.Voice
+		gateway.PricePerHour = cfg.GPU.PricePerHour
+		if cfg.GPU.RunPodPodID != "" {
+			gateway.Power = &media.RunPod{PodID: cfg.GPU.RunPodPodID, APIKey: cfg.GPU.RunPodAPIKey}
+			gateway.IdleMinutes = cfg.GPU.IdleMinutes
+		}
 	}
 	return media.New(gateway)
 }

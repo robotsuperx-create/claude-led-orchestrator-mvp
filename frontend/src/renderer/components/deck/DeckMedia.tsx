@@ -13,6 +13,20 @@ const SHAPES = [
 ] as const;
 type Shape = (typeof SHAPES)[number]["id"];
 
+const BATCHES = [1, 4, 10, 30] as const;
+
+/** The night queue's hour: the next 02:00 on this computer's clock. */
+export function nextNight(now = new Date()): Date {
+	const night = new Date(now);
+	night.setHours(2, 0, 0, 0);
+	if (night.getTime() <= now.getTime()) night.setDate(night.getDate() + 1);
+	return night;
+}
+
+function hours(seconds?: number): string {
+	return ((seconds ?? 0) / 3600).toFixed(1);
+}
+
 function gigabytes(bytes?: number): string {
 	return bytes ? `${Math.round(bytes / 1024 ** 3)} GB` : "";
 }
@@ -41,11 +55,32 @@ function ServerLine() {
 			{reachable && status.data?.device ? <bdi className="t-2">{[status.data.device, gigabytes(status.data.vramBytes)].filter(Boolean).join(" · ")}</bdi> : null}
 			{reachable && status.data?.queue ? <span className="t-2">{t("deck.media.queue", { count: status.data.queue })}</span> : null}
 			{info.data?.voice ? <span className="t-2">{t("deck.media.voiceOn")}</span> : null}
+			<span className="media-meter t-2" data-testid="media-meter">
+				{t("deck.media.meter", { today: hours(status.data?.onSecondsToday), month: hours(status.data?.onSecondsMonth) })}
+				{status.data?.pricePerHour ? ` · ${t("deck.media.cost", { today: (status.data.costToday ?? 0).toFixed(2), month: (status.data.costMonth ?? 0).toFixed(2) })}` : ""}
+			</span>
+			{status.data?.autoPower ? <span className="t-2">{t("deck.media.autoStop", { minutes: status.data.idleMinutes ?? 0 })}</span> : null}
+			{status.data?.scheduled ? <span className="t-2">{t("deck.media.waiting", { count: status.data.scheduled })}</span> : null}
 		</p>
 	);
 }
 
-const BUILT_IN_NAMES = { image: "deck.media.kind.image", video: "deck.media.kind.video", music: "deck.media.kind.music" } as const;
+const BUILT_IN_NAMES = {
+	image: "deck.media.kind.image",
+	video: "deck.media.kind.video",
+	music: "deck.media.kind.music",
+	upscale: "deck.media.kind.upscale",
+	restyle: "deck.media.kind.restyle",
+	animate: "deck.media.kind.animate",
+} as const;
+
+/** The ad pack: from one product picture, a new scene in the three shapes the stores and reels use, and a short video. */
+const AD_PACK = [
+	{ capability: "restyle", width: 768, height: 1344 },
+	{ capability: "restyle", width: 1024, height: 1024 },
+	{ capability: "restyle", width: 1344, height: 768 },
+	{ capability: "animate", seconds: 4 },
+] as const;
 
 function capabilityName(t: TFunction, capability: MediaCapability): string {
 	const key = capability.builtIn ? BUILT_IN_NAMES[capability.id as keyof typeof BUILT_IN_NAMES] : undefined;
@@ -64,26 +99,40 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 	const [prompt, setPrompt] = useState("");
 	const [shape, setShape] = useState<Shape>("square");
 	const [seconds, setSeconds] = useState(4);
+	const [batch, setBatch] = useState<number>(1);
+	const [tonight, setTonight] = useState(false);
 	const error = mediaErrorCode(create.error) ?? mediaErrorCode(upload.error);
 
 	useEffect(() => {
 		if (capability && chosen !== capability.id) setChosen(capability.id);
 	}, [capability, chosen]);
 
+	// A tool working on a picture may need no words: the picture's own stand in.
+	const words = prompt.trim() || (input ? input.prompt.trim() || capability?.id || "" : "");
+	const canPack = Boolean(input) && AD_PACK.every((step) => capabilities.some((item) => item.id === step.capability && item.input === "image"));
+
 	const submit = () => {
-		if (!capability || !prompt.trim()) return;
+		if (!capability || !words) return;
 		const size = SHAPES.find((item) => item.id === shape) ?? SHAPES[0];
 		create.mutate(
 			{
 				capability: capability.id,
-				prompt: prompt.trim(),
+				prompt: words,
 				...(capability.kind === "image" && !capability.input ? { width: size.width, height: size.height } : {}),
 				...(capability.kind === "video" ? { seconds } : {}),
 				...(capability.kind === "audio" ? { seconds: Math.min(47, seconds * 5) } : {}),
 				...(input ? { input: input.id } : {}),
+				...(batch > 1 ? { count: batch } : {}),
+				...(tonight ? { runAt: nextNight().toISOString() } : {}),
 			},
 			{ onSuccess: () => setPrompt("") },
 		);
+	};
+
+	const pack = () => {
+		if (!input || !prompt.trim()) return;
+		for (const step of AD_PACK) create.mutate({ ...step, prompt: prompt.trim(), input: input.id });
+		setPrompt("");
 	};
 
 	const pick = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -115,7 +164,7 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 				rows={3}
 				maxLength={MEDIA_MAX_PROMPT_CHARS}
 				value={prompt}
-				placeholder={t(`deck.media.placeholder.${capability?.kind ?? "image"}`)}
+				placeholder={input ? t("deck.media.placeholder.input") : t(`deck.media.placeholder.${capability?.kind ?? "image"}`)}
 				aria-label={t("deck.media.prompt")}
 				onChange={(event) => setPrompt(event.target.value)}
 				onKeyDown={(event) => {
@@ -140,10 +189,26 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 						<span className="n">{t("deck.media.seconds", { count: capability.kind === "video" ? seconds : Math.min(47, seconds * 5) })}</span>
 					</label>
 				) : null}
+				<div className="media-shapes" role="group" aria-label={t("deck.media.count")}>
+					{BATCHES.map((value) => (
+						<button key={value} type="button" aria-pressed={batch === value} className={batch === value ? "media-kind on" : "media-kind"} onClick={() => setBatch(value)}>
+							<span className="n">×{value}</span>
+						</button>
+					))}
+				</div>
+				<div className="media-shapes" role="group" aria-label={t("deck.media.when")}>
+					<button type="button" aria-pressed={!tonight} className={!tonight ? "media-kind on" : "media-kind"} onClick={() => setTonight(false)}>{t("deck.media.now")}</button>
+					<button type="button" aria-pressed={tonight} className={tonight ? "media-kind on" : "media-kind"} onClick={() => setTonight(true)} data-testid="media-tonight">{t("deck.media.tonight")}</button>
+				</div>
 				<span className="grow" />
 				<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void pick(event)} data-testid="media-upload-input" />
 				<button type="button" className="btn btn-text" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>{t("deck.media.upload")}</button>
-				<button type="button" className="btn btn-primary" onClick={submit} disabled={!capability || !prompt.trim() || create.isPending} data-testid="media-make">
+				{canPack ? (
+					<button type="button" className="btn btn-text" onClick={pack} disabled={!prompt.trim() || create.isPending} title={t("deck.media.adPackHint")} data-testid="media-ad-pack">
+						{t("deck.media.adPack")}
+					</button>
+				) : null}
+				<button type="button" className="btn btn-primary" onClick={submit} disabled={!capability || !words || create.isPending} data-testid="media-make">
 					{t("deck.media.make")}
 				</button>
 			</div>
@@ -180,7 +245,11 @@ function MediaCard({ item, canUseAsInput, onUse }: { item: MediaItem; canUseAsIn
 					)
 				) : (
 					<span className="media-state small">
-						{item.state === "failed" ? t(`deck.media.failure.${item.failure ?? "failed"}`) : t(`deck.media.state.${item.state}`)}
+						{item.state === "failed"
+							? t(`deck.media.failure.${item.failure ?? "failed"}`)
+							: item.state === "scheduled"
+								? t("deck.media.state.scheduled", { time: item.runAt ? new Date(item.runAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "" })
+								: t(`deck.media.state.${item.state}`)}
 					</span>
 				)}
 			</div>
