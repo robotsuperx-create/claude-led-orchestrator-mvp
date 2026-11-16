@@ -135,6 +135,8 @@ export async function installFakeBridge(page: Page, opts: FakeBridgeOptions = {}
 					publish: async () => ({ ok: false, error: "disabled" }),
 					visual: async () => ({ ok: false, error: "disabled" }),
 					visualShot: async () => ({ ok: false, error: "disabled" }),
+					live: async () => ({ ok: false, error: "disabled" }),
+					sitePages: async () => ({ ok: false, error: "disabled" }),
 				},
 				claudeOrchestratorSettings: {
 					get: async () => ({ ok: false, error: "unavailable" }),
@@ -737,6 +739,8 @@ export async function installFakeAgent(page: Page, opts: FakeAgentOptions = {}):
 					publish: async () => ({ ok: false, error: "disabled" }),
 					visual: async () => ({ ok: false, error: "disabled" }),
 					visualShot: async () => ({ ok: false, error: "disabled" }),
+					live: async () => ({ ok: false, error: "disabled" }),
+					sitePages: async () => ({ ok: false, error: "disabled" }),
 				},
 				claudeOrchestratorSettings: {
 					get: async () => ({ ok: false, error: "unavailable" }),

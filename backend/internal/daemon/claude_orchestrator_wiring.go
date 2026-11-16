@@ -351,8 +351,22 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		WriterProvider:      pinnedWriter(cfg.ClaudeOrchestrator),
 		Budget:              runBudget(cfg.ClaudeOrchestrator.Budget),
 		MaxReplans:          cfg.ClaudeOrchestrator.MaxReplans,
+		SitePages:           sitePages(cfg.ClaudeOrchestrator.Visual.Pages),
 	})
 	return wiring, nil
+}
+
+// sitePages finds a run's pages for the deck's live preview the way the visual
+// review does: the configured pages, else the worktree's index.html.
+func sitePages(configured []string) func(worktree string) []string {
+	return func(worktree string) []string {
+		found := visualcheck.FindPages(worktree, configured)
+		pages := make([]string, 0, len(found))
+		for _, page := range found {
+			pages = append(pages, page.Label)
+		}
+		return pages
+	}
 }
 
 func plannerProvider(cfg config.ClaudeOrchestratorConfig) ports.ModelProvider {

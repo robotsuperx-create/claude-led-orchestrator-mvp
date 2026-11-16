@@ -123,3 +123,13 @@ export function runMinutes(run: ClaudeOrchestratorRun, now = Date.now()): number
 	const end = isLiveRun(run) ? now : Date.parse(run.updatedAt ?? "") || now;
 	return Math.max(0, Math.floor((end - started) / 60_000));
 }
+
+/** The rail's marks from the live board: each step lights its crew member by how it is going. */
+export function crewMarksFromSteps(steps: readonly { index: number; state: string }[], size = 16): DeckMark[] {
+	const marks: DeckMark[] = Array.from({ length: size }, () => "idle");
+	for (const step of steps) {
+		if (step.index < 0 || step.index >= size) continue;
+		marks[step.index] = step.state === "running" ? "thinking" : step.state === "done" ? "ready" : step.state === "failed" ? "veto" : "idle";
+	}
+	return marks;
+}

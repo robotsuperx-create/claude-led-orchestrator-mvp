@@ -44,6 +44,8 @@ import { initMainSentry, sanitizeRendererCapture } from "./main/sentry-main";
 import { TelemetryPolicyAuthority, resolveDesktopDataDir } from "./main/telemetry-policy-file";
 import { DaemonTelemetryPolicyClient } from "./main/daemon-telemetry-policy-client";
 import { ClaudeOrchestratorClient } from "./main/claude-orchestrator-client";
+import { CLAUDE_ORCHESTRATOR_SITE_PRIVILEGES, createClaudeOrchestratorSiteHandler } from "./main/claude-orchestrator-site";
+import { CLAUDE_ORCHESTRATOR_SITE_SCHEME } from "./shared/claude-orchestrator";
 import { ClaudeOrchestratorSettingsStore } from "./main/claude-orchestrator-settings";
 import { DesktopTelemetryController } from "./main/desktop-telemetry-controller";
 import { AgentSwitchVisibilityController } from "./main/agent-switch-observability";
@@ -424,6 +426,9 @@ protocol.registerSchemesAsPrivileged([
 		scheme: RENDERER_SCHEME,
 		privileges: { standard: true, secure: true, supportFetchAPI: true },
 	},
+	// The deck's live preview of a run's own pages: one origin per run, apart
+	// from the renderer and the daemon (main/claude-orchestrator-site.ts).
+	{ ...CLAUDE_ORCHESTRATOR_SITE_PRIVILEGES, privileges: { ...CLAUDE_ORCHESTRATOR_SITE_PRIVILEGES.privileges } },
 ]);
 
 // Register ao-app:// as the deep-link protocol for WorkOS auth callbacks.
@@ -2034,6 +2039,8 @@ ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrusted
 ipcMain.handle("claudeOrchestrator:publish", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.publish(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:visual", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.visual(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:visualShot", (event, runId: unknown, name: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.visualShot(runId, name) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:live", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.live(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:sitePages", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.sitePages(runId) : untrustedOrchestratorCaller);
 
 // X-00, the commander: the daemon holds the Claude key and talks to Claude;
 // the renderer only sends the conversation and gets back what he says and the
@@ -2974,6 +2981,7 @@ app.whenReady().then(async () => {
 	}
 
 	registerRendererProtocol();
+	protocol.handle(CLAUDE_ORCHESTRATOR_SITE_SCHEME, createClaudeOrchestratorSiteHandler((runId) => claudeOrchestratorClient.siteRoot(runId)));
 	applyRuntimeAppIcon();
 	const initialUiSettings = keybindingRunFile
 		? await readUiSettings(path.dirname(keybindingRunFile))

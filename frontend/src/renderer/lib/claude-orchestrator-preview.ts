@@ -1,10 +1,13 @@
 import type { ClaudeOrchestratorSettingsResult, ClaudeOrchestratorSettingsUpdate, ClaudeOrchestratorSettingsView } from "../../shared/claude-orchestrator-settings";
 import type {
 	ClaudeOrchestratorInfo,
+	ClaudeOrchestratorLive,
+	ClaudeOrchestratorLiveStepState,
 	ClaudeOrchestratorPlan,
 	ClaudeOrchestratorResult,
 	ClaudeOrchestratorRun,
 	ClaudeOrchestratorRunState,
+	ClaudeOrchestratorSitePages,
 	ClaudeOrchestratorStartInput,
 	ClaudeOrchestratorVisual,
 } from "../../shared/claude-orchestrator";
@@ -22,6 +25,8 @@ export type ClaudeOrchestratorBridge = {
 	publish: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	visual: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorVisual>>;
 	visualShot: (runId: string, name: string) => Promise<ClaudeOrchestratorResult<string>>;
+	live: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorLive>>;
+	sitePages: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorSitePages>>;
 };
 
 const unavailable = async () => ({ ok: false as const, error: "daemon_unavailable" as const });
@@ -30,7 +35,7 @@ const unavailable = async () => ({ ok: false as const, error: "daemon_unavailabl
 export const unavailableClaudeOrchestratorBridge: ClaudeOrchestratorBridge = {
 	info: unavailable, list: unavailable, start: unavailable, status: unavailable, cancel: unavailable,
 	plan: unavailable, approve: unavailable, reject: unavailable, publish: unavailable,
-	visual: unavailable, visualShot: unavailable,
+	visual: unavailable, visualShot: unavailable, live: unavailable, sitePages: unavailable,
 };
 
 // Preview-only stage timing: each stage lasts this long after the run starts.
@@ -51,6 +56,41 @@ const previewPlan = (runId: string): ClaudeOrchestratorPlan => ({
 });
 
 const PREVIEW_VISUAL_RUN = "claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d";
+
+// What the preview's crew "writes", file by file, for the deck's code stream.
+const PREVIEW_CODE: Array<{ path: string; created: boolean; lines: string[] }> = [
+	{ path: "src/signup/schema.ts", created: true, lines: [
+		"import { z } from \"zod\";",
+		"",
+		"export const signupSchema = z.object({",
+		"  email: z.string().email(\"Enter a valid email\"),",
+		"  password: z.string().min(12, \"Use at least 12 characters\"),",
+		"  name: z.string().trim().min(1, \"Tell us your name\"),",
+		"});",
+		"",
+		"export type Signup = z.infer<typeof signupSchema>;",
+	] },
+	{ path: "src/signup/SignupForm.tsx", created: false, lines: [
+		"const result = signupSchema.safeParse(values);",
+		"if (!result.success) {",
+		"  setErrors(result.error.flatten().fieldErrors);",
+		"  return;",
+		"}",
+		"await submit(result.data);",
+	] },
+	{ path: "server/routes/signup.ts", created: false, lines: [
+		"router.post(\"/signup\", async (req, res) => {",
+		"  const parsed = signupSchema.safeParse(req.body);",
+		"  if (!parsed.success) return res.status(400).json(parsed.error.flatten());",
+		"  res.status(201).json(await users.create(parsed.data));",
+		"});",
+	] },
+	{ path: "src/signup/schema.test.ts", created: true, lines: [
+		"it(\"rejects a short password\", () => {",
+		"  expect(signupSchema.safeParse({ ...valid, password: \"short\" }).success).toBe(false);",
+		"});",
+	] },
+];
 
 const previewVisual = (runId: string): ClaudeOrchestratorVisual => ({
 	runId,
@@ -208,6 +248,25 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 			return { ok: true, value: snapshot(run) };
 		},
 		visual: async (runId) => (find(runId) ? { ok: true, value: previewVisual(runId) } : { ok: false, error: "not_found" }),
+		live: async (runId) => {
+			const run = find(runId);
+			if (!run) return { ok: false, error: "not_found" };
+			const state = snapshot(run).state;
+			if (state === "pending" || state === "planning") return { ok: true, value: { runId, steps: [], files: [] } };
+			const plan = previewPlan(runId);
+			// How many steps are finished: all of them once the code is written.
+			const writing = state === "executing" ? Math.min(plan.steps.length - 1, Math.floor(((now() - run.startedAt) % PREVIEW_STAGE_MS) / (PREVIEW_STAGE_MS / plan.steps.length))) : plan.steps.length;
+			const failedAt = state === "failed" ? 2 : -1;
+			const steps = plan.steps.map((step, index) => {
+				let stepState: ClaudeOrchestratorLiveStepState = index < writing ? "done" : index === writing ? "running" : "waiting";
+				if (failedAt >= 0) stepState = index < failedAt ? "done" : index === failedAt ? "failed" : "blocked";
+				return { index, id: step.id, title: step.title, state: stepState, attempt: stepState === "waiting" || stepState === "blocked" ? 0 : index === failedAt ? 2 : 1 };
+			});
+			const shown = PREVIEW_CODE.slice(0, Math.max(1, Math.min(PREVIEW_CODE.length, writing + 1)));
+			const files = shown.map((file) => ({ path: file.path, added: file.lines.length, removed: file.created ? 0 : 2, created: file.created, lines: file.lines })).reverse();
+			return { ok: true, value: { runId, steps, files } };
+		},
+		sitePages: async (runId) => (find(runId) ? { ok: false, error: "not_found" } : { ok: false, error: "not_found" }),
 		visualShot: async (runId, name) => {
 			const picture = runId === PREVIEW_VISUAL_RUN ? previewShot(name) : null;
 			return picture ? { ok: true, value: picture } : { ok: false, error: "not_found" };

@@ -184,6 +184,8 @@ func (api *ClaudeOrchestratorAPI) Register(r chi.Router) {
 	r.Post("/internal/claude-orchestrator/runs/{runId}/publish", api.publish)
 	r.Get("/internal/claude-orchestrator/runs/{runId}/visual", api.visual)
 	r.Get("/internal/claude-orchestrator/runs/{runId}/visual/{name}", api.visualShot)
+	r.Get("/internal/claude-orchestrator/runs/{runId}/live", api.live)
+	r.Get("/internal/claude-orchestrator/runs/{runId}/site", api.site)
 }
 
 type claudeOrchestratorRunRequest struct {

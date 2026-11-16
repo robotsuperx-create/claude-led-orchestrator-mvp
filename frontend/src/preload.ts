@@ -22,7 +22,7 @@ import {
 	type TrayOpenSessionTarget,
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
-import type { ClaudeOrchestratorInfo, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorStartInput, ClaudeOrchestratorVisual } from "./shared/claude-orchestrator";
+import type { ClaudeOrchestratorInfo, ClaudeOrchestratorLive, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorSitePages, ClaudeOrchestratorStartInput, ClaudeOrchestratorVisual } from "./shared/claude-orchestrator";
 import type { X00ChatInput, X00Heard, X00Info, X00ListenInput, X00Reply, X00Result, X00SpeakInput, X00Speech } from "./shared/x00";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
@@ -362,6 +362,8 @@ const api = {
 		publish: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:publish", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>,
 		visual: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:visual", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorVisual>>,
 		visualShot: (runId: string, name: string) => ipcRenderer.invoke("claudeOrchestrator:visualShot", runId, name) as Promise<ClaudeOrchestratorResult<string>>,
+		live: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:live", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorLive>>,
+		sitePages: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:sitePages", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorSitePages>>,
 	},
 	x00: {
 		info: () => ipcRenderer.invoke("x00:info") as Promise<X00Result<X00Info>>,

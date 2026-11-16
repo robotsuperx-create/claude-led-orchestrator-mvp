@@ -136,10 +136,12 @@ function contentSecurityPolicy(mode: "build" | "serve"): string {
 			.join(" "),
 		"object-src 'none'",
 		"base-uri 'self'",
-		// Only the Stores page frames content: the owner's storefront preview hub,
-		// served on this computer. Loopback http(s) only; every other origin stays
-		// blocked, and the frame itself is sandboxed (components/StoresView.tsx).
-		"frame-src http://localhost:* http://127.0.0.1:*",
+		// Two surfaces frame content: the Stores page (the owner's storefront
+		// preview hub, served on this computer, loopback http only) and Home's
+		// live preview of a run's own pages, served by the main process on
+		// xrobot-site: (main/claude-orchestrator-site.ts). Every other origin
+		// stays blocked, and both frames are sandboxed.
+		"frame-src http://localhost:* http://127.0.0.1:* xrobot-site:",
 	].join("; ");
 }
 

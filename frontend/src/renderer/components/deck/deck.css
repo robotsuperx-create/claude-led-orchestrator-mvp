@@ -223,3 +223,116 @@ to { opacity: 1; transform: none; }
 .xrd.xrd--cluster .screen { min-height: calc(100cqh - 56px - var(--size-traffic-light-clearance, 40px)); }
 /* The shell keeps its frame left to right; the deck reads in the document's direction, as on the trading deck. */
 :root[dir="rtl"] .xrd { direction: rtl; }
+
+/* ── Under X-00: the crew at work (X-ROBOT-AI) ──
+   Three cinematic panels on the void: the code as it lands in phosphor green,
+   the crew map, and the page they are building. Graphite glass, hairline
+   edges with HUD corners, one light for what is live. */
+.xrd { --code: #5CF29B; --code-rgb: 92, 242, 155; --f-code: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, ui-monospace, monospace; }
+.xrd .live-work { max-width: 1232px; margin: 0 auto; padding: 0 var(--s6) var(--s8); display: grid; gap: var(--s4); }
+.xrd .live-panel { position: relative; overflow: hidden; border-radius: 2px; background: linear-gradient(180deg, rgba(17, 19, 21, .94), rgba(5, 6, 7, .97)); box-shadow: inset 0 0 0 1px var(--hairline), 0 32px 80px rgba(0, 0, 0, .55); }
+.xrd .live-panel::before, .xrd .live-panel::after { content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; border-color: rgba(var(--ion-rgb), .55); border-style: solid; }
+.xrd .live-panel::before { top: 6px; inset-inline-start: 6px; border-width: 1px 0 0 1px; }
+.xrd .live-panel::after { bottom: 6px; inset-inline-end: 6px; border-width: 0 1px 1px 0; }
+[dir="rtl"] .xrd .live-panel::before { border-width: 1px 1px 0 0; }
+[dir="rtl"] .xrd .live-panel::after { border-width: 0 0 1px 1px; }
+.xrd .live-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--hairline); }
+.xrd .live-head .grow { flex: 1; }
+.xrd .live-title { font: 400 18px/24px var(--f-display); letter-spacing: .02em; color: var(--ivory); }
+.xrd .live-meta { margin-inline-start: auto; }
+.xrd .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ivory-3); flex-shrink: 0; }
+.xrd .live-dot.on { background: var(--ion); animation: xrd-breathe 4s var(--ease) infinite; }
+.xrd .live-badge { padding: 2px 8px; border-radius: 2px; color: var(--code); box-shadow: inset 0 0 0 1px rgba(var(--code-rgb), .45); font-family: var(--f-num); letter-spacing: .14em; text-transform: uppercase; text-shadow: 0 0 8px rgba(var(--code-rgb), .6); }
+
+/* the code stream */
+.xrd .code-files { display: flex; gap: var(--s1); overflow-x: auto; padding: var(--s1) var(--s3); border-bottom: 1px solid var(--hairline); scrollbar-width: none; }
+.xrd .code-file { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; padding: 4px 10px; border: 0; border-radius: 2px; background: none; color: var(--ivory-2); font: 400 12px/18px var(--f-code); cursor: pointer; }
+.xrd .code-file:hover { color: var(--ivory); background: rgba(236, 233, 226, .04); }
+.xrd .code-file.on { color: var(--code); background: rgba(var(--code-rgb), .06); box-shadow: inset 0 -1px 0 var(--code); }
+.xrd .code-file-count { color: rgba(var(--code-rgb), .8); }
+.xrd .code-file-count.minus { color: rgba(240, 165, 143, .8); }
+.xrd .code-screen { position: relative; height: 432px; padding: var(--s2) var(--s3); overflow: hidden; text-align: left; background:
+    radial-gradient(120% 90% at 50% 0%, rgba(var(--code-rgb), .07), transparent 60%),
+    repeating-linear-gradient(180deg, transparent 0 2px, rgba(var(--code-rgb), .025) 2px 3px),
+    #020403; }
+.xrd .code-screen::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(130% 100% at 50% 50%, transparent 55%, rgba(0, 0, 0, .55)); }
+.xrd .code-path { display: flex; gap: var(--s2); align-items: baseline; margin-bottom: var(--s1); color: rgba(var(--code-rgb), .55); font: 400 12px/18px var(--f-code); }
+.xrd .code-new { padding: 0 6px; color: var(--void); background: rgba(var(--code-rgb), .8); border-radius: 2px; font-size: 11px; }
+.xrd .code-lines { margin: 0; color: var(--code); font: 400 13px/22px var(--f-code); white-space: pre; overflow: hidden; text-shadow: 0 0 6px rgba(var(--code-rgb), .45), 0 0 1px rgba(var(--code-rgb), .9); }
+.xrd .code-line { display: block; }
+.xrd .code-no { display: inline-block; width: 4ch; margin-inline-end: 2ch; text-align: right; color: rgba(var(--code-rgb), .3); text-shadow: none; user-select: none; }
+.xrd .code-line.typing .code-text { display: inline-block; vertical-align: top; animation: xrd-type calc(min(var(--n, 20), 90) * 12ms + 240ms) steps(28, end) var(--d, 0ms) both; }
+.xrd .code-line.typing { animation: xrd-line 600ms var(--ease) var(--d, 0ms) both; }
+.xrd .code-caret { display: inline-block; width: 8px; height: 15px; margin-inline-start: 6ch; vertical-align: -2px; background: var(--code); box-shadow: 0 0 10px rgba(var(--code-rgb), .8); animation: xrd-caret 1.05s steps(2, start) infinite; }
+.xrd .code-idle { display: grid; place-items: center; height: 100%; color: rgba(var(--code-rgb), .6); font: 400 13px/22px var(--f-code); text-shadow: 0 0 6px rgba(var(--code-rgb), .4); }
+@keyframes xrd-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes xrd-line { from { background: rgba(var(--code-rgb), .1); } to { background: transparent; } }
+@keyframes xrd-caret { to { visibility: hidden; } }
+
+/* the crew map */
+.xrd .map-stage { position: relative; padding: var(--s2) var(--s3) var(--s3); background: radial-gradient(70% 90% at 12% 50%, rgba(var(--ion-rgb), .06), transparent 60%); }
+.xrd .map-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.xrd .map-grid { fill: none; stroke: rgba(var(--ion-rgb), .05); stroke-width: 1; }
+.xrd .map-scan { stroke: rgba(var(--ion-rgb), .22); stroke-width: 1; animation: xrd-scan 7s linear infinite; }
+@keyframes xrd-scan { from { transform: translateY(0); } to { transform: translateY(440px); } }
+.xrd .map-edge { fill: none; stroke: rgba(236, 233, 226, .14); stroke-width: 1.5; transition: stroke var(--t1) var(--ease); }
+.xrd .map-edge.running { stroke: var(--ion); stroke-dasharray: 6 8; animation: xrd-flow 1.2s linear infinite; filter: drop-shadow(0 0 4px rgba(var(--ion-rgb), .6)); }
+.xrd .map-edge.done { stroke: rgba(159, 227, 189, .55); }
+.xrd .map-edge.failed { stroke: rgba(229, 72, 77, .7); }
+.xrd .map-edge.blocked { stroke: var(--ivory-3); stroke-dasharray: 3 6; }
+.xrd .map-edge.to-repo { stroke-width: 1; }
+.xrd .map-edge.to-repo.done { stroke: rgba(var(--code-rgb), .3); }
+@keyframes xrd-flow { to { stroke-dashoffset: -28; } }
+.xrd .map-packet { fill: var(--code); filter: drop-shadow(0 0 4px rgba(var(--code-rgb), .9)); }
+.xrd .map-core.on { animation: xrd-halo 4s var(--ease) infinite; }
+.xrd .map-hex { fill: rgba(var(--ion-rgb), .08); stroke: var(--ion); stroke-width: 1.5; filter: drop-shadow(0 0 8px rgba(var(--ion-rgb), .5)); }
+.xrd .map-callsign { fill: var(--ivory); font: 500 12px/1 var(--f-num); letter-spacing: .08em; text-anchor: middle; }
+.xrd .map-callsign.big { font-size: 15px; }
+.xrd .map-label { fill: var(--ivory-2); font: 400 11px/1 var(--f-text); text-anchor: middle; }
+.xrd .map-node { cursor: pointer; outline: none; }
+.xrd .map-ring { fill: none; stroke: var(--hairline); stroke-width: 1.5; transition: stroke var(--t1) var(--ease), stroke-width var(--t1) var(--ease); }
+.xrd .map-disc { fill: var(--void); stroke: rgba(236, 233, 226, .2); stroke-width: 1; }
+.xrd .map-face { opacity: .92; transition: opacity var(--t1) var(--ease), filter var(--t1) var(--ease); }
+.xrd .map-node.waiting .map-face, .xrd .map-node.blocked .map-face { opacity: .35; filter: grayscale(1); }
+.xrd .map-node.running .map-ring { stroke: var(--ion); animation: xrd-ring 2s var(--ease) infinite; }
+.xrd .map-node.done .map-ring { stroke: var(--long); }
+.xrd .map-node.failed .map-ring { stroke: var(--veto); }
+.xrd .map-node.blocked .map-ring { stroke: var(--ivory-3); stroke-dasharray: 3 5; }
+.xrd .map-node.selected .map-ring { stroke-width: 3; }
+.xrd .map-node:hover .map-ring, .xrd .map-node:focus-visible .map-ring { stroke: var(--ivory); }
+@keyframes xrd-ring { 0%, 100% { stroke-opacity: .4; } 50% { stroke-opacity: 1; } }
+.xrd .map-repo-box { fill: rgba(17, 19, 21, .92); stroke: rgba(var(--code-rgb), .4); stroke-width: 1; }
+.xrd .map-file { fill: rgba(var(--code-rgb), .75); font: 400 11px/1 var(--f-code); text-anchor: middle; }
+.xrd .map-card { position: absolute; bottom: var(--s3); inset-inline-start: var(--s4); display: grid; gap: 2px; min-width: 260px; max-width: 420px; padding: var(--s1) var(--s2); background: var(--graphite); box-shadow: inset 0 0 0 1px var(--hairline), 0 24px 48px rgba(0, 0, 0, .5); }
+.xrd .map-card-who { font: 500 12px/16px var(--f-num); letter-spacing: .08em; color: var(--ion); }
+.xrd .map-card-title { font-size: 14px; line-height: 20px; }
+.xrd .map-card-state { font-size: 12px; color: var(--ivory-2); }
+.xrd .map-card-state.running { color: var(--ion); }
+.xrd .map-card-state.done { color: var(--long); }
+.xrd .map-card-state.failed { color: var(--veto); }
+.xrd .map-empty { padding: var(--s6) var(--s3); text-align: center; }
+
+/* the live preview */
+.xrd .preview-devices { display: inline-flex; gap: 2px; }
+.xrd .preview-device { padding: 4px 10px; border: 0; border-radius: 2px; background: none; color: var(--ivory-2); font: 400 12px/18px var(--f-text); cursor: pointer; }
+.xrd .preview-device.on { color: var(--ivory); box-shadow: inset 0 -1px 0 var(--ion); }
+.xrd .preview-chrome { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) var(--s3); background: #0b0d0f; border-bottom: 1px solid var(--hairline); }
+.xrd .preview-lights { display: inline-flex; gap: 6px; }
+.xrd .preview-lights i { width: 10px; height: 10px; border-radius: 50%; background: rgba(229, 72, 77, .7); }
+.xrd .preview-lights i:nth-child(2) { background: rgba(240, 198, 116, .7); }
+.xrd .preview-lights i:nth-child(3) { background: rgba(159, 227, 189, .7); }
+.xrd .preview-address { flex: 1; min-width: 0; padding: 4px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 2px; background: var(--void); box-shadow: inset 0 0 0 1px var(--hairline); color: var(--ivory-2); font: 400 12px/18px var(--f-code); }
+.xrd .preview-reload { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 2px; background: none; color: var(--ivory-2); cursor: pointer; }
+.xrd .preview-reload:hover:not(:disabled) { color: var(--ivory); background: rgba(236, 233, 226, .06); }
+.xrd .preview-reload:disabled { opacity: .35; cursor: default; }
+.xrd .preview-reload svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.xrd .preview-pages { display: flex; gap: var(--s1); padding: var(--s1) var(--s3); border-bottom: 1px solid var(--hairline); }
+.xrd .preview-page { padding: 2px 10px; border: 0; border-radius: 2px; background: none; color: var(--ivory-2); font: 400 12px/18px var(--f-code); cursor: pointer; }
+.xrd .preview-page.on { color: var(--ivory); background: rgba(236, 233, 226, .06); }
+.xrd .preview-screen { display: grid; justify-items: center; height: 560px; padding: var(--s2); overflow: auto; background: radial-gradient(80% 60% at 50% 0%, rgba(var(--ion-rgb), .05), transparent 70%), #08090a; }
+.xrd .preview-device-frame { height: 100%; max-width: 100%; background: #fff; box-shadow: 0 0 0 1px var(--hairline), 0 24px 60px rgba(0, 0, 0, .6); transition: width var(--t2) var(--ease); }
+.xrd .preview-frame { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+.xrd .preview-shot { display: grid; gap: var(--s1); justify-items: center; margin: 0; }
+.xrd .preview-shot img { display: block; max-width: 100%; box-shadow: 0 0 0 1px var(--hairline), 0 24px 60px rgba(0, 0, 0, .6); }
+.xrd .preview-empty { align-self: center; text-align: center; }
+@container xrd (max-width: 720px) { .xrd .live-work { padding-inline: var(--s2); } .xrd .code-screen { height: 340px; } .xrd .preview-screen { height: 440px; } }

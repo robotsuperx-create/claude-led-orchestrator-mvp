@@ -377,3 +377,115 @@ export function parseClaudeOrchestratorPlan(value: unknown): ClaudeOrchestratorP
 	}
 	return { runId: candidate.runId, summary: boundedText(candidate.summary, 4000) ?? "", steps };
 }
+
+/** How one step of a run's plan is going. */
+export const CLAUDE_ORCHESTRATOR_LIVE_STEP_STATES = ["waiting", "running", "done", "failed", "blocked"] as const;
+export type ClaudeOrchestratorLiveStepState = (typeof CLAUDE_ORCHESTRATOR_LIVE_STEP_STATES)[number];
+
+/** One plan step as the crew carries it; its index names the crew member (X-01 is 0). */
+export type ClaudeOrchestratorLiveStep = {
+	index: number;
+	id: string;
+	title: string;
+	state: ClaudeOrchestratorLiveStepState;
+	attempt: number;
+};
+
+/**
+ * One file the run has written to: counts, and the last lines it gained. The
+ * lines are the run's own code from its own worktree, secret-redacted and
+ * bounded by the daemon; the renderer shows them as text, never as markup.
+ */
+export type ClaudeOrchestratorLiveFile = {
+	path: string;
+	added: number;
+	removed: number;
+	created: boolean;
+	lines: string[];
+};
+
+/** What a run is doing right now, for the deck. */
+export type ClaudeOrchestratorLive = { runId: string; steps: ClaudeOrchestratorLiveStep[]; files: ClaudeOrchestratorLiveFile[] };
+
+const LIVE_MAX_STEPS = 40;
+const LIVE_MAX_FILES = 12;
+const LIVE_MAX_LINES = 24;
+const LIVE_MAX_LINE = 240;
+const LIVE_PATH = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.(?:\/|$))[^\0\r\n\\:]{1,200}$/;
+
+/** A repository-relative path the deck may show: never absolute, never climbing out. */
+export function isClaudeOrchestratorLivePath(value: unknown): value is string {
+	return typeof value === "string" && LIVE_PATH.test(value);
+}
+
+/** Rebuilds a run's live work from allowlisted, length-bounded fields only. */
+export function parseClaudeOrchestratorLive(value: unknown): ClaudeOrchestratorLive | null {
+	const candidate = record(value);
+	if (!candidate || !isClaudeOrchestratorRunId(candidate.runId) || !Array.isArray(candidate.steps) || !Array.isArray(candidate.files)) return null;
+	const steps: ClaudeOrchestratorLiveStep[] = [];
+	for (const raw of candidate.steps.slice(0, LIVE_MAX_STEPS)) {
+		const step = record(raw);
+		const id = step && boundedText(step.id, 200);
+		const state = step?.state;
+		if (!step || !id || typeof state !== "string" || !(CLAUDE_ORCHESTRATOR_LIVE_STEP_STATES as readonly string[]).includes(state)) continue;
+		const index = count(step.index);
+		if (index === undefined || !Number.isInteger(index) || index >= LIVE_MAX_STEPS) continue;
+		steps.push({
+			index,
+			id,
+			title: boundedText(step.title, 800) ?? "",
+			state: state as ClaudeOrchestratorLiveStepState,
+			attempt: Math.min(Math.floor(count(step.attempt) ?? 0), 99),
+		});
+	}
+	const files: ClaudeOrchestratorLiveFile[] = [];
+	for (const raw of candidate.files.slice(0, LIVE_MAX_FILES)) {
+		const file = record(raw);
+		if (!file || !isClaudeOrchestratorLivePath(file.path)) continue;
+		const codeLines = Array.isArray(file.lines)
+			? file.lines.filter((line): line is string => typeof line === "string" && line.length <= LIVE_MAX_LINE).slice(-LIVE_MAX_LINES)
+			: [];
+		files.push({
+			path: file.path,
+			added: Math.floor(count(file.added) ?? 0),
+			removed: Math.floor(count(file.removed) ?? 0),
+			created: file.new === true,
+			lines: codeLines,
+		});
+	}
+	return { runId: candidate.runId, steps, files };
+}
+
+/** A run's web pages, as the renderer knows them: names only, never where they live. */
+export type ClaudeOrchestratorSitePages = { runId: string; pages: string[] };
+
+const SITE_MAX_PAGES = 8;
+const SITE_PAGE = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._ /-]{1,200}\.html?$/;
+
+/** A page name the live preview may open: an HTML file inside the run's worktree. */
+export function isClaudeOrchestratorSitePage(value: unknown): value is string {
+	return typeof value === "string" && SITE_PAGE.test(value);
+}
+
+/** The scheme the main process serves a run's pages on, one origin per run. */
+export const CLAUDE_ORCHESTRATOR_SITE_SCHEME = "xrobot-site";
+
+/** The address of one of a run's pages in the live preview. */
+export function claudeOrchestratorSiteUrl(runId: string, page: string): string {
+	return `${CLAUDE_ORCHESTRATOR_SITE_SCHEME}://${runId.replace("claude-run-", "run-")}/${page.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/** The run a preview address belongs to, from its host. */
+export function claudeOrchestratorSiteRunId(host: string): string | null {
+	const runId = host.replace(/^run-/, "claude-run-");
+	return isClaudeOrchestratorRunId(runId) ? runId : null;
+}
+
+/** Reads the daemon's site answer in the main process: the root stays there. */
+export function parseClaudeOrchestratorSite(value: unknown): { runId: string; root: string; pages: string[] } | null {
+	const candidate = record(value);
+	if (!candidate || !isClaudeOrchestratorRunId(candidate.runId) || typeof candidate.root !== "string" || !Array.isArray(candidate.pages)) return null;
+	const root = boundedText(candidate.root, 4096);
+	if (!root) return null;
+	return { runId: candidate.runId, root, pages: candidate.pages.filter(isClaudeOrchestratorSitePage).slice(0, SITE_MAX_PAGES) };
+}

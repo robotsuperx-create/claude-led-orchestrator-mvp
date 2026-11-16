@@ -5,6 +5,7 @@ import type { ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator"
 import {
 	useCancelClaudeOrchestratorRun,
 	useClaudeOrchestratorInfo,
+	useClaudeOrchestratorLive,
 	useClaudeOrchestratorPlan,
 	useClaudeOrchestratorRuns,
 } from "../../hooks/useClaudeOrchestrator";
@@ -12,6 +13,7 @@ import { x00VoiceLevel } from "../../hooks/useX00";
 import { crewMember } from "../../lib/x00-crew";
 import {
 	crewMarks,
+	crewMarksFromSteps,
 	deckLightForX00,
 	deckRuns,
 	isLiveRun,
@@ -28,7 +30,10 @@ import { useShell } from "../../lib/shell-context";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useX00Store } from "../../stores/x00-store";
 import { openX00, useX00PortraitState } from "../x00/X00Commander";
+import { AgentMap } from "./AgentMap";
+import { CodeStream } from "./CodeStream";
 import { DeckPortrait } from "./DeckPortrait";
+import { LivePreview } from "./LivePreview";
 import "./deck.css";
 
 const BRAND = "X-ROBOT-AI";
@@ -311,7 +316,9 @@ function DeckCrew({ lead }: { lead?: ClaudeOrchestratorRun }) {
 	const { t } = useTranslation();
 	const plan = useClaudeOrchestratorPlan(lead?.runId ?? "", Boolean(lead) && lead?.state !== "pending");
 	const steps = plan.data?.runId === lead?.runId ? (plan.data?.steps ?? []) : [];
-	const marks = crewMarks(lead, steps.length);
+	const board = useClaudeOrchestratorLive(lead?.runId ?? "", Boolean(lead) && isLiveRun(lead as ClaudeOrchestratorRun));
+	const liveSteps = board.data?.runId === lead?.runId ? (board.data?.steps ?? []) : [];
+	const marks = liveSteps.length > 0 ? crewMarksFromSteps(liveSteps) : crewMarks(lead, steps.length);
 	return (
 		<section className="crew" aria-label={t("deck.crewRail")}>
 			<div className="crew-rail" data-testid="deck-crew">
@@ -426,6 +433,28 @@ function DeckCrewList({ lead }: { lead?: ClaudeOrchestratorRun }) {
 	);
 }
 
+/**
+ * Under X-00, the crew at work on the run in focus: the code as it lands, the
+ * map of who does what, and the page they are building, live.
+ */
+function DeckLiveWork({ lead }: { lead: ClaudeOrchestratorRun }) {
+	const live = isLiveRun(lead);
+	const board = useClaudeOrchestratorLive(lead.runId, live);
+	const plan = useClaudeOrchestratorPlan(lead.runId, lead.state !== "pending");
+	const work = board.data?.runId === lead.runId ? board.data : undefined;
+	const steps = work?.steps ?? [];
+	const files = work?.files ?? [];
+	const planSteps = plan.data?.runId === lead.runId ? (plan.data?.steps ?? []) : [];
+	const writing = live && (lead.state === "executing" || lead.state === "validating" || steps.some((step) => step.state === "running"));
+	return (
+		<div className="live-work" data-testid="deck-live-work">
+			<CodeStream files={files} live={writing} />
+			<AgentMap steps={steps} plan={planSteps} files={files} live={writing} />
+			<LivePreview runId={lead.runId} files={files} live={live} />
+		</div>
+	);
+}
+
 /** The sections bar scrolls the deck to a section without touching the router's location. */
 function jump(event: MouseEvent<HTMLAnchorElement>) {
 	const id = event.currentTarget.hash.slice(1);
@@ -480,6 +509,7 @@ export function HomeDeck({ projects }: { projects: ReactNode }) {
 				<DeckCrew lead={lead} />
 				<DeckSay />
 			</main>
+			{lead ? <DeckLiveWork lead={lead} /> : null}
 			<nav className="sections small" aria-label={t("deck.sections")}>
 				<a href="#deck-runs" onClick={jump}>{t("deck.runs.title")}</a>
 				<a href="#deck-projects" onClick={jump}>{t("deck.projects")}</a>
