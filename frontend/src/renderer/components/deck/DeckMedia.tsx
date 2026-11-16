@@ -13,6 +13,20 @@ const SHAPES = [
 ] as const;
 type Shape = (typeof SHAPES)[number]["id"];
 
+const BATCHES = [1, 4, 10, 30] as const;
+
+/** The night queue's hour: the next 02:00 on this computer's clock. */
+export function nextNight(now = new Date()): Date {
+	const night = new Date(now);
+	night.setHours(2, 0, 0, 0);
+	if (night.getTime() <= now.getTime()) night.setDate(night.getDate() + 1);
+	return night;
+}
+
+function hours(seconds?: number): string {
+	return ((seconds ?? 0) / 3600).toFixed(1);
+}
+
 function gigabytes(bytes?: number): string {
 	return bytes ? `${Math.round(bytes / 1024 ** 3)} GB` : "";
 }
@@ -41,6 +55,12 @@ function ServerLine() {
 			{reachable && status.data?.device ? <bdi className="t-2">{[status.data.device, gigabytes(status.data.vramBytes)].filter(Boolean).join(" · ")}</bdi> : null}
 			{reachable && status.data?.queue ? <span className="t-2">{t("deck.media.queue", { count: status.data.queue })}</span> : null}
 			{info.data?.voice ? <span className="t-2">{t("deck.media.voiceOn")}</span> : null}
+			<span className="media-meter t-2" data-testid="media-meter">
+				{t("deck.media.meter", { today: hours(status.data?.onSecondsToday), month: hours(status.data?.onSecondsMonth) })}
+				{status.data?.pricePerHour ? ` · ${t("deck.media.cost", { today: (status.data.costToday ?? 0).toFixed(2), month: (status.data.costMonth ?? 0).toFixed(2) })}` : ""}
+			</span>
+			{status.data?.autoPower ? <span className="t-2">{t("deck.media.autoStop", { minutes: status.data.idleMinutes ?? 0 })}</span> : null}
+			{status.data?.scheduled ? <span className="t-2">{t("deck.media.waiting", { count: status.data.scheduled })}</span> : null}
 		</p>
 	);
 }
@@ -79,6 +99,8 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 	const [prompt, setPrompt] = useState("");
 	const [shape, setShape] = useState<Shape>("square");
 	const [seconds, setSeconds] = useState(4);
+	const [batch, setBatch] = useState<number>(1);
+	const [tonight, setTonight] = useState(false);
 	const error = mediaErrorCode(create.error) ?? mediaErrorCode(upload.error);
 
 	useEffect(() => {
@@ -100,6 +122,8 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 				...(capability.kind === "video" ? { seconds } : {}),
 				...(capability.kind === "audio" ? { seconds: Math.min(47, seconds * 5) } : {}),
 				...(input ? { input: input.id } : {}),
+				...(batch > 1 ? { count: batch } : {}),
+				...(tonight ? { runAt: nextNight().toISOString() } : {}),
 			},
 			{ onSuccess: () => setPrompt("") },
 		);
@@ -165,6 +189,17 @@ function Composer({ capabilities, input, onClearInput }: { capabilities: MediaCa
 						<span className="n">{t("deck.media.seconds", { count: capability.kind === "video" ? seconds : Math.min(47, seconds * 5) })}</span>
 					</label>
 				) : null}
+				<div className="media-shapes" role="group" aria-label={t("deck.media.count")}>
+					{BATCHES.map((value) => (
+						<button key={value} type="button" aria-pressed={batch === value} className={batch === value ? "media-kind on" : "media-kind"} onClick={() => setBatch(value)}>
+							<span className="n">×{value}</span>
+						</button>
+					))}
+				</div>
+				<div className="media-shapes" role="group" aria-label={t("deck.media.when")}>
+					<button type="button" aria-pressed={!tonight} className={!tonight ? "media-kind on" : "media-kind"} onClick={() => setTonight(false)}>{t("deck.media.now")}</button>
+					<button type="button" aria-pressed={tonight} className={tonight ? "media-kind on" : "media-kind"} onClick={() => setTonight(true)} data-testid="media-tonight">{t("deck.media.tonight")}</button>
+				</div>
 				<span className="grow" />
 				<input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(event) => void pick(event)} data-testid="media-upload-input" />
 				<button type="button" className="btn btn-text" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>{t("deck.media.upload")}</button>
@@ -210,7 +245,11 @@ function MediaCard({ item, canUseAsInput, onUse }: { item: MediaItem; canUseAsIn
 					)
 				) : (
 					<span className="media-state small">
-						{item.state === "failed" ? t(`deck.media.failure.${item.failure ?? "failed"}`) : t(`deck.media.state.${item.state}`)}
+						{item.state === "failed"
+							? t(`deck.media.failure.${item.failure ?? "failed"}`)
+							: item.state === "scheduled"
+								? t("deck.media.state.scheduled", { time: item.runAt ? new Date(item.runAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "" })
+								: t(`deck.media.state.${item.state}`)}
 					</span>
 				)}
 			</div>

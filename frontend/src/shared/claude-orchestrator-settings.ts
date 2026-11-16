@@ -50,6 +50,10 @@ export const CLAUDE_ORCHESTRATOR_SETTING_KEYS = [
 	// The media gateway: the person's own GPU server (ComfyUI, and speech under /v1).
 	"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL",
 	"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE",
+	// The cost guard: the server's hourly price, idle stop, and the RunPod pod to switch.
+	"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR",
+	"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_IDLE_MINUTES",
+	"AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_POD_ID",
 ] as const;
 export type ClaudeOrchestratorSettingKey = (typeof CLAUDE_ORCHESTRATOR_SETTING_KEYS)[number];
 
@@ -59,6 +63,7 @@ export const CLAUDE_ORCHESTRATOR_SECRET_KEYS = [
 	"AO_CLAUDE_ORCHESTRATOR_LOCAL_API_KEY",
 	"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY",
 	"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN",
+	"AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_API_KEY",
 ] as const;
 export type ClaudeOrchestratorSecretKey = (typeof CLAUDE_ORCHESTRATOR_SECRET_KEYS)[number];
 

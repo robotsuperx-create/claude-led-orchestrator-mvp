@@ -2991,5 +2991,21 @@
 	"deck.media.kind.animate": "تحريك",
 	"deck.media.adPack": "حزمة إعلان",
 	"deck.media.adPackHint": "مشهد جديد بمقاسات 9:16 و1:1 و16:9، وفيديو 4 ثوانٍ، من هذه الصورة",
-	"deck.media.placeholder.input": "صف المشهد الجديد حولها، أو اتركه فارغاً لتكبير الجودة"
+	"deck.media.placeholder.input": "صف المشهد الجديد حولها، أو اتركه فارغاً لتكبير الجودة",
+	"deck.media.count": "كم نسخة",
+	"deck.media.when": "متى",
+	"deck.media.now": "الآن",
+	"deck.media.tonight": "الليلة 02:00",
+	"deck.media.state.scheduled": "مجدول على {{time}}",
+	"deck.media.meter": "مشغّل اليوم {{today}} س · هذا الشهر {{month}} س",
+	"deck.media.cost": "{{today}} $ اليوم · {{month}} $ هذا الشهر",
+	"deck.media.autoStop": "يتوقف وحده بعد {{minutes}} دقيقة من الخمول",
+	"deck.media.waiting": "{{count}} تنتظر وقتها",
+	"settings.media.price": "السعر في الساعة (دولار)",
+	"settings.media.priceDescription": "ما تدفعه للسيرفر في الساعة، لعدّاد التكلفة.",
+	"settings.media.idle": "أوقفه عند الخمول (دقائق)",
+	"settings.media.idleDescription": "مع ضبط RunPod: يوقف السيرفر بعد هذه المدة بلا عمل (من 5 إلى 240)، ويشغّله وحده عند عمل جديد.",
+	"settings.media.runpodPod": "معرّف الـ pod في RunPod",
+	"settings.media.runpodPodDescription": "يسمح للتطبيق بتشغيل السيرفر للعمل وإيقافه عند الخمول.",
+	"settings.media.runpodKey": "مفتاح RunPod API"
 }

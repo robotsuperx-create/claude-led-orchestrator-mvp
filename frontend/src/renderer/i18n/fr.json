@@ -2918,5 +2918,21 @@
 	"deck.media.kind.animate": "Animer",
 	"deck.media.adPack": "Pack pub",
 	"deck.media.adPackHint": "Une nouvelle scène en 9:16, 1:1 et 16:9, et une vidéo de 4 secondes, à partir de cette image",
-	"deck.media.placeholder.input": "Décrivez la nouvelle scène autour, ou laissez vide pour agrandir"
+	"deck.media.placeholder.input": "Décrivez la nouvelle scène autour, ou laissez vide pour agrandir",
+	"deck.media.count": "Combien",
+	"deck.media.when": "Quand",
+	"deck.media.now": "Maintenant",
+	"deck.media.tonight": "Cette nuit 02:00",
+	"deck.media.state.scheduled": "Prévu à {{time}}",
+	"deck.media.meter": "Allumé aujourd'hui {{today}} h · ce mois {{month}} h",
+	"deck.media.cost": "{{today}} $ aujourd'hui · {{month}} $ ce mois",
+	"deck.media.autoStop": "S'arrête seul après {{minutes}} min d'inactivité",
+	"deck.media.waiting": "{{count}} attendent leur heure",
+	"settings.media.price": "Prix par heure (USD)",
+	"settings.media.priceDescription": "Ce que vous payez le serveur par heure, pour le compteur.",
+	"settings.media.idle": "Arrêt si inactif (minutes)",
+	"settings.media.idleDescription": "Avec un pod RunPod : arrête le serveur après ce délai sans travail (5 à 240). Il redémarre seul pour un nouveau travail.",
+	"settings.media.runpodPod": "ID du pod RunPod",
+	"settings.media.runpodPodDescription": "Permet à l'app de démarrer le pod pour le travail et de l'arrêter s'il est inactif.",
+	"settings.media.runpodKey": "Clé API RunPod"
 }

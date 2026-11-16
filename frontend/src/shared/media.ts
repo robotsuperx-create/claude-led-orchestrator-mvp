@@ -9,8 +9,8 @@
 export type MediaKind = "image" | "video" | "audio";
 export const MEDIA_KINDS: readonly MediaKind[] = ["image", "video", "audio"];
 
-export type MediaState = "queued" | "running" | "done" | "failed";
-const MEDIA_STATES: readonly MediaState[] = ["queued", "running", "done", "failed"];
+export type MediaState = "scheduled" | "queued" | "running" | "done" | "failed";
+const MEDIA_STATES: readonly MediaState[] = ["scheduled", "queued", "running", "done", "failed"];
 
 export type MediaFailure = "unreachable" | "unauthorized" | "rejected" | "failed" | "timeout" | "no_output" | "too_large" | "interrupted";
 const MEDIA_FAILURES: readonly MediaFailure[] = ["unreachable", "unauthorized", "rejected", "failed", "timeout", "no_output", "too_large", "interrupted"];
@@ -28,6 +28,8 @@ export type MediaItem = {
 	height?: number;
 	seconds?: number;
 	input?: string;
+	/** When a scheduled item goes to the server (ISO time). */
+	runAt?: string;
 	source: MediaSource;
 	state: MediaState;
 	failure?: MediaFailure;
@@ -43,7 +45,20 @@ export type MediaOffReason = "no_server" | "invalid_url" | "no_token" | "invalid
 
 export type MediaInfo = { enabled: boolean; reason?: MediaOffReason; voice: boolean; capabilities: MediaCapability[] };
 
-export type MediaServerStatus = { reachable: boolean; device?: string; vramBytes?: number; queue?: number };
+export type MediaServerStatus = {
+	reachable: boolean;
+	device?: string;
+	vramBytes?: number;
+	queue?: number;
+	onSecondsToday?: number;
+	onSecondsMonth?: number;
+	pricePerHour?: number;
+	costToday?: number;
+	costMonth?: number;
+	autoPower?: boolean;
+	idleMinutes?: number;
+	scheduled?: number;
+};
 
 export type MediaCreateInput = {
 	capability: string;
@@ -54,6 +69,10 @@ export type MediaCreateInput = {
 	seconds?: number;
 	input?: string;
 	source?: "app" | "x00";
+	/** Variants, each with its own seed (up to MEDIA_MAX_BATCH). */
+	count?: number;
+	/** Hold the work until then (ISO time), up to a week ahead. */
+	runAt?: string;
 };
 
 export type MediaUploadInput = { name: string; data: Uint8Array };
@@ -71,6 +90,7 @@ export const MEDIA_MAX_IMAGE_SIDE = 2048;
 export const MEDIA_MAX_VIDEO_SIDE = 1280;
 export const MEDIA_MAX_VIDEO_SECONDS = 10;
 export const MEDIA_MAX_AUDIO_SECONDS = 47;
+export const MEDIA_MAX_BATCH = 30;
 const MAX_LISTED = 200;
 
 export const MEDIA_SCHEME = "xrobot-media";
@@ -165,6 +185,15 @@ export function parseMediaStatus(value: unknown): MediaServerStatus | null {
 	if (typeof body.vramBytes === "number" && Number.isFinite(body.vramBytes) && body.vramBytes > 0) status.vramBytes = body.vramBytes;
 	const queue = count(body.queue, 10_000);
 	if (queue) status.queue = queue;
+	for (const key of ["onSecondsToday", "onSecondsMonth", "pricePerHour", "costToday", "costMonth"] as const) {
+		const value = body[key];
+		if (typeof value === "number" && Number.isFinite(value) && value > 0) status[key] = value;
+	}
+	if (body.autoPower === true) status.autoPower = true;
+	const idle = count(body.idleMinutes, 240);
+	if (idle) status.idleMinutes = idle;
+	const scheduled = count(body.scheduled, 1_000);
+	if (scheduled) status.scheduled = scheduled;
 	return status;
 }
 
@@ -199,6 +228,7 @@ export function parseMediaItem(value: unknown): MediaItem | null {
 	if (height) item.height = height;
 	if (seconds) item.seconds = seconds;
 	if (isMediaItemId(body.input)) item.input = body.input;
+	if (typeof body.runAt === "string" && !Number.isNaN(Date.parse(body.runAt))) item.runAt = body.runAt;
 	if (MEDIA_FAILURES.includes(body.failure as MediaFailure)) item.failure = body.failure as MediaFailure;
 	return item;
 }
@@ -234,6 +264,15 @@ export function parseMediaCreateInput(value: unknown): MediaCreateInput | null {
 		input.input = body.input;
 	}
 	if (body.source === "x00") input.source = "x00";
+	if (body.count !== undefined) {
+		const batch = count(body.count, MEDIA_MAX_BATCH);
+		if (batch === undefined) return null;
+		input.count = batch;
+	}
+	if (body.runAt !== undefined) {
+		if (typeof body.runAt !== "string" || Number.isNaN(Date.parse(body.runAt))) return null;
+		input.runAt = new Date(body.runAt).toISOString();
+	}
 	return input;
 }
 

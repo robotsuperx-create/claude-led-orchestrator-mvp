@@ -2887,5 +2887,21 @@
 	"deck.media.kind.animate": "움직이기",
 	"deck.media.adPack": "광고 팩",
 	"deck.media.adPackHint": "이 이미지로 9:16, 1:1, 16:9 새 장면과 4초 동영상",
-	"deck.media.placeholder.input": "주변의 새 장면을 설명하거나, 비워 두면 확대합니다"
+	"deck.media.placeholder.input": "주변의 새 장면을 설명하거나, 비워 두면 확대합니다",
+	"deck.media.count": "몇 개",
+	"deck.media.when": "언제",
+	"deck.media.now": "지금",
+	"deck.media.tonight": "오늘 밤 02:00",
+	"deck.media.state.scheduled": "{{time}}에 예약됨",
+	"deck.media.meter": "오늘 가동 {{today}}시간 · 이번 달 {{month}}시간",
+	"deck.media.cost": "오늘 {{today}} $ · 이번 달 {{month}} $",
+	"deck.media.autoStop": "{{minutes}}분 유휴 후 자동 정지",
+	"deck.media.waiting": "{{count}}개가 시간을 기다림",
+	"settings.media.price": "시간당 요금 (USD)",
+	"settings.media.priceDescription": "서버에 시간당 지불하는 금액, 비용 미터용.",
+	"settings.media.idle": "유휴 시 정지 (분)",
+	"settings.media.idleDescription": "RunPod pod를 설정하면 작업 없이 이 시간이 지나면 서버를 정지합니다 (5~240). 새 작업이 오면 스스로 시작합니다.",
+	"settings.media.runpodPod": "RunPod pod ID",
+	"settings.media.runpodPodDescription": "앱이 작업할 때 pod를 시작하고 유휴 시 정지하게 합니다.",
+	"settings.media.runpodKey": "RunPod API 키"
 }

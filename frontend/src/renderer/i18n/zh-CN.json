@@ -2869,5 +2869,21 @@
 	"deck.media.kind.animate": "动起来",
 	"deck.media.adPack": "广告包",
 	"deck.media.adPackHint": "用这张图片生成 9:16、1:1、16:9 的新场景和一段 4 秒视频",
-	"deck.media.placeholder.input": "描述周围的新场景，留空则放大"
+	"deck.media.placeholder.input": "描述周围的新场景，留空则放大",
+	"deck.media.count": "数量",
+	"deck.media.when": "何时",
+	"deck.media.now": "现在",
+	"deck.media.tonight": "今晚 02:00",
+	"deck.media.state.scheduled": "计划于 {{time}}",
+	"deck.media.meter": "今天运行 {{today}} 小时 · 本月 {{month}} 小时",
+	"deck.media.cost": "今天 {{today}} $ · 本月 {{month}} $",
+	"deck.media.autoStop": "空闲 {{minutes}} 分钟后自动停止",
+	"deck.media.waiting": "{{count}} 个等待时间",
+	"settings.media.price": "每小时价格 (USD)",
+	"settings.media.priceDescription": "服务器每小时的费用，用于成本计量。",
+	"settings.media.idle": "空闲时停止（分钟）",
+	"settings.media.idleDescription": "设置 RunPod pod 后：无任务超过此时间即停止服务器（5 到 240）。有新任务时自动启动。",
+	"settings.media.runpodPod": "RunPod pod ID",
+	"settings.media.runpodPodDescription": "让应用在有任务时启动 pod，空闲时停止。",
+	"settings.media.runpodKey": "RunPod API 密钥"
 }

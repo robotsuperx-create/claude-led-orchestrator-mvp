@@ -2918,5 +2918,21 @@
 	"deck.media.kind.animate": "Animar",
 	"deck.media.adPack": "Pacote de anúncio",
 	"deck.media.adPackHint": "Uma nova cena em 9:16, 1:1 e 16:9, e um vídeo de 4 segundos, a partir desta imagem",
-	"deck.media.placeholder.input": "Descreva a nova cena ao redor, ou deixe vazio para ampliar"
+	"deck.media.placeholder.input": "Descreva a nova cena ao redor, ou deixe vazio para ampliar",
+	"deck.media.count": "Quantos",
+	"deck.media.when": "Quando",
+	"deck.media.now": "Agora",
+	"deck.media.tonight": "Esta noite 02:00",
+	"deck.media.state.scheduled": "Agendado para {{time}}",
+	"deck.media.meter": "Ligado hoje {{today}} h · este mês {{month}} h",
+	"deck.media.cost": "{{today}} $ hoje · {{month}} $ este mês",
+	"deck.media.autoStop": "Para sozinho após {{minutes}} min ocioso",
+	"deck.media.waiting": "{{count}} aguardando a hora",
+	"settings.media.price": "Preço por hora (USD)",
+	"settings.media.priceDescription": "Quanto você paga pelo servidor por hora, para o medidor.",
+	"settings.media.idle": "Parar quando ocioso (minutos)",
+	"settings.media.idleDescription": "Com um pod RunPod: para o servidor após esse tempo sem trabalho (5 a 240). Ele liga sozinho para novo trabalho.",
+	"settings.media.runpodPod": "ID do pod RunPod",
+	"settings.media.runpodPodDescription": "Permite que o app ligue o pod para trabalhar e o desligue quando ocioso.",
+	"settings.media.runpodKey": "Chave de API RunPod"
 }

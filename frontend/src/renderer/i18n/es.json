@@ -2918,5 +2918,21 @@
 	"deck.media.kind.animate": "Animar",
 	"deck.media.adPack": "Pack de anuncios",
 	"deck.media.adPackHint": "Una nueva escena en 9:16, 1:1 y 16:9, y un vídeo de 4 segundos, a partir de esta imagen",
-	"deck.media.placeholder.input": "Describe la nueva escena alrededor, o déjalo vacío para ampliar"
+	"deck.media.placeholder.input": "Describe la nueva escena alrededor, o déjalo vacío para ampliar",
+	"deck.media.count": "Cuántos",
+	"deck.media.when": "Cuándo",
+	"deck.media.now": "Ahora",
+	"deck.media.tonight": "Esta noche 02:00",
+	"deck.media.state.scheduled": "Programado para las {{time}}",
+	"deck.media.meter": "Encendido hoy {{today}} h · este mes {{month}} h",
+	"deck.media.cost": "{{today}} $ hoy · {{month}} $ este mes",
+	"deck.media.autoStop": "Se detiene solo tras {{minutes}} min inactivo",
+	"deck.media.waiting": "{{count}} esperan su hora",
+	"settings.media.price": "Precio por hora (USD)",
+	"settings.media.priceDescription": "Lo que pagas por el servidor por hora, para el contador.",
+	"settings.media.idle": "Detener si está inactivo (minutos)",
+	"settings.media.idleDescription": "Con un pod de RunPod: detiene el servidor tras este tiempo sin trabajo (5 a 240). Vuelve a arrancar solo con trabajo nuevo.",
+	"settings.media.runpodPod": "ID del pod de RunPod",
+	"settings.media.runpodPodDescription": "Permite a la app arrancar el pod para trabajar y detenerlo si está inactivo.",
+	"settings.media.runpodKey": "Clave API de RunPod"
 }

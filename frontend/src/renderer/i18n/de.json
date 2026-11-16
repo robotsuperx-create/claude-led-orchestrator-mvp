@@ -2887,5 +2887,21 @@
 	"deck.media.kind.animate": "Animieren",
 	"deck.media.adPack": "Werbepaket",
 	"deck.media.adPackHint": "Eine neue Szene in 9:16, 1:1 und 16:9 und ein 4-Sekunden-Video aus diesem Bild",
-	"deck.media.placeholder.input": "Beschreibe die neue Szene drumherum, oder leer lassen zum Hochskalieren"
+	"deck.media.placeholder.input": "Beschreibe die neue Szene drumherum, oder leer lassen zum Hochskalieren",
+	"deck.media.count": "Wie viele",
+	"deck.media.when": "Wann",
+	"deck.media.now": "Jetzt",
+	"deck.media.tonight": "Heute Nacht 02:00",
+	"deck.media.state.scheduled": "Geplant für {{time}}",
+	"deck.media.meter": "Heute an {{today}} h · diesen Monat {{month}} h",
+	"deck.media.cost": "{{today}} $ heute · {{month}} $ diesen Monat",
+	"deck.media.autoStop": "Stoppt nach {{minutes}} Min. Leerlauf von selbst",
+	"deck.media.waiting": "{{count}} warten auf ihre Zeit",
+	"settings.media.price": "Preis pro Stunde (USD)",
+	"settings.media.priceDescription": "Was du pro Stunde für den Server zahlst, für den Kostenzähler.",
+	"settings.media.idle": "Bei Leerlauf stoppen (Minuten)",
+	"settings.media.idleDescription": "Mit einem RunPod-Pod: stoppt den Server nach dieser Zeit ohne Arbeit (5 bis 240). Für neue Arbeit startet er von selbst.",
+	"settings.media.runpodPod": "RunPod-Pod-ID",
+	"settings.media.runpodPodDescription": "Lässt die App den Pod für Arbeit starten und im Leerlauf stoppen.",
+	"settings.media.runpodKey": "RunPod-API-Schlüssel"
 }
