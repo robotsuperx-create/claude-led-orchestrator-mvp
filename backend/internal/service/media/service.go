@@ -350,7 +350,7 @@ func (s *Service) interruptLeftovers() {
 }
 
 func (s *Service) fail(id, code string) {
-	_, _ = s.lib.update(id, func(item *Item) {
+	_ = s.lib.update(id, func(item *Item) {
 		item.State = StateFailed
 		item.Failure = code
 		item.UpdatedAt = s.now().UTC()
@@ -394,7 +394,7 @@ func (s *Service) run(id string) {
 		s.mu.Unlock()
 		cancel()
 	}()
-	if _, err := s.lib.update(id, func(item *Item) { item.State = StateRunning; item.UpdatedAt = s.now().UTC() }); err != nil {
+	if err := s.lib.update(id, func(item *Item) { item.State = StateRunning; item.UpdatedAt = s.now().UTC() }); err != nil {
 		return
 	}
 	files, err := s.make(ctx, item, file)
@@ -406,7 +406,7 @@ func (s *Service) run(id string) {
 		s.fail(id, codeOf(err))
 		return
 	}
-	_, _ = s.lib.update(id, func(item *Item) {
+	_ = s.lib.update(id, func(item *Item) {
 		item.State = StateDone
 		item.Files = files
 		item.UpdatedAt = s.now().UTC()
