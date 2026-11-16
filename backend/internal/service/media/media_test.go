@@ -28,11 +28,16 @@ type fakeComfy struct {
 	body     []byte
 	submitAs int
 	failRun  bool
+	offline  bool
 }
 
 func (f *fakeComfy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.offline {
+		w.WriteHeader(http.StatusBadGateway)
+		return
+	}
 	if r.Header.Get("Authorization") != "Bearer "+f.token {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
