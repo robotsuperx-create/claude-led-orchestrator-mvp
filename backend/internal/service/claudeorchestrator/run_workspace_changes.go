@@ -82,8 +82,10 @@ func parseLiveDiff(diff string) []ports.LiveFileChange {
 			}
 			continue
 		}
+		if strings.HasPrefix(line, "@@") {
+			continue
+		}
 		switch {
-		case strings.HasPrefix(line, "@@"):
 		case strings.HasPrefix(line, "+"):
 			files[current].Added++
 			files[current].Lines = keepLast(files[current].Lines, liveLine(strings.TrimPrefix(line, "+")))
