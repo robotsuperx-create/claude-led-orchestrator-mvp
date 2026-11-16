@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 )
 
 // MaxValidationOutputBytes bounds each captured stdout/stderr stream.
@@ -401,7 +402,9 @@ func (ExecCommandRunner) RunInDirectory(ctx context.Context, directory string, a
 	if len(argv) == 0 {
 		return CommandOutput{}, errors.New("command argv is empty")
 	}
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	// Hidden: the desktop daemon has no console, so on Windows each git or
+	// check command would otherwise open a terminal window of its own.
+	cmd := aoprocess.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = directory
 	stdout := &boundedBuffer{limit: MaxValidationOutputBytes}
 	stderr := &boundedBuffer{limit: MaxValidationOutputBytes}
