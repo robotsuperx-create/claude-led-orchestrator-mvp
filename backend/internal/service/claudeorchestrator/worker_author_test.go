@@ -87,7 +87,7 @@ func TestWorkerAuthorsCodeBeforeRunningCommands(t *testing.T) {
 	mustWrite(t, filepath.Join(worktree, ".env"), "SECRET=1")
 	var contentWhenCommandsRan string
 	runner := &lsFilesRunner{
-		files: []string{"main.go", ".env", "README.md"},
+		files: []string{"main.go", ".env", "README.md", "assets/logo.PNG", "fonts/brand.woff2"},
 		onCommand: func(directory string) {
 			contentWhenCommandsRan = mustRead(t, filepath.Join(directory, "greet.go"))
 		},
@@ -119,7 +119,7 @@ func TestWorkerAuthorsCodeBeforeRunningCommands(t *testing.T) {
 		t.Fatalf("author request = %+v, want provider, attempt and previous failure", request)
 	}
 	if strings.Join(request.RepositoryFiles, ",") != "main.go,README.md" {
-		t.Fatalf("repository files = %v, want protected .env omitted", request.RepositoryFiles)
+		t.Fatalf("repository files = %v, want protected .env and binary assets omitted", request.RepositoryFiles)
 	}
 	if len(author.editRequest.Files) != 1 || author.editRequest.Files[0].Path != "main.go" {
 		t.Fatalf("files shown to the model = %+v, want only main.go", author.editRequest.Files)
@@ -145,6 +145,53 @@ func TestWorkerReportsAuthorFailuresAsRetryableAttempts(t *testing.T) {
 			}
 			if len(runner.commands) != 0 || validator.calls != 0 {
 				t.Fatal("commands or validation ran after the author failed")
+			}
+		})
+	}
+}
+
+// The model no longer sees the repository listing while it writes, so a
+// rewrite or delete of an existing file it was not given is refused with a
+// reason; new files, files it read, and replacements are fine.
+func TestWorkerRefusesToRewriteFilesTheModelDidNotRead(t *testing.T) {
+	for name, tc := range map[string]struct {
+		edit ports.FileEdit
+		ok   bool
+	}{
+		"rewrite an unread file": {edit: ports.FileEdit{Path: "README.md", Content: "# replaced\n"}},
+		"delete an unread file":  {edit: ports.FileEdit{Path: "README.md", Delete: true}},
+		"rewrite a file it read": {edit: ports.FileEdit{Path: "main.go", Content: "package app\n"}, ok: true},
+		"create a new file":      {edit: ports.FileEdit{Path: "greet.go", Content: "package main\n"}, ok: true},
+		"replace in an unread file": {
+			edit: ports.FileEdit{Path: "README.md", Replace: []ports.TextReplacement{{Old: "# demo", New: "# Demo"}}}, ok: true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			worktree := t.TempDir()
+			mustWrite(t, filepath.Join(worktree, "main.go"), "package main\n")
+			mustWrite(t, filepath.Join(worktree, "README.md"), "# demo\n")
+			runner := &lsFilesRunner{files: []string{"main.go", "README.md"}}
+			author := &authorFake{
+				selection: ports.FileSelection{Paths: []string{"main.go"}},
+				proposal:  ports.EditProposal{Edits: []ports.FileEdit{tc.edit}},
+			}
+			runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+			execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if tc.ok {
+				if execution.Status != ports.WorkerOutcomeCompleted {
+					t.Fatalf("execution = %+v, want completed", execution)
+				}
+				return
+			}
+			if execution.Status != ports.WorkerOutcomeFailed || !strings.Contains(execution.Error, "README.md") ||
+				!strings.Contains(execution.Error, "were not given") {
+				t.Fatalf("execution = %+v, want a failed attempt naming README.md", execution)
+			}
+			if got := mustRead(t, filepath.Join(worktree, "README.md")); got != "# demo\n" {
+				t.Fatalf("README.md = %q, want it untouched", got)
 			}
 		})
 	}
