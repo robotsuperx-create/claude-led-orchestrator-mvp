@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -156,5 +157,49 @@ func TestLoadClaudeOrchestratorClaudeOnly(t *testing.T) {
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "sometimes")
 	if _, err := Load(); err == nil {
 		t.Fatal("an invalid Claude-only toggle was accepted")
+	}
+}
+
+func TestLoadClaudeOrchestratorClaudeThinkingRoomAndWriterModel(t *testing.T) {
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", "on")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	claude := cfg.ClaudeOrchestrator.ClaudeProvider
+	// Claude always thinks first, so it gets room and time for that.
+	if claude.MaxTokens != DefaultClaudeOrchestratorClaudeMaxTokens || claude.Timeout != DefaultClaudeOrchestratorClaudeTimeout {
+		t.Fatalf("Claude defaults = %d tokens, %s; want room to think", claude.MaxTokens, claude.Timeout)
+	}
+	if cfg.ClaudeOrchestrator.ClaudeWriterModel != "" {
+		t.Fatalf("writer model = %q, want none by default", cfg.ClaudeOrchestrator.ClaudeWriterModel)
+	}
+
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MAX_TOKENS", "8000")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_TIMEOUT", "4m")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", "claude-fable-5-2")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL", " claude-sonnet-5-5 ")
+	if cfg, err = Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	orchestrator := cfg.ClaudeOrchestrator
+	if orchestrator.ClaudeProvider.MaxTokens != 8000 || orchestrator.ClaudeProvider.Timeout != 4*time.Minute {
+		t.Fatalf("chosen limits were not kept: %v", orchestrator.ClaudeProvider)
+	}
+	if orchestrator.ClaudeProvider.DefaultModel != "claude-fable-5-2" || orchestrator.ClaudeWriterModel != "claude-sonnet-5-5" {
+		t.Fatalf("models = planner %q writer %q", orchestrator.ClaudeProvider.DefaultModel, orchestrator.ClaudeWriterModel)
+	}
+
+	// A saved Claude key is enough: the address and model default.
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", "")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY", "test-only-key")
+	if cfg, err = Load(); err != nil || cfg.ClaudeOrchestrator.ClaudeProvider.BaseURL != DefaultCommanderBaseURL ||
+		cfg.ClaudeOrchestrator.ClaudeProvider.DefaultModel != DefaultClaudeOrchestratorClaudeModel {
+		t.Fatalf("Claude with a key = %v, %v; want the default address and model", cfg.ClaudeOrchestrator.ClaudeProvider, err)
+	}
+
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL", "two words")
+	if _, err := Load(); err == nil {
+		t.Fatal("an invalid writer model was accepted")
 	}
 }

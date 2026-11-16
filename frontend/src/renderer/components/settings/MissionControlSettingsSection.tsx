@@ -13,6 +13,8 @@ import {
 import { claudeOrchestratorQueryKeys } from "../../hooks/useClaudeOrchestrator";
 import { useX00Info, x00QueryKeys } from "../../hooks/useX00";
 import { aoBridge } from "../../lib/bridge";
+import { claudeModelChoices } from "../../lib/claude-models";
+import { AgentModelCombobox } from "./AgentModelCombobox";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -76,7 +78,9 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL"] as const) {
 		if (value(key) && !/^https?:\/\/\S+$/.test(value(key))) errors[key] = "url";
 	}
-	if (value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL") && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value("AO_CLAUDE_ORCHESTRATOR_X00_MODEL"))) errors.AO_CLAUDE_ORCHESTRATOR_X00_MODEL = "model";
+	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_MODEL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL"] as const) {
+		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value(key))) errors[key] = "model";
+	}
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME"] as const) {
 		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value(key))) errors[key] = "model";
 	}
@@ -90,10 +94,9 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const needs = new Set<string>([claudeOnly ? "claude" : value("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER") || "claude"]);
 	if (!claudeOnly && (value("AO_CLAUDE_ORCHESTRATOR_WORKER_MODE") || "model") === "model") needs.add(value("AO_CLAUDE_ORCHESTRATOR_WORKER_DEFAULT_PROVIDER") || "deepseek");
-	// With one Claude key, the address and model default to the placeholders.
-	const claudeKeys: readonly Key[] = claudeOnly ? [] : ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL"];
+	// Claude needs only its key: the address and model default to the placeholders.
 	const providerKeys = {
-		claude: claudeKeys,
+		claude: [],
 		deepseek: ["AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL"],
 		local: ["AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_MODEL"],
 	} as const;
@@ -231,6 +234,26 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 			onRemove={() => { setSecrets((current) => ({ ...current, [key]: null })); setStatus("idle"); }}
 		/>
 	);
+	// A Claude model: Fable 5.2, Opus, Sonnet or Haiku from the list, or any ID typed in.
+	const claudeModel = (key: Key, label: string, fallback: string, description?: string, emptyLabel?: string) => (
+		<FieldShell key={key} id={key} label={label} description={description} locked={fromEnv.has(key)} error={errorText(errors[key])}>
+			<AgentModelCombobox
+				aria-label={label}
+				value={draft[key] ?? ""}
+				models={claudeModelChoices(fallback)}
+				allowCustom
+				customModelEntry="direct"
+				compact
+				emptyLabel={emptyLabel}
+				showFollowAgentAction={false}
+				disabled={fromEnv.has(key)}
+				onChange={(next) => set(key, next)}
+				onCustom={(next) => set(key, next)}
+				triggerClassName="w-full justify-between"
+				menuAlign="start"
+			/>
+		</FieldShell>
+	);
 	const choice = <T extends string>(key: Key, label: string, options: SettingsOption<T>[], fallback: T, description?: string) => (
 		<SettingsRow label={label} description={description}>
 			<SettingsOptionMenu
@@ -310,7 +333,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 					/>
 				</SettingsRow>
 				{secret("AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY", t("settings.missionControl.claudeApiKey"))}
-				{field("AO_CLAUDE_ORCHESTRATOR_X00_MODEL", t("settings.x00.model"), { mono: true, description: t("settings.x00.modelDescription") })}
+				{claudeModel("AO_CLAUDE_ORCHESTRATOR_X00_MODEL", t("settings.x00.model"), "claude-haiku-5-5", t("settings.x00.modelDescription"))}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.x00.voice")} grouped>
@@ -328,7 +351,8 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 					{ value: "local", label: t("orchestrator.provider.local") },
 				], "claude", t("settings.missionControl.plannerProviderDescription"))}
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", t("settings.missionControl.claudeBaseUrl"), { mono: true })}
-				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", t("settings.missionControl.claudeModel"), { mono: true })}
+				{claudeModel("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", t("settings.missionControl.claudeModel"), "claude-opus-5-5")}
+				{claudeModel("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL", t("settings.missionControl.claudeWriterModel"), "", t("settings.missionControl.claudeWriterModelDescription"), t("settings.missionControl.claudeWriterModelSame"))}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.workers")} grouped>

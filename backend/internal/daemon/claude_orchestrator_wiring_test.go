@@ -225,3 +225,35 @@ func TestParallelModelWritingNeedsTheOneKeyOwnWorktreesAndALimit(t *testing.T) {
 		t.Fatalf("maxParallelSubtasks = %d, want 1 in a shared worktree", got)
 	}
 }
+
+func TestWriterRegistryWritesWithTheClaudeWriterModel(t *testing.T) {
+	providers := []modelgateway.ProviderConfig{
+		modelProviderConfig(ports.ModelProviderClaude, "claude"),
+		modelProviderConfig(ports.ModelProviderDeepSeek, "deepseek"),
+	}
+	planners, err := modelgateway.NewRegistry(providers...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	same, err := writerRegistry(planners, providers, " ")
+	if err != nil || same != planners {
+		t.Fatalf("writerRegistry without a writer model = %v, %v; want the planner registry", same, err)
+	}
+	writers, err := writerRegistry(planners, providers, "claude-sonnet-5-5")
+	if err != nil {
+		t.Fatalf("writerRegistry: %v", err)
+	}
+	claude, err := writers.Provider(ports.ModelProviderClaude)
+	if err != nil || !strings.Contains(claude.String(), `"claude-sonnet-5-5"`) {
+		t.Fatalf("Claude writer = %v, %v; want the writer model", claude, err)
+	}
+	if deepSeek, err := writers.Provider(ports.ModelProviderDeepSeek); err != nil || !strings.Contains(deepSeek.String(), `"deepseek-model"`) {
+		t.Fatalf("DeepSeek writer = %v, %v; want it unchanged", deepSeek, err)
+	}
+	if planner, _ := planners.Provider(ports.ModelProviderClaude); !strings.Contains(planner.String(), `"claude-model"`) {
+		t.Fatalf("the planner's Claude model changed: %v", planner)
+	}
+	if providers[0].DefaultModel != "claude-model" {
+		t.Fatal("the caller's provider list was changed")
+	}
+}

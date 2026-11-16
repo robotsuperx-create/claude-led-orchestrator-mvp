@@ -164,7 +164,11 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		if author == nil && !agentsMode {
 			// Claude plans and reviews; each subtask's code is written by the
 			// provider its plan names, defaulting to the configured worker.
-			author, err = modelgateway.NewAuthorRouter(registry, workerProvider(cfg.ClaudeOrchestrator))
+			writers, err := writerRegistry(registry, providers, cfg.ClaudeOrchestrator.ClaudeWriterModel)
+			if err != nil {
+				return nil, fmt.Errorf("configure Claude orchestrator writer model: %w", err)
+			}
+			author, err = modelgateway.NewAuthorRouter(writers, workerProvider(cfg.ClaudeOrchestrator))
 			if err != nil {
 				return nil, fmt.Errorf("configure Claude orchestrator code author: %w", err)
 			}
@@ -365,6 +369,23 @@ func maxParallelSubtasks(worker config.ClaudeOrchestratorWorkerConfig, ownWorktr
 		return 1
 	}
 	return worker.MaxParallelSubtasks
+}
+
+// writerRegistry is the registry code is written with. When a Claude writer
+// model is set, Claude writes with it, on the same address and key, while the
+// planner's registry keeps the model that plans and reviews.
+func writerRegistry(planners *modelgateway.Registry, providers []modelgateway.ProviderConfig, writerModel string) (*modelgateway.Registry, error) {
+	if strings.TrimSpace(writerModel) == "" {
+		return planners, nil
+	}
+	writers := make([]modelgateway.ProviderConfig, len(providers))
+	copy(writers, providers)
+	for i := range writers {
+		if writers[i].Provider == ports.ModelProviderClaude {
+			writers[i].DefaultModel = strings.TrimSpace(writerModel)
+		}
+	}
+	return modelgateway.NewRegistry(writers...)
 }
 
 // orchestratorProviders lists the providers a run may call. With the one
