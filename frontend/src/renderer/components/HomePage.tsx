@@ -13,6 +13,7 @@ import { usesPreviewWorkspaceData } from "../lib/preview-mode";
 import { useShell } from "../lib/shell-context";
 import { cn } from "../lib/utils";
 import { useUiStore } from "../stores/ui-store";
+import { useX00Store } from "../stores/x00-store";
 import {
 	STANDALONE_PROJECT_KIND,
 	STANDALONE_WORKSPACE_ID,
@@ -202,15 +203,14 @@ export function HomePage() {
 	}
 
 	return (
-		<div className="xr-cosmos xr-space-through flex min-h-full items-center justify-center px-6 py-16">
-			<div className="w-full max-w-[640px]">
-				<div className="space-y-6">
-					<div className="flex items-center gap-6 px-3 pb-2" data-testid="home-brand">
-						<HomeCommander />
-						<div className="min-w-0">
-							<p className="xr-arrive text-[32px] leading-10 [--xr-delay:500ms]"><XRobotWordmark /></p>
-							<p className="xr-display xr-arrive mt-1 text-[17px] leading-6 text-muted-foreground [--xr-delay:900ms]">{t("home.brandTagline")}</p>
-						</div>
+		<div className="xr-cosmos xr-space-through xr-deck-host flex min-h-full items-center justify-center px-6 py-12">
+			<div className="xr-deck w-full">
+				<HomeCommander />
+				<div className="min-w-0 space-y-6">
+					<div className="px-3 pb-2" data-testid="home-brand">
+						<p className="xr-arrive text-[32px] leading-10 [--xr-delay:500ms]"><XRobotWordmark /></p>
+						<p className="xr-display xr-arrive mt-1 text-[17px] leading-6 text-muted-foreground [--xr-delay:900ms]">{t("home.brandTagline")}</p>
+						<HomeSayLine />
 					</div>
 					<section className="space-y-3 px-3">
 						<div className="flex items-baseline justify-between gap-4">
@@ -279,30 +279,50 @@ export function HomePage() {
 
 					<GitHubOnboardingNotice />
 				</div>
-
-				<CreateProjectFlow
-					existingProjectNames={projects.map((project) => project.name)}
-					existingProjectPaths={projects.map((project) => project.path)}
-					mode="choose"
-					onCloneProject={cloneProject}
-					onCreateProject={createProject}
-					onCreateStandaloneAgent={() => requestNewTask(STANDALONE_WORKSPACE_ID)}
-					onInitializeProject={initializeProjectRepository}
-					onOpenExistingProject={openExistingProject}
-					sourceSignal={sourceSignal}
-				/>
 			</div>
+
+			<CreateProjectFlow
+				existingProjectNames={projects.map((project) => project.name)}
+				existingProjectPaths={projects.map((project) => project.path)}
+				mode="choose"
+				onCloneProject={cloneProject}
+				onCreateProject={createProject}
+				onCreateStandaloneAgent={() => requestNewTask(STANDALONE_WORKSPACE_ID)}
+				onInitializeProject={initializeProjectRepository}
+				onOpenExistingProject={openExistingProject}
+				sourceSignal={sourceSignal}
+			/>
 		</div>
 	);
 }
 
-/** X-00 on Home: alive, and a click away from a conversation. */
+/**
+ * X-00 on Home, as on the X-ROBOT observation deck: the one living thing in
+ * the room, at full size, and a click away from a conversation.
+ */
 function HomeCommander() {
 	const { t } = useTranslation();
 	const { state, speaking } = useX00PortraitState();
 	return (
-		<button type="button" className="x00-talk shrink-0" onClick={openX00} aria-label={t("x00.open")} title={t("x00.open")} data-testid="home-talk">
-			<X00Portrait state={state === "failed" ? "watching" : state} speaking={speaking} voice={x00VoiceLevel} className="w-32" />
+		<button type="button" className="x00-talk xr-deck-portrait" onClick={openX00} aria-label={t("x00.open")} title={t("x00.open")} data-testid="home-talk">
+			<X00Portrait state={state === "failed" ? "watching" : state} speaking={speaking} voice={x00VoiceLevel} className="w-full" />
 		</button>
+	);
+}
+
+/** What X-00 said last, as the deck shows it under the commander. */
+function HomeSayLine() {
+	const last = useX00Store((store) => {
+		for (let i = store.entries.length - 1; i >= 0; i -= 1) {
+			const entry = store.entries[i];
+			if (entry.kind === "alert" || (entry.kind === "turn" && entry.role === "assistant")) return entry.content;
+		}
+		return "";
+	});
+	if (!last) return null;
+	return (
+		<p className="xr-deck-say xr-arrive [--xr-delay:1300ms]" dir="auto" aria-live="polite" data-testid="home-say">
+			{last}
+		</p>
 	);
 }

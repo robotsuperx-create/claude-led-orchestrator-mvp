@@ -6076,6 +6076,54 @@ html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) .
 	outline-offset: 4px;
 }
 
+/* Home as the X-ROBOT observation deck: X-00 at full size beside the next action. */
+.xr-deck-host {
+	container-type: inline-size;
+}
+.xr-deck {
+	display: grid;
+	grid-template-columns: minmax(280px, 400px) minmax(0, 600px);
+	column-gap: 56px;
+	row-gap: 24px;
+	align-items: center;
+	justify-content: center;
+	max-width: 1120px;
+}
+.xr-deck-portrait {
+	width: 100%;
+	max-width: 400px;
+	justify-self: center;
+}
+@media (min-height: 900px) {
+	.xr-deck {
+		grid-template-columns: minmax(320px, 460px) minmax(0, 600px);
+	}
+	.xr-deck-portrait {
+		max-width: 460px;
+	}
+}
+@container (max-width: 880px) {
+	.xr-deck {
+		grid-template-columns: minmax(0, 640px);
+	}
+	.xr-deck-portrait {
+		max-width: 300px;
+	}
+}
+/* His last words under the wordmark, as the deck shows them under the commander. */
+.xr-deck-say {
+	display: -webkit-box;
+	margin-top: 16px;
+	max-width: 60ch;
+	overflow: hidden;
+	color: var(--foreground);
+	font-size: 18px;
+	line-height: 28px;
+	unicode-bidi: plaintext;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
 .x00-entry {
 	position: relative;
 	cursor: pointer;
@@ -6362,6 +6410,10 @@ html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) .
 .x00[data-state="working"] .x00-halo {
 	animation: x00-halo 4s var(--brand-ease, ease) infinite;
 }
+/* While he speaks the light in the room quickens, as on the deck. */
+.x00[data-speaking="true"] .x00-halo {
+	animation: x00-halo 1.6s var(--brand-ease, ease) infinite;
+}
 .x00 canvas,
 .x00 .x00-still {
 	position: absolute;
@@ -6484,6 +6536,7 @@ html[data-native-browser-composition="true"] body:has(.browser-popout-overlay) .
 @media (prefers-reduced-motion: reduce) {
 	.x00-halo,
 	.x00[data-state="working"] .x00-halo,
+	.x00[data-speaking="true"] .x00-halo,
 	.xr-crew-mark[data-tone="thinking"],
 	.xr-arrive {
 		animation: none;
