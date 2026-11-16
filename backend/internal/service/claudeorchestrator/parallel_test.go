@@ -154,3 +154,31 @@ func TestAPinnedWriterWritesEverySubtaskWhateverThePlanNames(t *testing.T) {
 		t.Fatalf("the plan shown to people names %+v", stored.Subtasks)
 	}
 }
+
+// Skills a plan names reach the writer only when the library has them, at
+// most writerskills.MaxPerSubtask of them; a misspelt name does not fail the
+// plan.
+func TestPlannedSkillsReachTheWriterWhenTheLibraryHasThem(t *testing.T) {
+	plan := ports.ExecutionPlan{Subtasks: []ports.PlannedSubtask{
+		{ID: "page", WorkerID: "w", Skills: []string{"design-taste", "no-such-skill", "arabic-rtl", "design-taste"}},
+		{ID: "api", WorkerID: "w"},
+	}}
+	var mu sync.Mutex
+	skills := map[string][]string{}
+	service := parallelService(plan, 2, func(_ context.Context, request ports.WorkerRequest) (ports.WorkerExecution, error) {
+		mu.Lock()
+		skills[request.Task.ID] = request.Task.Skills
+		mu.Unlock()
+		return ports.WorkerExecution{Status: ports.WorkerOutcomeCompleted}, nil
+	})
+	result, err := service.Run(context.Background(), ports.OrchestrationRequest{RunID: "r", Task: "t"})
+	if err != nil || result.State != ports.RunStateCompleted {
+		t.Fatalf("Run = %+v, %v", result, err)
+	}
+	if got := strings.Join(skills["page"], ","); got != "design-taste,arabic-rtl" {
+		t.Fatalf("page writer got skills %q, want design-taste,arabic-rtl", got)
+	}
+	if len(skills["api"]) != 0 {
+		t.Fatalf("api writer got skills %v, want none", skills["api"])
+	}
+}

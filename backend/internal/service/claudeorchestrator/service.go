@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/writerskills"
 )
 
 // Errors returned by Service.Run for invalid or conflicting requests.
@@ -289,6 +290,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		Provider:      s.planner,
 		Task:          request.Task,
 		MemoryContext: memoryContext.Content,
+		Skills:        writerskills.Summaries(),
 	})
 	if err != nil {
 		return s.fail(runCtx, result, fmt.Errorf("request executive plan: %w", err))
@@ -297,7 +299,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Plan = plan
 		return s.fail(runCtx, result, err)
 	}
-	plan = s.pinWriter(plan)
+	plan = keepKnownSkills(s.pinWriter(plan))
 	if proceed, stopped := s.approvePlan(runCtx, request, plan); !proceed {
 		result.Plan = plan
 		return stopped(result)
@@ -630,6 +632,18 @@ func (s *Service) runSubtask(ctx context.Context, task ports.PlannedSubtask, max
 	return taskResult
 }
 
+// keepKnownSkills drops skill names the library does not have, and bounds how
+// many a subtask carries. A misspelt skill is not worth failing a plan over.
+func keepKnownSkills(plan ports.ExecutionPlan) ports.ExecutionPlan {
+	subtasks := make([]ports.PlannedSubtask, len(plan.Subtasks))
+	for i, task := range plan.Subtasks {
+		task.Skills = writerskills.Known(task.Skills)
+		subtasks[i] = task
+	}
+	plan.Subtasks = subtasks
+	return plan
+}
+
 func validatePlan(plan ports.ExecutionPlan) error {
 	if len(plan.Subtasks) == 0 {
 		return errors.New("executive plan contains no subtasks")
@@ -828,6 +842,7 @@ func (s *Service) replan(ctx context.Context, request ports.OrchestrationRequest
 		Task:            request.Task,
 		MemoryContext:   memoryContext,
 		PreviousAttempt: replanReport(plan, results),
+		Skills:          writerskills.Summaries(),
 	})
 	if err != nil {
 		return ports.ExecutionPlan{}, err
@@ -835,7 +850,7 @@ func (s *Service) replan(ctx context.Context, request ports.OrchestrationRequest
 	if err := validatePlan(revised); err != nil {
 		return ports.ExecutionPlan{}, err
 	}
-	revised = s.pinWriter(revised)
+	revised = keepKnownSkills(s.pinWriter(revised))
 	prefix := fmt.Sprintf("r%d-", round)
 	for i, task := range revised.Subtasks {
 		task.ID = prefix + task.ID

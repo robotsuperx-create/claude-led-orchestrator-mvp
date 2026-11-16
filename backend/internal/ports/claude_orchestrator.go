@@ -85,6 +85,22 @@ type PlanRequest struct {
 	// PreviousAttempt, when set, asks for a revised plan: it describes which
 	// subtasks of the previous plan completed and which failed, and why.
 	PreviousAttempt string
+	// Skills lists the guidance the planner may assign to subtasks.
+	Skills []SkillSummary
+}
+
+// SkillSummary names one skill in the writers' library and says when it
+// applies; the planner chooses skills for each subtask from these.
+type SkillSummary struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// SkillGuidance is the full text of one skill, given to the writer of a
+// subtask that names it.
+type SkillGuidance struct {
+	Name     string `json:"name"`
+	Guidance string `json:"guidance"`
 }
 
 // SubtaskMetadataKeyWorktreePath names metadata containing the path of an
@@ -104,8 +120,11 @@ type PlannedSubtask struct {
 	Provider     ModelProvider `json:"provider,omitempty"`
 	// DependsOn lists subtask IDs that must finish before this one starts.
 	// Subtasks with no unmet dependency may run in parallel.
-	DependsOn []string          `json:"depends_on,omitempty"`
-	Metadata  map[string]string `json:"-"`
+	DependsOn []string `json:"depends_on,omitempty"`
+	// Skills names guidance from the writers' library that this subtask's
+	// writer receives (design taste, Arabic typography, ...).
+	Skills   []string          `json:"skills,omitempty"`
+	Metadata map[string]string `json:"-"`
 }
 
 // ExecutionPlan is the executive's typed decomposition of a task.

@@ -15,6 +15,8 @@ type CodeAuthorRequest struct {
 	PreviousFailure string         `json:"previous_failure,omitempty"`
 	RepositoryFiles []string       `json:"repository_files"`
 	Files           []FileSnapshot `json:"files,omitempty"`
+	// Skills is the guidance the plan chose for this subtask.
+	Skills []SkillGuidance `json:"skills,omitempty"`
 }
 
 // FileSnapshot is the current content of one repository file.

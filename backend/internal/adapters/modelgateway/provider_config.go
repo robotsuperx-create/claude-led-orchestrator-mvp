@@ -217,10 +217,11 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 		return ChatRequest{}, err
 	}
 	input, err := json.Marshal(struct {
-		Task            string `json:"task"`
-		MemoryContext   string `json:"memory_context,omitempty"`
-		PreviousAttempt string `json:"previous_attempt,omitempty"`
-	}{Task: request.Task, MemoryContext: request.MemoryContext, PreviousAttempt: request.PreviousAttempt})
+		Task            string               `json:"task"`
+		MemoryContext   string               `json:"memory_context,omitempty"`
+		PreviousAttempt string               `json:"previous_attempt,omitempty"`
+		AvailableSkills []ports.SkillSummary `json:"available_skills,omitempty"`
+	}{Task: request.Task, MemoryContext: request.MemoryContext, PreviousAttempt: request.PreviousAttempt, AvailableSkills: request.Skills})
 	if err != nil {
 		return ChatRequest{}, errors.New("plan request could not be encoded")
 	}
@@ -231,14 +232,21 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 }
 
 // planningSystemPrompt asks the executive for a bounded, dependency-aware plan.
-// Subtasks without dependencies on each other may run at the same time, so the
-// planner is asked to split work into independent pieces where it can.
+// Subtasks without dependencies on each other run at the same time and do not
+// see each other's work, so work that must fit together (a page and its
+// styles) stays in one subtask, and user-facing work carries a design brief and
+// the skills its writer needs.
 const planningSystemPrompt = "Create a bounded execution plan for a software change. " +
-	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string]}]}. " +
+	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string],\"skills\":[string]}]}. " +
 	"Use short unique ids. provider is \"claude\", \"deepseek\" or \"local\". " +
-	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. " +
-	"Prefer independent subtasks that touch different files, because independent subtasks may run in parallel. " +
-	"Never create a dependency cycle. " +
+	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. Never create a dependency cycle. " +
+	"Subtasks without dependencies run at the same time and cannot see each other's work, so split only work that is truly independent and touches different files. " +
+	"Keep work that must fit together in one subtask: a web page's HTML, its CSS and its JavaScript are one subtask, as are a component and its styles, or a change and its tests. " +
+	"When a subtask builds on files another subtask writes, list that subtask in depends_on. Prefer a few complete subtasks over many fragments. " +
+	"Each subtask's instructions must stand on their own: its writer sees only them, its skills and the files it chooses to read. " +
+	"For a user-facing page or screen, write a design brief into its instructions: the audience and goal, the visual direction in a few words, a palette as hex values, " +
+	"a font pairing, the sections in order with their real content, the imagery approach, the motion, and how it adapts to phones. " +
+	"skills lists, by name, the guidance from available_skills that the subtask's writer needs (at most four). " +
 	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, and take a different approach for what failed. " +
 	"Do not include markdown."
 

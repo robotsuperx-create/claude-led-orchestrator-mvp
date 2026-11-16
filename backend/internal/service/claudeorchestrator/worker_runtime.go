@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/writerskills"
 )
 
 var (
@@ -386,6 +387,7 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		Attempt:         request.Attempt,
 		PreviousFailure: request.PreviousFailure,
 		RepositoryFiles: files,
+		Skills:          writerskills.Guidance(request.Task.Skills),
 	}
 	selection, err := author.SelectFiles(ctx, authorRequest)
 	if err != nil {
