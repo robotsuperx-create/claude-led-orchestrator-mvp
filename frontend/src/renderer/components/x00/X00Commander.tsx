@@ -205,7 +205,7 @@ function X00Panel() {
 			</header>
 
 			<div className="relative z-[1] flex flex-col items-center px-4 pb-1">
-				<X00Portrait state={state} speaking={speaking} voice={x00VoiceLevel} className="w-40" label={`${t("x00.title")}: ${status}`} />
+				<X00Portrait state={state} speaking={speaking} voice={x00VoiceLevel} className="w-52" label={`${t("x00.title")}: ${status}`} />
 				<p className="mt-1 text-[12px] leading-4 text-muted-foreground" role="status" aria-live="polite" data-testid="x00-status">{status}</p>
 			</div>
 

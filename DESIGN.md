@@ -106,7 +106,7 @@ The layout is desktop-first. On constrained widths, preserve task content first,
 ### Route rules
 
 - **Home:** intentionally minimal. It introduces the next meaningful action, not a fake dashboard.
-  - One centered column (`max-w-[640px]`); no decorative upward translate.
+  - In the x-robot brand it is the observation deck (`.xr-deck`): X-00 at full size (up to 400px, 460px on tall screens) beside one column (up to 600px) of wordmark, his last words (`.xr-deck-say`), actions and recent projects. Below an 880px-wide center panel it stacks, X-00 above at up to 300px. No decorative upward translate.
   - "Star us" is a quiet text link with dashed underline on hover — never a TopbarButton, accent pill, or bordered card.
   - Primary actions are a 2×2 grid; standalone agent is a grid cell, not a full-width hero CTA above. Connect Mobile stays in settings — not on home.
   - Recent project rows use shared `NavRowHighlight` (same growing pill as sidebar), not a flat `hover:bg-interactive-hover` wash.
@@ -449,5 +449,6 @@ Approve only when the answer to every applicable check is yes. Otherwise classif
 | 2026-10-30 | X-ROBOT-AI takes the X-ROBOT observation deck: void/graphite/hairline/ivory/ion palette, IBM Plex + Reem Kufi, dark by default, X-00 commander portrait on brand surfaces | Owner asked the product to share his trading deck's design; outcome colours stay on X-00 so status colors keep their meaning. |
 | 2026-11-16 | A finished run's details show its visual review: the score after each look, the criteria, the fixes Claude asked for, and the screenshots it judged, chosen from a strip and shown inline (no dialog) | The owner wants sites built to the standard of a demanding art director; the person sees exactly what the critic saw and why it asked for each change. |
 | 2026-11-03 | X-00 becomes a live commander on every screen (Claude through the daemon, voice, alerts, confirm-to-run proposals) and the x-robot dark shell sits on a live deep-space starfield | Owner asked for an interactive robot that moves, talks, and alerts, and for literal space: solemn black with bright blue stars. Proposals never run without a click and never merge. |
+| 2026-11-16 | Home becomes the observation deck: X-00 at the deck's size with his last words, the deck's original depth map, and a quicker halo while he speaks | Owner found X-00 too small to read as the deck's commander; the portrait engine was already the deck's, so size, depth and the speaking light close the gap. |
 | 2026-11-03 | X-00 hears through a push-to-talk mic and speaks through a real speech engine (local Whisper and Piper, or a cloud speech key), louder and clearer than the system voice | Owner wanted to talk to X-00 with a microphone and found the system voice too weak; Claude has no audio, so engines on his computer come first and a cloud key upgrades the voice. |
 | 2026-09-16 | Resize grips: fixed 80vh hover pill on center-pane border; clamp to panel min/max ∩ CSS max-width | Rejected always-on/`::after`/inset grips and unclamped pointer-following (inspector flew past both limits). |
