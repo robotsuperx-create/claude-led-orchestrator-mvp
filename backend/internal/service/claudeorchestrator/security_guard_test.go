@@ -52,4 +52,6 @@ type diffWorkspaces struct {
 	diff string
 }
 
-func (d diffWorkspaces) FullDiff(context.Context, ports.RunWorkspace) (string, error) { return d.diff, nil }
+func (d diffWorkspaces) FullDiff(context.Context, ports.RunWorkspace) (string, error) {
+	return d.diff, nil
+}
