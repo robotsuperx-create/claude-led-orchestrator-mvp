@@ -20,7 +20,8 @@ export type X00Action =
 	| { type: "reject_plan"; runId: string }
 	| { type: "cancel_run"; runId: string }
 	| { type: "publish_run"; runId: string }
-	| { type: "open"; screen: X00Screen };
+	| { type: "open"; screen: X00Screen }
+	| { type: "make_media"; media: "image" | "video" | "audio"; prompt: string };
 
 /** voice: the line written for a speech engine (Arabic with full tashkeel). */
 export type X00Reply = { say: string; voice?: string; mood: X00Mood; actions: X00Action[] };
@@ -29,7 +30,7 @@ export type X00Reply = { say: string; voice?: string; mood: X00Mood; actions: X0
 export type X00OffReason = "no_key" | "off" | "invalid_url" | "invalid_model";
 
 /** Which engine hears or speaks for X-00: a cloud speech service or one on this computer. */
-export type X00VoiceEngine = "local" | "cloud";
+export type X00VoiceEngine = "local" | "cloud" | "gpu";
 
 export type X00VoiceStatus = { listen?: X00VoiceEngine; speak?: X00VoiceEngine };
 
@@ -57,6 +58,7 @@ export const X00_MAX_AUDIO_BYTES = 44 + X00_SAMPLE_RATE * 2 * X00_MAX_LISTEN_SEC
 export const X00_MAX_SPEAK_CHARS = 3000;
 export const X00_MAX_HEARD_CHARS = 4000;
 export const X00_MAX_SPEECH_BYTES = 16 * 1024 * 1024;
+export const X00_MAX_MEDIA_PROMPT_CHARS = 2000;
 
 // Mirrors the daemon's limits (backend/internal/service/x00).
 export const X00_MAX_TURNS = 24;
@@ -125,7 +127,7 @@ export function validX00SpeakInput(input: unknown): input is X00SpeakInput {
 }
 
 function voiceEngine(value: unknown): X00VoiceEngine | undefined {
-	return value === "local" || value === "cloud" ? value : undefined;
+	return value === "local" || value === "cloud" || value === "gpu" ? value : undefined;
 }
 
 /** Rebuilds the daemon's info from allowlisted fields. */
@@ -184,6 +186,13 @@ function parseX00Action(value: unknown): X00Action | null {
 			return isClaudeOrchestratorRunId(action.runId) ? { type: action.type, runId: action.runId } : null;
 		case "open":
 			return X00_SCREENS.includes(action.screen as X00Screen) ? { type: "open", screen: action.screen as X00Screen } : null;
+		case "make_media": {
+			if (action.media !== "image" && action.media !== "video" && action.media !== "audio") return null;
+			if (typeof action.prompt !== "string") return null;
+			const prompt = action.prompt.trim();
+			if (!prompt || length(prompt) > X00_MAX_MEDIA_PROMPT_CHARS) return null;
+			return { type: "make_media", media: action.media, prompt };
+		}
 		default:
 			return null;
 	}

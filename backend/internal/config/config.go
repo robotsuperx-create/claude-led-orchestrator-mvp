@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -171,7 +172,105 @@ type ClaudeOrchestratorConfig struct {
 	// Voice is how X-00 hears and speaks: local engines found on disk, and a
 	// cloud speech service when the person adds its key.
 	Voice X00VoiceConfig
+	// Media is the media gateway: the person's own GPU server for pictures,
+	// video and voice, and the library where pictures and videos are kept.
+	Media MediaConfig
 }
+
+// Media gateway settings. The GPU server is the person's own (rented by the
+// hour, for their use only): ComfyUI answers at its address, and an
+// OpenAI-compatible speech server under /v1 when X-00's voice goes there.
+const (
+	// MediaDirName holds the library under the data dir.
+	MediaDirName = "media"
+	// Defaults for X-00's voice on the GPU server (a speaches server).
+	DefaultMediaVoiceTranscribeModel = "Systran/faster-whisper-large-v3"
+	DefaultMediaVoiceSpeechModel     = "speaches-ai/Kokoro-82M-v1.0-ONNX"
+	DefaultMediaVoiceName            = "am_onyx"
+	// Why the gateway is off; names a problem, never a value.
+	MediaReasonNoServer   = "no_server"
+	MediaReasonInvalidURL = "invalid_url"
+	MediaReasonNoToken    = "no_token"
+	MediaReasonBadToken   = "invalid_token"
+	mediaMaxTokenLength   = 4096
+)
+
+// MediaConfig configures the media gateway. LibraryDir is always set, so
+// pictures and videos already made stay visible with no server; GPU is set
+// only when the server's address (and, off this machine, its token) is valid.
+type MediaConfig struct {
+	LibraryDir string
+	GPU        *MediaGPUConfig
+	Reason     string
+}
+
+// MediaGPUConfig is the person's GPU server.
+type MediaGPUConfig struct {
+	BaseURL string
+	Token   string
+	// Voice routes X-00's ears and voice through the server's /v1 audio API.
+	Voice bool
+}
+
+// String keeps the token out of ordinary formatting.
+func (c MediaGPUConfig) String() string {
+	return fmt.Sprintf("MediaGPUConfig{BaseURL:%q, Voice:%t, Token:%s}", c.BaseURL, c.Voice, redactedIfSet(c.Token))
+}
+
+// GoString keeps %#v dumps redacted as well.
+func (c MediaGPUConfig) GoString() string { return c.String() }
+
+// loadMediaConfig reads the media gateway settings. Nothing here can stop the
+// daemon: a bad setting only leaves the gateway off, with the reason.
+func loadMediaConfig(get func(string) string, dataDir string) MediaConfig {
+	cfg := MediaConfig{LibraryDir: filepath.Join(dataDir, MediaDirName), Reason: MediaReasonNoServer}
+	baseURL := strings.TrimRight(strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL")), "/")
+	if baseURL == "" {
+		return cfg
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		cfg.Reason = MediaReasonInvalidURL
+		return cfg
+	}
+	if err := requireLoopbackForPlainHTTP("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL", baseURL); err != nil {
+		cfg.Reason = MediaReasonInvalidURL
+		return cfg
+	}
+	token := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN"))
+	if len(token) > mediaMaxTokenLength || strings.ContainsAny(token, "\r\n\x00 \t") {
+		cfg.Reason = MediaReasonBadToken
+		return cfg
+	}
+	// A server off this machine is never used without its token.
+	if token == "" && !isLoopbackHost(parsed.Hostname()) {
+		cfg.Reason = MediaReasonNoToken
+		return cfg
+	}
+	voice := false
+	if raw := get("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE"); strings.TrimSpace(raw) != "" {
+		if on, err := parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE", raw); err == nil {
+			voice = on
+		}
+	}
+	cfg.GPU = &MediaGPUConfig{BaseURL: baseURL, Token: token, Voice: voice}
+	cfg.Reason = ""
+	return cfg
+}
+
+// isLoopbackHost is true for localhost and loopback addresses.
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// gpuVoiceModel accepts a model or voice name as a self-hosted speech server
+// names it: one optional owner/ prefix (Hugging Face style), nothing that
+// could climb a path.
+var gpuVoiceModel = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,128}(/[A-Za-z0-9._:-]{1,128})?$`)
 
 // X-00 voice defaults. The cloud service speaks the OpenAI audio API, which
 // OpenAI and several other providers serve.
@@ -200,11 +299,14 @@ type X00CloudVoiceConfig struct {
 	TranscribeModel string
 	SpeechModel     string
 	Voice           string
+	// GPU is true when this is the person's own GPU server (the media
+	// gateway's), which needs no key on this machine.
+	GPU bool
 }
 
 // String keeps the API key out of ordinary formatting.
 func (c X00CloudVoiceConfig) String() string {
-	return fmt.Sprintf("X00CloudVoiceConfig{BaseURL:%q, TranscribeModel:%q, SpeechModel:%q, Voice:%q, APIKey:%s}", c.BaseURL, c.TranscribeModel, c.SpeechModel, c.Voice, redactedIfSet(c.APIKey))
+	return fmt.Sprintf("X00CloudVoiceConfig{BaseURL:%q, TranscribeModel:%q, SpeechModel:%q, Voice:%q, GPU:%t, APIKey:%s}", c.BaseURL, c.TranscribeModel, c.SpeechModel, c.Voice, c.GPU, redactedIfSet(c.APIKey))
 }
 
 // GoString keeps %#v dumps redacted as well.
@@ -218,14 +320,19 @@ func redactedIfSet(value string) string {
 }
 
 // loadX00VoiceConfig reads X-00's voice settings. Nothing here can stop the
-// daemon: a bad cloud setting only leaves the local engines in charge.
-func loadX00VoiceConfig(get func(string) string, dataDir string) X00VoiceConfig {
+// daemon: a bad cloud setting only leaves the local engines in charge. With
+// no voice key of its own, X-00 speaks through the person's GPU server when
+// they turned that on (gpu is the media gateway's server, or nil).
+func loadX00VoiceConfig(get func(string) string, dataDir string, gpu *MediaGPUConfig) X00VoiceConfig {
 	cfg := X00VoiceConfig{SpeechDir: filepath.Join(dataDir, X00SpeechDirName)}
 	if dir := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_SPEECH_DIR")); dir != "" && filepath.IsAbs(dir) {
 		cfg.SpeechDir = filepath.Clean(dir)
 	}
 	key := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY"))
 	if key == "" {
+		if gpu != nil && gpu.Voice {
+			return gpuVoiceConfig(get, cfg, gpu)
+		}
 		return cfg
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL")), "/")
@@ -250,6 +357,27 @@ func loadX00VoiceConfig(get func(string) string, dataDir string) X00VoiceConfig 
 	}
 	for _, value := range []string{cloud.TranscribeModel, cloud.SpeechModel, cloud.Voice} {
 		if len(value) > 128 || strings.ContainsAny(value, "\r\n\x00 /?#") {
+			cfg.CloudReason = CommanderReasonBadModel
+			return cfg
+		}
+	}
+	cfg.Cloud = cloud
+	return cfg
+}
+
+// gpuVoiceConfig points X-00's ears and voice at the GPU server's speech API.
+// Audio is only passed through: nothing is kept, here or in the library.
+func gpuVoiceConfig(get func(string) string, cfg X00VoiceConfig, gpu *MediaGPUConfig) X00VoiceConfig {
+	cloud := &X00CloudVoiceConfig{
+		BaseURL:         gpu.BaseURL + "/v1",
+		APIKey:          gpu.Token,
+		TranscribeModel: voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", DefaultMediaVoiceTranscribeModel),
+		SpeechModel:     voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", DefaultMediaVoiceSpeechModel),
+		Voice:           voiceSetting(get, "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME", DefaultMediaVoiceName),
+		GPU:             true,
+	}
+	for _, value := range []string{cloud.TranscribeModel, cloud.SpeechModel, cloud.Voice} {
+		if !gpuVoiceModel.MatchString(value) || strings.Contains(value, "..") {
 			cfg.CloudReason = CommanderReasonBadModel
 			return cfg
 		}
@@ -914,7 +1042,9 @@ func loadClaudeOrchestratorSection(dataDir string) (ClaudeOrchestratorConfig, er
 	// X-00 reads the same file and environment on its own, so whatever state
 	// runs are in, the assistant is configured from what the person saved.
 	cfg.Commander = loadCommanderConfig((&claudeOrchestratorEnv{file: file}).get)
-	cfg.Voice = loadX00VoiceConfig((&claudeOrchestratorEnv{file: file}).get, dataDir)
+	// The media gateway too: its library is there whether or not runs are on.
+	cfg.Media = loadMediaConfig((&claudeOrchestratorEnv{file: file}).get, dataDir)
+	cfg.Voice = loadX00VoiceConfig((&claudeOrchestratorEnv{file: file}).get, dataDir, cfg.Media.GPU)
 	return cfg, err
 }
 

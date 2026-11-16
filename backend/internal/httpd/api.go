@@ -86,6 +86,9 @@ type APIDeps struct {
 	X00 X00Service
 	// X00Voice hears and speaks for X-00 (local engines, a cloud service).
 	X00Voice X00Voice
+	// Media is the media gateway (the person's GPU server and the library of
+	// pictures, videos and sound). Nil leaves its routes unregistered.
+	Media MediaService
 
 	// Presence tracks which mobile devices are currently running the app.
 	// Nil disables presence tracking (the roster then reports every device offline).

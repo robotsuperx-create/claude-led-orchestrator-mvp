@@ -133,3 +133,86 @@ func TestX00VoiceRejectsBadCloudSettingsWithoutStoppingTheDaemon(t *testing.T) {
 		t.Fatalf("speech dir = %q, %v", cfg.ClaudeOrchestrator.Voice.SpeechDir, err)
 	}
 }
+
+func TestMediaGatewayNeedsAValidServerAndVoiceCanGoThroughIt(t *testing.T) {
+	dataDir := t.TempDir()
+	t.Setenv("AO_DATA_DIR", dataDir)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if media := cfg.ClaudeOrchestrator.Media; media.GPU != nil || media.Reason != MediaReasonNoServer || media.LibraryDir != filepath.Join(dataDir, MediaDirName) {
+		t.Fatalf("media with nothing set = %+v", media)
+	}
+	for name, tc := range map[string]struct{ values, reason string }{
+		"plain http off-machine": {`"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"http://203.0.113.9:8188","AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN":"t"`, MediaReasonInvalidURL},
+		"credentials in URL":     {`"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"https://u:p@gpu.example.com","AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN":"t"`, MediaReasonInvalidURL},
+		"no token off-machine":   {`"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"https://gpu.example.com"`, MediaReasonNoToken},
+		"token with a space":     {`"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"https://gpu.example.com","AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN":"a b"`, MediaReasonBadToken},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			t.Setenv("AO_DATA_DIR", dataDir)
+			writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{`+tc.values+`}}`)
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load: %v", err)
+			}
+			if media := cfg.ClaudeOrchestrator.Media; media.GPU != nil || media.Reason != tc.reason {
+				t.Fatalf("media = %+v", media)
+			}
+		})
+	}
+
+	dataDir = t.TempDir()
+	t.Setenv("AO_DATA_DIR", dataDir)
+	writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"https://gpu.example.com/",
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN":"gpu-secret",
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE":"on"
+	}}`)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	gpu := cfg.ClaudeOrchestrator.Media.GPU
+	if gpu == nil || gpu.BaseURL != "https://gpu.example.com" || gpu.Token != "gpu-secret" || !gpu.Voice {
+		t.Fatalf("gpu = %v", gpu)
+	}
+	if strings.Contains(gpu.String(), "gpu-secret") || strings.Contains(gpu.GoString(), "gpu-secret") {
+		t.Fatal("the GPU token leaked into formatting")
+	}
+	cloud := cfg.ClaudeOrchestrator.Voice.Cloud
+	if cloud == nil || !cloud.GPU || cloud.BaseURL != "https://gpu.example.com/v1" || cloud.APIKey != "gpu-secret" || cloud.TranscribeModel != DefaultMediaVoiceTranscribeModel || cloud.SpeechModel != DefaultMediaVoiceSpeechModel || cloud.Voice != DefaultMediaVoiceName {
+		t.Fatalf("voice through the GPU server = %v", cloud)
+	}
+
+	// A model that climbs a path is refused here too; a voice key of its own wins.
+	writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"http://127.0.0.1:8188",
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE":"on",
+		"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL":"../admin/x"
+	}}`)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.ClaudeOrchestrator.Media.GPU == nil || cfg.ClaudeOrchestrator.Media.GPU.Token != "" {
+		t.Fatalf("a server on this machine needs no token: %+v", cfg.ClaudeOrchestrator.Media)
+	}
+	if voice := cfg.ClaudeOrchestrator.Voice; voice.Cloud != nil || voice.CloudReason != CommanderReasonBadModel {
+		t.Fatalf("voice = %+v", voice)
+	}
+	writeOrchestratorSettings(t, dataDir, `{"version":1,"values":{
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL":"http://127.0.0.1:8188",
+		"AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE":"on",
+		"AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY":"own-key"
+	}}`)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cloud := cfg.ClaudeOrchestrator.Voice.Cloud; cloud == nil || cloud.GPU || cloud.APIKey != "own-key" {
+		t.Fatalf("a voice key of its own = %v", cloud)
+	}
+}

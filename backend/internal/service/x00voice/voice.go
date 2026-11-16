@@ -33,6 +33,8 @@ const (
 const (
 	KindLocal = "local"
 	KindCloud = "cloud"
+	// KindGPU is the person's own GPU server.
+	KindGPU = "gpu"
 )
 
 var (

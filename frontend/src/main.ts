@@ -176,6 +176,9 @@ import {
 import { buildLinuxAppMenuTemplate, buildMacAppMenuTemplate, buildWindowsAppMenuTemplate } from "./main/menu";
 import { editContextMenuTemplate } from "./main/edit-context-menu";
 import { X00Client } from "./main/x00-client";
+import { MediaClient } from "./main/media-client";
+import { createMediaHandler, MEDIA_PRIVILEGES } from "./main/media-protocol";
+import { MEDIA_SCHEME } from "./shared/media";
 import { ancestorRepositorySetupWarning, resolveCheckedOutBranch, scanImportFolder } from "./main/import-folder-scan";
 import { parseOpenFolderPathArg } from "./main/open-folder-arg";
 import { registerRemotesIpc, remotesFilePath } from "./main/remotes-main";
@@ -429,6 +432,9 @@ protocol.registerSchemesAsPrivileged([
 	// The deck's live preview of a run's own pages: one origin per run, apart
 	// from the renderer and the daemon (main/claude-orchestrator-site.ts).
 	{ ...CLAUDE_ORCHESTRATOR_SITE_PRIVILEGES, privileges: { ...CLAUDE_ORCHESTRATOR_SITE_PRIVILEGES.privileges } },
+	// The media library: pictures, videos and sound the GPU server made
+	// (main/media-protocol.ts), served from the library folder only.
+	{ ...MEDIA_PRIVILEGES, privileges: { ...MEDIA_PRIVILEGES.privileges } },
 ]);
 
 // Register ao-app:// as the deep-link protocol for WorkOS auth callbacks.
@@ -2055,6 +2061,20 @@ ipcMain.handle("x00:chat", (event, input: unknown) => isTrustedShellSender(event
 ipcMain.handle("x00:listen", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.listen(input) : untrustedX00Caller);
 ipcMain.handle("x00:speak", (event, input: unknown) => isTrustedShellSender(event) ? x00Client.speak(input) : untrustedX00Caller);
 
+// The media gateway: the daemon holds the GPU server's address and token; the
+// renderer asks for media and reads the library (see main/media-client.ts).
+const mediaClient = new MediaClient(
+	() => daemonStatus.state === "ready" && daemonStatus.port ? `http://127.0.0.1:${daemonStatus.port}` : null,
+	(url, init) => net.fetch(url, init),
+);
+const untrustedMediaCaller = { ok: false, error: "failed" } as const;
+ipcMain.handle("media:info", (event) => isTrustedShellSender(event) ? mediaClient.info() : untrustedMediaCaller);
+ipcMain.handle("media:status", (event) => isTrustedShellSender(event) ? mediaClient.status() : untrustedMediaCaller);
+ipcMain.handle("media:list", (event) => isTrustedShellSender(event) ? mediaClient.list() : untrustedMediaCaller);
+ipcMain.handle("media:create", (event, input: unknown) => isTrustedShellSender(event) ? mediaClient.create(input) : untrustedMediaCaller);
+ipcMain.handle("media:upload", (event, input: unknown) => isTrustedShellSender(event) ? mediaClient.upload(input) : untrustedMediaCaller);
+ipcMain.handle("media:remove", (event, id: unknown) => isTrustedShellSender(event) ? mediaClient.remove(id) : untrustedMediaCaller);
+
 // Mission control settings: saved owner-only under the AO data dir and read
 // by the daemon at start, so a save restarts the daemon. API keys are written
 // to that file but never sent back to the renderer.
@@ -2982,6 +3002,7 @@ app.whenReady().then(async () => {
 
 	registerRendererProtocol();
 	protocol.handle(CLAUDE_ORCHESTRATOR_SITE_SCHEME, createClaudeOrchestratorSiteHandler((runId) => claudeOrchestratorClient.siteRoot(runId)));
+	protocol.handle(MEDIA_SCHEME, createMediaHandler(() => mediaClient.libraryRoot()));
 	applyRuntimeAppIcon();
 	const initialUiSettings = keybindingRunFile
 		? await readUiSettings(path.dirname(keybindingRunFile))

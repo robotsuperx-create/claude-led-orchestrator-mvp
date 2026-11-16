@@ -906,6 +906,10 @@ func Run() error {
 			claudeOrchestratorHistory = history
 		}
 	}
+	// The media gateway: the library under the data dir and, when it is set,
+	// the person's GPU server. Its workers stop with the daemon.
+	mediaGateway := newMedia(cfg.ClaudeOrchestrator.Media, log)
+	defer mediaGateway.Close()
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:                    projectSvc,
 		HostID:                      hostIdentity.HostID,
@@ -938,6 +942,7 @@ func Run() error {
 		ClaudeOrchestratorPublisher: claudeOrchestratorPublisher,
 		X00:                         newX00(cfg.ClaudeOrchestrator.Commander, log),
 		X00Voice:                    newX00Voice(cfg.ClaudeOrchestrator.Voice),
+		Media:                       mediaGateway,
 		Settings:                    settingsSvc,
 		CDC:                         store,
 		Events:                      cdcPipe.Broadcaster,

@@ -58,6 +58,10 @@ type Fleet struct {
 	MaxActiveRuns int        `json:"maxActiveRuns,omitempty"`
 	CanPublish    bool       `json:"canPublish,omitempty"`
 	Runs          []RunBrief `json:"runs"`
+	// MediaEnabled is true when the person's GPU server is set, so X-00 may
+	// propose pictures, videos and sound; MediaKinds says which.
+	MediaEnabled bool     `json:"mediaEnabled"`
+	MediaKinds   []string `json:"mediaKinds,omitempty"`
 }
 
 // Request is one exchange: the conversation so far, ending with the person.
@@ -76,6 +80,14 @@ const (
 	ActionCancelRun   = "cancel_run"
 	ActionPublishRun  = "publish_run"
 	ActionOpen        = "open"
+	ActionMakeMedia   = "make_media"
+)
+
+// Media X-00 may propose to make on the GPU server.
+const (
+	MediaImage = "image"
+	MediaVideo = "video"
+	MediaAudio = "audio"
 )
 
 // Screens X-00 may offer to open.
@@ -92,6 +104,9 @@ type Action struct {
 	Task        string `json:"task,omitempty"`
 	ApprovePlan bool   `json:"approvePlan,omitempty"`
 	Screen      string `json:"screen,omitempty"`
+	// Media and Prompt describe a picture, video or sound to make.
+	Media  string `json:"media,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
 }
 
 // Moods colour X-00's light while he speaks.
@@ -117,6 +132,7 @@ const (
 	MaxTurnRunes    = 4000
 	MaxTotalRunes   = 24000
 	MaxTaskRunes    = 8000
+	MaxPromptRunes  = 2000
 	MaxSayRunes     = 1500
 	MaxVoiceRunes   = 3000
 	MaxActions      = 3
@@ -229,6 +245,8 @@ You can see the fleet of runs below. Answer questions about it from that data on
 
 Propose an action only when the person asks for it or it plainly serves what they asked. To start a run, write the task as a complete, self-contained instruction for the planner, in the person's language, and set approvePlan to true unless the person said to run without approval. Only use runIds that appear in the fleet. Approve or reject only a run in state "awaiting_approval". Cancel only a run that is pending, planning, executing, validating, reviewing or awaiting_approval. Publish only a run in state "completed" or "held" with a branch, and only when canPublish is true. When runsEnabled is false, do not propose run actions; offer to open settings so Mission control can be set up.
 
+The person may also have their own GPU server for pictures, videos and sound (music and sound effects, never speech). When mediaEnabled is true and they ask for one, propose make_media with "media" set to one of mediaKinds and "prompt" a rich, concrete description for the generation model, written in English whatever language the person speaks (these models read English best): subject, setting, light, style, camera or mood. Whatever is made lands in the media library on Home. When mediaEnabled is false and they ask for media, say the GPU server is not set and offer to open settings.
+
 Answer with exactly one JSON object and nothing else:
 {"say": string, "voice": string, "mood": "neutral" | "pleased" | "concerned", "actions": [action, ...]}
 When "say" is in Arabic, "voice" is the very same words written with full tashkeel (every vowel mark, shadda and tanween), so a speech engine pronounces them correctly; for any other language leave "voice" out.
@@ -239,6 +257,7 @@ where each action is one of:
 {"type": "cancel_run", "runId": string}
 {"type": "publish_run", "runId": string}
 {"type": "open", "screen": "mission_control" | "settings" | "home"}
+{"type": "make_media", "media": "image" | "video" | "audio", "prompt": string}
 Use "pleased" for good news, "concerned" for failures or anything that needs care, otherwise "neutral". Propose at most three actions; usually none.
 
 The person is on the "`)
@@ -295,7 +314,7 @@ func parseReply(content string, fleet Fleet) Reply {
 		if !ok {
 			continue
 		}
-		key := valid.Type + "\x00" + valid.RunID + "\x00" + valid.Task + "\x00" + valid.Screen
+		key := valid.Type + "\x00" + valid.RunID + "\x00" + valid.Task + "\x00" + valid.Screen + "\x00" + valid.Media + "\x00" + valid.Prompt
 		if seen[key] {
 			continue
 		}
@@ -335,6 +354,12 @@ func validAction(action Action, fleet Fleet, runs map[string]RunBrief) (Action, 
 			return Action{}, false
 		}
 		return Action{Type: ActionPublishRun, RunID: run.RunID}, true
+	case ActionMakeMedia:
+		prompt := strings.TrimSpace(cleanMultiline(action.Prompt))
+		if !fleet.MediaEnabled || !containsString(fleet.MediaKinds, action.Media) || prompt == "" || utf8.RuneCountInString(prompt) > MaxPromptRunes {
+			return Action{}, false
+		}
+		return Action{Type: ActionMakeMedia, Media: action.Media, Prompt: prompt}, true
 	case ActionOpen:
 		switch action.Screen {
 		case ScreenMissionControl, ScreenSettings, ScreenHome:
@@ -342,6 +367,15 @@ func validAction(action Action, fleet Fleet, runs map[string]RunBrief) (Action, 
 		}
 	}
 	return Action{}, false
+}
+
+func containsString(values []string, value string) bool {
+	for _, have := range values {
+		if have == value {
+			return true
+		}
+	}
+	return false
 }
 
 // extractJSONObject returns the outermost {...} in the text, tolerating code

@@ -4,14 +4,14 @@ import { Bell, BellOff, Check, LoaderCircle, Mic, Send, Square, Trash2, Triangle
 import type { ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator";
 import type { X00Action, X00Mood } from "../../../shared/x00";
 import { useClaudeOrchestratorInfo, useClaudeOrchestratorRuns } from "../../hooks/useClaudeOrchestrator";
-import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, useX00Listen, x00Hush, x00VoiceLevel } from "../../hooks/useX00";
+import { useX00Actions, useX00Alerts, useX00Conversation, useX00Info, useX00Listen, x00Hush } from "../../hooks/useX00";
 import { x00StateForRuns } from "../../lib/x00-fleet";
 import type { X00State } from "../../lib/x00-portrait";
 import { cn } from "../../lib/utils";
 import { useUiStore } from "../../stores/ui-store";
 import { useX00Store, type X00Entry, type X00Proposal } from "../../stores/x00-store";
 import { Button } from "../ui/button";
-import { X00Mark, X00Portrait } from "../X00Portrait";
+import { X00Mark } from "../X00Portrait";
 
 const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 
@@ -95,7 +95,7 @@ function X00Panel() {
 	const setPrefs = useX00Store((store) => store.setPrefs);
 	const setOpen = useX00Store((store) => store.setOpen);
 	const clear = useX00Store((store) => store.clear);
-	const { state, speaking, enabled } = useX00PortraitState();
+	const { speaking, enabled } = useX00PortraitState();
 	const send = useX00Conversation();
 	const ear = useX00Listen(send);
 	const canListen = enabled && ear.supported && info.data?.listen !== undefined;
@@ -202,9 +202,9 @@ function X00Panel() {
 				</Button>
 			</header>
 
-			<div className="relative z-[1] flex flex-col items-center px-4 pb-1">
-				<X00Portrait state={state} speaking={speaking} voice={x00VoiceLevel} className="w-52" label={`${t("x00.title")}: ${status}`} />
-				<p className="mt-1 text-[12px] leading-4 text-muted-foreground" role="status" aria-live="polite" data-testid="x00-status">{status}</p>
+			{/* No face here: X-00 is the robot on the screen; this panel is only his words. */}
+			<div className="relative z-[1] px-4 pb-1">
+				<p className="text-[12px] leading-4 text-muted-foreground" role="status" aria-live="polite" data-testid="x00-status">{status}</p>
 			</div>
 
 			<div ref={transcript} className="x00-transcript relative z-[1] min-h-0 flex-1 overflow-y-auto px-4 py-3" data-testid="x00-transcript">
@@ -355,6 +355,11 @@ const ACTION_KEYS = {
 	cancel_run: "x00.action.cancel_run",
 	publish_run: "x00.action.publish_run",
 } as const;
+const MEDIA_KEYS = {
+	image: "x00.action.make_media.image",
+	video: "x00.action.make_media.video",
+	audio: "x00.action.make_media.audio",
+} as const;
 const OPEN_KEYS = {
 	mission_control: "x00.action.open.mission_control",
 	settings: "x00.action.open.settings",
@@ -362,7 +367,9 @@ const OPEN_KEYS = {
 } as const;
 
 function actionKey(action: X00Action) {
-	return action.type === "open" ? OPEN_KEYS[action.screen] : ACTION_KEYS[action.type];
+	if (action.type === "open") return OPEN_KEYS[action.screen];
+	if (action.type === "make_media") return MEDIA_KEYS[action.media];
+	return ACTION_KEYS[action.type];
 }
 
 const ERROR_KEYS = {
@@ -390,7 +397,9 @@ function ProposalCard({ entryId, proposal, titles }: { entryId: string; proposal
 	const { action, status } = proposal;
 	const detail = action.type === "start_run"
 		? action.task
-		: "runId" in action
+		: action.type === "make_media"
+			? action.prompt
+			: "runId" in action
 			? titles.get(action.runId) || action.runId.slice(-10)
 			: null;
 	return (

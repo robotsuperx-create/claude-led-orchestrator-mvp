@@ -77,14 +77,15 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	] as const) {
 		if (value(key) && !DECIMAL.test(value(key))) errors[key] = "number";
 	}
-	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL"] as const) {
+	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL"] as const) {
 		if (value(key) && !/^https?:\/\/\S+$/.test(value(key))) errors[key] = "url";
 	}
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_MODEL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL"] as const) {
 		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value(key))) errors[key] = "model";
 	}
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME"] as const) {
-		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value(key))) errors[key] = "model";
+		// A self-hosted speech server names models owner/name (Hugging Face style).
+		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(\/[A-Za-z0-9._:-]{1,128})?$/.test(value(key))) errors[key] = "model";
 	}
 	const browser = value("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER");
 	if (browser && !/^([A-Za-z]:[\\/]|\/|\\\\)/.test(browser)) errors.AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER = "browserPath";
@@ -345,6 +346,19 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				{claudeModel("AO_CLAUDE_ORCHESTRATOR_X00_MODEL", t("settings.x00.model"), "claude-haiku-5-5", t("settings.x00.modelDescription"))}
 			</SettingsSection>
 
+			<SettingsSection title={t("settings.media.title")} grouped>
+				{field("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL", t("settings.media.url"), { mono: true, description: t("settings.media.urlDescription") })}
+				{secret("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_TOKEN", t("settings.media.token"))}
+				<SettingsRow label={t("settings.media.voice")} description={t("settings.media.voiceDescription")}>
+					<Switch
+						aria-label={t("settings.media.voice")}
+						checked={isOn(draft.AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE)}
+						disabled={fromEnv.has("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE")}
+						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE", next ? "on" : "off")}
+					/>
+				</SettingsRow>
+			</SettingsSection>
+
 			<SettingsSection title={t("settings.x00.voice")} grouped>
 				<VoiceEnginesRow />
 				{secret("AO_CLAUDE_ORCHESTRATOR_X00_VOICE_API_KEY", t("settings.x00.voiceKey"))}
@@ -526,6 +540,7 @@ function TextField({ id, label, description, value, placeholder, mono, inputMode
 const ENGINE_KEYS = {
 	local: "settings.x00.engine.local",
 	cloud: "settings.x00.engine.cloud",
+	gpu: "settings.x00.engine.gpu",
 	none: "settings.x00.engine.none",
 	system: "settings.x00.engine.system",
 } as const;

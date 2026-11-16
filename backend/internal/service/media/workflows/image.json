@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "image",
+  "title": "Picture (FLUX.1 schnell)",
+  "defaults": { "width": 1024, "height": 1024 },
+  "workflow": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "flux1-schnell-fp8.safetensors" } },
+    "2": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{prompt}}", "clip": ["1", 1] } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{negative}}", "clip": ["1", 1] } },
+    "4": { "class_type": "EmptySD3LatentImage", "inputs": { "width": "{{width}}", "height": "{{height}}", "batch_size": 1 } },
+    "5": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": ["1", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0],
+        "seed": "{{seed}}", "steps": 4, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1
+      }
+    },
+    "6": { "class_type": "VAEDecode", "inputs": { "samples": ["5", 0], "vae": ["1", 2] } },
+    "7": { "class_type": "SaveImage", "inputs": { "images": ["6", 0], "filename_prefix": "{{prefix}}" } }
+  }
+}

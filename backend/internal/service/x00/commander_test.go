@@ -178,3 +178,30 @@ func TestNewRequiresAChatter(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+func TestReplyProposesMediaOnlyWhenTheGPUServerCanMakeIt(t *testing.T) {
+	chatter := &fakeChatter{reply: `{"say":"Here it comes.","actions":[
+		{"type":"make_media","media":"image","prompt":"  a calm robot commander on a dark bridge, cinematic light  "},
+		{"type":"make_media","media":"video","prompt":"drone shot over Oujda at dusk"},
+		{"type":"make_media","media":"image","prompt":""},
+		{"type":"make_media","media":"hologram","prompt":"x"}
+	]}`}
+	commander, _ := New(chatter)
+	reply, err := commander.Reply(context.Background(), Request{Turns: ask("make me a picture"), Fleet: Fleet{MediaEnabled: true, MediaKinds: []string{MediaImage, MediaAudio}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reply.Actions) != 1 || reply.Actions[0].Media != MediaImage || reply.Actions[0].Prompt != "a calm robot commander on a dark bridge, cinematic light" {
+		t.Fatalf("actions = %+v (no video on this server, no empty prompt, no unknown kind)", reply.Actions)
+	}
+	off, err := commander.Reply(context.Background(), Request{Turns: ask("make me a picture"), Fleet: Fleet{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(off.Actions) != 0 {
+		t.Fatalf("media proposed with no GPU server: %+v", off.Actions)
+	}
+	if prompt := chatter.messages[0].Content; !strings.Contains(prompt, `"make_media"`) || !strings.Contains(prompt, "mediaEnabled") {
+		t.Fatalf("the system prompt does not teach make_media: %s", prompt)
+	}
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "kind": "audio",
+  "title": "Music and sound effects (Stable Audio Open)",
+  "defaults": { "seconds": 20, "negative": "low quality, noise, distortion" },
+  "workflow": {
+    "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "stable-audio-open-1.0.safetensors" } },
+    "2": { "class_type": "CLIPLoader", "inputs": { "clip_name": "t5-base.safetensors", "type": "stable_audio" } },
+    "3": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{prompt}}", "clip": ["2", 0] } },
+    "4": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{negative}}", "clip": ["2", 0] } },
+    "5": { "class_type": "ConditioningStableAudio", "inputs": { "positive": ["3", 0], "negative": ["4", 0], "seconds_start": 0, "seconds_total": "{{seconds}}" } },
+    "6": { "class_type": "EmptyLatentAudio", "inputs": { "seconds": "{{seconds}}", "batch_size": 1 } },
+    "7": {
+      "class_type": "KSampler",
+      "inputs": {
+        "model": ["1", 0], "positive": ["5", 0], "negative": ["5", 1], "latent_image": ["6", 0],
+        "seed": "{{seed}}", "steps": 50, "cfg": 4.98, "sampler_name": "dpmpp_3m_sde_gpu", "scheduler": "exponential", "denoise": 1
+      }
+    },
+    "8": { "class_type": "VAEDecodeAudio", "inputs": { "samples": ["7", 0], "vae": ["1", 2] } },
+    "9": { "class_type": "SaveAudio", "inputs": { "audio": ["8", 0], "filename_prefix": "{{prefix}}" } }
+  }
+}

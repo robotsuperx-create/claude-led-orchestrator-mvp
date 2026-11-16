@@ -32,6 +32,7 @@ import { useX00Store } from "../../stores/x00-store";
 import { openX00, useX00PortraitState } from "../x00/X00Commander";
 import { AgentMap } from "./AgentMap";
 import { CodeStream } from "./CodeStream";
+import { DeckMedia } from "./DeckMedia";
 import { DeckPortrait } from "./DeckPortrait";
 import { LivePreview } from "./LivePreview";
 import "./deck.css";
@@ -512,11 +513,13 @@ export function HomeDeck({ projects }: { projects: ReactNode }) {
 			{lead ? <DeckLiveWork lead={lead} /> : null}
 			<nav className="sections small" aria-label={t("deck.sections")}>
 				<a href="#deck-runs" onClick={jump}>{t("deck.runs.title")}</a>
+				<a href="#deck-media" onClick={jump}>{t("deck.media.title")}</a>
 				<a href="#deck-projects" onClick={jump}>{t("deck.projects")}</a>
 				<a href="#deck-crew" onClick={jump}>{t("deck.crew.title")}</a>
 			</nav>
 			<div className="below">
 				<DeckRuns runs={runs} />
+				<DeckMedia />
 				<section className="sec" id="deck-projects" data-testid="deck-projects">
 					{projects}
 				</section>

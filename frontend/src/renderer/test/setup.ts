@@ -169,6 +169,15 @@ if (typeof window !== "undefined") {
 			get: async () => ({ ok: false, error: "unavailable" }),
 			save: async () => ({ ok: false, error: "unavailable" }),
 		},
+		media: {
+			info: async () => ({ ok: true, value: { enabled: false, reason: "no_server", voice: false, capabilities: [] } }),
+			status: async () => ({ ok: true, value: { reachable: false } }),
+			list: async () => ({ ok: true, value: [] }),
+			create: async () => ({ ok: false, error: "no_server" }),
+			upload: async () => ({ ok: false, error: "daemon_unavailable" }),
+			remove: async () => ({ ok: false, error: "daemon_unavailable" }),
+			fileUrl: (itemId: string, name: string) => `xrobot-media://library/${itemId}/${name}`,
+		},
 		x00: {
 			info: async () => ({ ok: true, value: { enabled: false, reason: "no_key" } }),
 			chat: async () => ({ ok: false, error: "disabled" }),
