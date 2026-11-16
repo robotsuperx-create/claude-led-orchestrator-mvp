@@ -271,48 +271,98 @@ to { opacity: 1; transform: none; }
 @keyframes xrd-line { from { background: rgba(var(--code-rgb), .1); } to { background: transparent; } }
 @keyframes xrd-caret { to { visibility: hidden; } }
 
-/* the crew map */
-.xrd .map-stage { position: relative; padding: var(--s2) var(--s3) var(--s3); background: radial-gradient(70% 90% at 12% 50%, rgba(var(--ion-rgb), .06), transparent 60%); }
-.xrd .map-svg { display: block; width: 100%; height: auto; overflow: visible; }
-.xrd .map-grid { fill: none; stroke: rgba(var(--ion-rgb), .05); stroke-width: 1; }
-.xrd .map-scan { stroke: rgba(var(--ion-rgb), .22); stroke-width: 1; animation: xrd-scan 7s linear infinite; }
-@keyframes xrd-scan { from { transform: translateY(0); } to { transform: translateY(440px); } }
-.xrd .map-edge { fill: none; stroke: rgba(236, 233, 226, .14); stroke-width: 1.5; transition: stroke var(--t1) var(--ease); }
-.xrd .map-edge.running { stroke: var(--ion); stroke-dasharray: 6 8; animation: xrd-flow 1.2s linear infinite; filter: drop-shadow(0 0 4px rgba(var(--ion-rgb), .6)); }
-.xrd .map-edge.done { stroke: rgba(159, 227, 189, .55); }
-.xrd .map-edge.failed { stroke: rgba(229, 72, 77, .7); }
-.xrd .map-edge.blocked { stroke: var(--ivory-3); stroke-dasharray: 3 6; }
-.xrd .map-edge.to-repo { stroke-width: 1; }
-.xrd .map-edge.to-repo.done { stroke: rgba(var(--code-rgb), .3); }
-@keyframes xrd-flow { to { stroke-dashoffset: -28; } }
-.xrd .map-packet { fill: var(--code); filter: drop-shadow(0 0 4px rgba(var(--code-rgb), .9)); }
-.xrd .map-core.on { animation: xrd-halo 4s var(--ease) infinite; }
-.xrd .map-hex { fill: rgba(var(--ion-rgb), .08); stroke: var(--ion); stroke-width: 1.5; filter: drop-shadow(0 0 8px rgba(var(--ion-rgb), .5)); }
-.xrd .map-callsign { fill: var(--ivory); font: 500 12px/1 var(--f-num); letter-spacing: .08em; text-anchor: middle; }
-.xrd .map-callsign.big { font-size: 15px; }
-.xrd .map-label { fill: var(--ivory-2); font: 400 11px/1 var(--f-text); text-anchor: middle; }
-.xrd .map-node { cursor: pointer; outline: none; }
-.xrd .map-ring { fill: none; stroke: var(--hairline); stroke-width: 1.5; transition: stroke var(--t1) var(--ease), stroke-width var(--t1) var(--ease); }
-.xrd .map-disc { fill: var(--void); stroke: rgba(236, 233, 226, .2); stroke-width: 1; }
-.xrd .map-face { opacity: .92; transition: opacity var(--t1) var(--ease), filter var(--t1) var(--ease); }
-.xrd .map-node.waiting .map-face, .xrd .map-node.blocked .map-face { opacity: .35; filter: grayscale(1); }
-.xrd .map-node.running .map-ring { stroke: var(--ion); animation: xrd-ring 2s var(--ease) infinite; }
-.xrd .map-node.done .map-ring { stroke: var(--long); }
-.xrd .map-node.failed .map-ring { stroke: var(--veto); }
-.xrd .map-node.blocked .map-ring { stroke: var(--ivory-3); stroke-dasharray: 3 5; }
-.xrd .map-node.selected .map-ring { stroke-width: 3; }
-.xrd .map-node:hover .map-ring, .xrd .map-node:focus-visible .map-ring { stroke: var(--ivory); }
-@keyframes xrd-ring { 0%, 100% { stroke-opacity: .4; } 50% { stroke-opacity: 1; } }
-.xrd .map-repo-box { fill: rgba(17, 19, 21, .92); stroke: rgba(var(--code-rgb), .4); stroke-width: 1; }
-.xrd .map-file { fill: rgba(var(--code-rgb), .75); font: 400 11px/1 var(--f-code); text-anchor: middle; }
-.xrd .map-card { position: absolute; bottom: var(--s3); inset-inline-start: var(--s4); display: grid; gap: 2px; min-width: 260px; max-width: 420px; padding: var(--s1) var(--s2); background: var(--graphite); box-shadow: inset 0 0 0 1px var(--hairline), 0 24px 48px rgba(0, 0, 0, .5); }
-.xrd .map-card-who { font: 500 12px/16px var(--f-num); letter-spacing: .08em; color: var(--ion); }
-.xrd .map-card-title { font-size: 14px; line-height: 20px; }
-.xrd .map-card-state { font-size: 12px; color: var(--ivory-2); }
-.xrd .map-card-state.running { color: var(--ion); }
-.xrd .map-card-state.done { color: var(--long); }
-.xrd .map-card-state.failed { color: var(--veto); }
-.xrd .map-empty { padding: var(--s6) var(--s3); text-align: center; }
+/* the crew map: an AI operations grid drawn straight on the deck's black, no panel.
+   Elegant before loud: hairlines, the deck's one light (ion), slow motion, no
+   glare. Green only where code landed, red only where a step failed. */
+.xrd .crew-map { position: relative; padding: var(--s6) 0 var(--s4); }
+.xrd .grid-head { display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s1) var(--s2); border-bottom: 1px solid var(--hairline); }
+.xrd .grid-telemetry { display: inline-flex; gap: var(--s3); margin-inline-start: auto; color: var(--ivory-3); font: 400 11px/16px var(--f-code); letter-spacing: .14em; }
+.xrd .grid-telemetry span + span::before { content: "·"; margin-inline-end: var(--s3); color: var(--ivory-3); }
+.xrd .grid-stage { position: relative; overflow: hidden; isolation: isolate; }
+.xrd .grid-stage--empty { display: grid; place-items: center; min-height: 280px; }
+.xrd .grid-svg { position: relative; z-index: 1; display: block; width: 100%; height: auto; overflow: visible; }
+.xrd .grid-corner { position: absolute; z-index: 2; width: 16px; height: 16px; border: 0 solid rgba(var(--ion-rgb), .35); pointer-events: none; }
+.xrd .grid-corner.tl { top: 10px; left: 0; border-width: 1px 0 0 1px; }
+.xrd .grid-corner.tr { top: 10px; right: 0; border-width: 1px 1px 0 0; }
+.xrd .grid-corner.bl { bottom: 10px; left: 0; border-width: 0 0 1px 1px; }
+.xrd .grid-corner.br { bottom: 10px; right: 0; border-width: 0 1px 1px 0; }
+.xrd .grid-dot { fill: rgba(236, 233, 226, .06); }
+.xrd .grid-orbit { fill: none; stroke: rgba(236, 233, 226, .05); stroke-width: 1; }
+.xrd .grid-orbit.main { stroke: rgba(var(--ion-rgb), .1); }
+.xrd .grid-ticks { fill: none; stroke: rgba(236, 233, 226, .14); stroke-width: 4; stroke-dasharray: .6 15.1; }
+.xrd .grid-ticks.major { stroke: rgba(var(--ion-rgb), .35); stroke-width: 8; stroke-dasharray: .8 156.3; }
+.xrd .grid-beam { fill: none; stroke: rgba(236, 233, 226, .08); stroke-width: 1; }
+.xrd .grid-beam.running { stroke: rgba(var(--ion-rgb), .6); }
+.xrd .grid-beam.done { stroke: rgba(159, 227, 189, .28); }
+.xrd .grid-beam.failed { stroke: rgba(229, 72, 77, .5); }
+.xrd .grid-beam.blocked { stroke: rgba(236, 233, 226, .06); stroke-dasharray: 2 6; }
+.xrd .grid-link { fill: none; stroke: rgba(236, 233, 226, .1); stroke-width: 1; stroke-dasharray: 1 4; }
+.xrd .grid-link.running { stroke: rgba(var(--ion-rgb), .35); }
+.xrd .grid-link.done { stroke: rgba(159, 227, 189, .22); }
+.xrd .grid-stream { fill: none; stroke: rgba(159, 227, 189, .1); stroke-width: 1; }
+.xrd .grid-stream.running { stroke: rgba(159, 227, 189, .32); }
+.xrd .grid-packet.order { fill: var(--ivory); }
+.xrd .grid-packet.code { fill: var(--long); }
+.xrd .grid-core-glow { opacity: .22; }
+.xrd .grid-core.on .grid-core-glow { animation: xrd-corepulse 4s var(--ease) infinite; }
+@keyframes xrd-corepulse { 0%, 100% { opacity: .16; } 50% { opacity: .34; } }
+.xrd .grid-core-ring { fill: none; transform-box: fill-box; transform-origin: center; }
+.xrd .grid-core-ring.outer { stroke: rgba(var(--ion-rgb), .55); stroke-width: 1; stroke-dasharray: 120 18 4 18; animation: xrd-spin 60s linear infinite; }
+.xrd .grid-core-ring.inner { stroke: rgba(236, 233, 226, .22); stroke-width: 3; stroke-dasharray: .6 5.4; animation: xrd-spin 90s linear infinite reverse; }
+.xrd .grid-core-ring.thin { stroke: rgba(236, 233, 226, .08); stroke-width: 1; }
+.xrd .grid-core.on .grid-core-ring.outer { animation-duration: 24s; }
+.xrd .grid-core.on .grid-core-ring.inner { animation-duration: 40s; }
+@keyframes xrd-spin { to { rotate: 360deg; } }
+.xrd .grid-core-hex { fill: #050607; stroke: rgba(var(--ion-rgb), .8); stroke-width: 1; }
+.xrd .grid-core-hex.inner { fill: none; stroke: rgba(var(--ion-rgb), .22); stroke-width: 1; }
+.xrd .grid-core-heart { fill: var(--ion); }
+.xrd .grid-core.on .grid-core-heart { animation: xrd-heart 4s var(--ease) infinite; }
+@keyframes xrd-heart { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.xrd .grid-core-name { fill: var(--ivory); font: 500 12px/1 var(--f-code); letter-spacing: .28em; text-anchor: middle; }
+.xrd .grid-core-label { fill: var(--ivory-3); font: 400 11px/1 var(--f-text); text-anchor: middle; letter-spacing: .06em; }
+.xrd .grid-node { cursor: pointer; outline: none; }
+.xrd .grid-node-halo { fill: none; stroke: none; }
+.xrd .grid-node.running .grid-node-halo { stroke: rgba(var(--ion-rgb), .3); stroke-width: 1; animation: xrd-ping 3.2s var(--ease) infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes xrd-ping { from { scale: .78; opacity: .9; } to { scale: 1.18; opacity: 0; } }
+.xrd .grid-reticle { fill: none; stroke: rgba(236, 233, 226, .12); stroke-width: 1; }
+.xrd .grid-node.running .grid-reticle { stroke: rgba(var(--ion-rgb), .75); animation: xrd-spin 16s linear infinite; }
+.xrd .grid-node.done .grid-reticle { stroke: rgba(159, 227, 189, .4); }
+.xrd .grid-node.failed .grid-reticle { stroke: rgba(229, 72, 77, .7); }
+.xrd .grid-node-frame { fill: #050607; stroke: rgba(236, 233, 226, .22); stroke-width: 1; }
+.xrd .grid-node.running .grid-node-frame { stroke: var(--ion); }
+.xrd .grid-node.done .grid-node-frame { stroke: rgba(159, 227, 189, .7); }
+.xrd .grid-node.failed .grid-node-frame { stroke: var(--veto); }
+.xrd .grid-node.blocked .grid-node-frame, .xrd .grid-node.waiting .grid-node-frame { stroke: rgba(236, 233, 226, .14); }
+.xrd .grid-node-disc { fill: #000; }
+.xrd .grid-face { opacity: .9; filter: saturate(.35); transition: opacity var(--t1) var(--ease), filter var(--t1) var(--ease); }
+.xrd .grid-node.running .grid-face { filter: none; opacity: 1; }
+.xrd .grid-node.waiting .grid-face, .xrd .grid-node.blocked .grid-face { opacity: .3; filter: grayscale(1); }
+.xrd .grid-node.failed .grid-face { filter: grayscale(1); opacity: .6; }
+.xrd .grid-node.selected .grid-node-frame, .xrd .grid-node:hover .grid-node-frame, .xrd .grid-node:focus-visible .grid-node-frame { stroke: var(--ivory); }
+.xrd .grid-callsign { fill: var(--ivory); font: 500 11px/1 var(--f-code); letter-spacing: .22em; }
+.xrd .grid-state { fill: var(--ivory-2); font: 400 10px/1 var(--f-code); letter-spacing: .18em; text-transform: uppercase; }
+.xrd .grid-node.running .grid-state { fill: var(--ion); }
+.xrd .grid-node.done .grid-state { fill: var(--long); }
+.xrd .grid-node.failed .grid-state { fill: var(--veto); }
+.xrd .grid-node.waiting .grid-state, .xrd .grid-node.blocked .grid-state { fill: var(--ivory-3); }
+.xrd .grid-step { fill: var(--ivory-3); font: 400 11px/1 var(--f-text); }
+.xrd .grid-node.running .grid-step, .xrd .grid-node.selected .grid-step { fill: var(--ivory-2); }
+/* Arabic letters join: no tracking or capitals on words, only on call signs and codes. */
+.xrd:lang(ar) .grid-state, .xrd:lang(ar) .grid-card-state, .xrd:lang(ar) .grid-core-label { letter-spacing: 0; text-transform: none; font-family: var(--f-text); }
+.xrd .grid-vault-frame { fill: #050607; stroke: rgba(236, 233, 226, .2); stroke-width: 1; }
+.xrd .grid-vault.on .grid-vault-frame { stroke: rgba(159, 227, 189, .6); }
+.xrd .grid-vault-core { fill: none; stroke: rgba(236, 233, 226, .08); stroke-width: 1; }
+.xrd .grid-vault-glyph { fill: var(--long); font: 400 13px/1 var(--f-code); text-anchor: middle; }
+.xrd .grid-file { fill: var(--ivory-2); font: 400 10.5px/1 var(--f-code); }
+.xrd .grid-file-addr { fill: var(--ivory-3); }
+.xrd .grid-card { position: absolute; z-index: 3; bottom: var(--s3); left: 0; display: grid; gap: 2px; min-width: 260px; max-width: 400px; padding: var(--s1) var(--s2) var(--s1) calc(var(--s2) + 2px);
+  background: rgba(17, 19, 21, .92); box-shadow: inset 2px 0 0 var(--ion), inset 0 0 0 1px var(--hairline); }
+.xrd .grid-card.done { box-shadow: inset 2px 0 0 var(--long), inset 0 0 0 1px var(--hairline); }
+.xrd .grid-card.failed { box-shadow: inset 2px 0 0 var(--veto), inset 0 0 0 1px var(--hairline); }
+.xrd .grid-card-who { color: var(--ion); font: 500 11px/16px var(--f-code); letter-spacing: .22em; }
+.xrd .grid-card-title { color: var(--ivory); font-size: 14px; line-height: 20px; }
+.xrd .grid-card-state { color: var(--ivory-2); font: 400 11px/16px var(--f-code); letter-spacing: .12em; text-transform: uppercase; }
+.xrd .map-empty { position: relative; z-index: 1; text-align: center; }
 
 /* the live preview */
 .xrd .preview-devices { display: inline-flex; gap: 2px; }
