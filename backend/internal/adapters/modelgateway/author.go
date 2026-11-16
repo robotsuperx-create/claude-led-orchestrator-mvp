@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -12,12 +13,14 @@ import (
 
 const (
 	selectFilesPrompt = "You are a software engineer about to change a repository. " +
-		"From repository_files, choose the files you must read to complete the instructions " +
-		"(at most 20, only paths that appear in repository_files). " +
-		"Return only valid JSON matching {\"paths\":[string]}. Do not include markdown."
+		"repository_files maps each directory (\".\" is the repository root) to the names of the files in it. " +
+		"From repository_files, choose the files you must read to complete the instructions, including every existing file you will change " +
+		"(at most 20, only files listed in repository_files). " +
+		"Return only valid JSON matching {\"paths\":[string]}, each path slash-separated and relative to the repository root " +
+		"(the directory, a slash, then the name; just the name for a file in \".\"). Do not include markdown."
 
 	proposeEditsPrompt = "You are a software engineer completing one task in a repository. " +
-		"files holds the current content of the files you asked to read; repository_files lists every tracked file. " +
+		"files holds the current content of the files you asked to read. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
 		"Return only valid JSON matching " +
 		"{\"summary\":string,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
@@ -25,7 +28,8 @@ const (
 		"To change a file you were given, use replace: each old is a passage copied exactly from the file's current content, " +
 		"whitespace included, that occurs in it only once (add neighbouring lines if needed), and new is the text that takes its place; " +
 		"replacements apply in order and the rest of the file stays as it is. " +
-		"Use content only to create a file or to rewrite a short one: it becomes the whole file. Set delete to true to remove a file. " +
+		"Use content only to create a new file or to rewrite a short one you were given: it becomes the whole file. " +
+		"Set delete to true to remove a file you were given. An existing file you were not given cannot be rewritten or deleted. " +
 		"Never edit .git or secret files. Do not include markdown."
 )
 
@@ -34,22 +38,64 @@ var _ ports.CodeAuthor = (*ProviderAdapter)(nil)
 // SelectFiles asks this provider which repository files it needs to read.
 func (a *ProviderAdapter) SelectFiles(ctx context.Context, request ports.CodeAuthorRequest) (ports.FileSelection, error) {
 	var result ports.FileSelection
-	if err := a.authorCall(ctx, request.Provider, selectFilesPrompt, request, &result); err != nil {
+	if err := a.authorCall(ctx, request.Provider, selectFilesPrompt, authorInput(request, true), &result); err != nil {
 		return ports.FileSelection{}, err
 	}
 	return result, nil
 }
 
-// ProposeEdits asks this provider for whole-file edits that complete the task.
+// ProposeEdits asks this provider for the edits that complete the task.
 func (a *ProviderAdapter) ProposeEdits(ctx context.Context, request ports.CodeAuthorRequest) (ports.EditProposal, error) {
 	var result ports.EditProposal
-	if err := a.authorCall(ctx, request.Provider, proposeEditsPrompt, request, &result); err != nil {
+	// The repository listing is only needed to choose files; leaving it out
+	// here roughly halves what each written subtask costs.
+	if err := a.authorCall(ctx, request.Provider, proposeEditsPrompt, authorInput(request, false), &result); err != nil {
 		return ports.EditProposal{}, err
 	}
 	return result, nil
 }
 
-func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelProvider, system string, request ports.CodeAuthorRequest, target any) error {
+// authorRequestInput is what a coding model sees of a CodeAuthorRequest. The
+// repository listing is grouped by directory, which states each directory
+// once instead of once per file and so fits a whole repository in about the
+// space a flat list of its first files took.
+type authorRequestInput struct {
+	Title           string               `json:"title,omitempty"`
+	Instructions    string               `json:"instructions"`
+	Attempt         int                  `json:"attempt"`
+	PreviousFailure string               `json:"previous_failure,omitempty"`
+	RepositoryFiles map[string][]string  `json:"repository_files,omitempty"`
+	Files           []ports.FileSnapshot `json:"files,omitempty"`
+}
+
+func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorRequestInput {
+	input := authorRequestInput{
+		Title:           request.Title,
+		Instructions:    request.Instructions,
+		Attempt:         request.Attempt,
+		PreviousFailure: request.PreviousFailure,
+		Files:           request.Files,
+	}
+	if withRepository {
+		input.RepositoryFiles = groupByDirectory(request.RepositoryFiles)
+	}
+	return input
+}
+
+// groupByDirectory maps each slash-separated path's directory ("." for the
+// root) to the base names in it, in their original order.
+func groupByDirectory(paths []string) map[string][]string {
+	if len(paths) == 0 {
+		return nil
+	}
+	grouped := make(map[string][]string)
+	for _, name := range paths {
+		grouped[path.Dir(name)] = append(grouped[path.Dir(name)], path.Base(name))
+	}
+	return grouped
+}
+
+func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelProvider, system string, request authorRequestInput, target any) error {
 	if err := a.validateRequestProvider(provider); err != nil {
 		return err
 	}

@@ -366,8 +366,8 @@ func (e *authorAttemptError) Error() string { return e.stage + ": " + e.err.Erro
 func (e *authorAttemptError) Unwrap() error { return e.err }
 
 // authorCode runs the two-step authoring exchange for one attempt: the model
-// picks files to read, then proposes whole-file edits, which are applied in
-// the verified worktree. Failures the model can fix are *authorAttemptError.
+// picks files to read, then proposes edits, which are applied in the verified
+// worktree. Failures the model can fix are *authorAttemptError.
 func (r *WorkerRuntime) authorCode(ctx context.Context, worktreePath string, request ports.WorkerRequest) (string, error) {
 	return authorInWorktree(ctx, r.runner, r.author, worktreePath, request)
 }
@@ -399,6 +399,9 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	if err != nil {
 		return "", &authorAttemptError{stage: "propose edits", err: err}
 	}
+	if err := requireReadBeforeRewrite(worktreePath, proposal.Edits, authorRequest.Files); err != nil {
+		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+	}
 	applied, err := applyEdits(worktreePath, proposal.Edits)
 	if err != nil {
 		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
@@ -422,8 +425,8 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 }
 
 // listRepositoryFiles lists tracked and untracked, non-ignored files with a
-// fixed Git argv on the host. Protected paths are omitted, and the list is
-// bounded.
+// fixed Git argv on the host. Protected paths and binary assets (images,
+// fonts, archives, ...) are omitted, and the list is bounded.
 func listRepositoryFiles(ctx context.Context, runner WorktreeCommandRunner, worktreePath string) ([]string, error) {
 	output, err := runner.RunInDirectory(ctx, worktreePath, []string{"git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"})
 	if err != nil {
@@ -446,7 +449,7 @@ func listRepositoryFiles(ctx context.Context, runner WorktreeCommandRunner, work
 		if err != nil {
 			continue
 		}
-		if _, dup := seen[clean]; dup {
+		if _, dup := seen[clean]; dup || !listedForModel(clean) {
 			continue
 		}
 		seen[clean] = struct{}{}

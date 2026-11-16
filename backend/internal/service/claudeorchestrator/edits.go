@@ -15,7 +15,7 @@ import (
 // Limits on what a coding model may read and write in one attempt. They bound
 // prompt size, provider cost, and the blast radius of a bad proposal.
 const (
-	maxRepositoryFilesListed = 2000
+	maxRepositoryFilesListed = 5000
 	maxFilesRead             = 20
 	maxReadFileBytes         = 128 * 1024
 	maxReadTotalBytes        = 512 * 1024
@@ -26,6 +26,23 @@ const (
 )
 
 var errProtectedPath = errors.New("path is protected")
+
+// unlistedExtensions are file types a coding model can neither read (they are
+// not UTF-8 text) nor usefully write, so listing them only costs tokens.
+var unlistedExtensions = map[string]struct{}{
+	".png": {}, ".jpg": {}, ".jpeg": {}, ".gif": {}, ".webp": {}, ".avif": {}, ".ico": {}, ".bmp": {}, ".icns": {}, ".tif": {}, ".tiff": {},
+	".woff": {}, ".woff2": {}, ".ttf": {}, ".otf": {}, ".eot": {},
+	".mp3": {}, ".mp4": {}, ".wav": {}, ".ogg": {}, ".webm": {}, ".mov": {}, ".m4a": {},
+	".zip": {}, ".gz": {}, ".tgz": {}, ".tar": {}, ".7z": {}, ".rar": {}, ".jar": {},
+	".exe": {}, ".dll": {}, ".so": {}, ".dylib": {}, ".bin": {}, ".wasm": {}, ".pdf": {},
+}
+
+// listedForModel reports whether a repository file is worth naming to a
+// coding model.
+func listedForModel(clean string) bool {
+	_, unlisted := unlistedExtensions[strings.ToLower(path.Ext(clean))]
+	return !unlisted
+}
 
 // cleanRepoPath validates a model-supplied, slash-separated path relative to
 // the worktree root and returns its clean form. It rejects absolute paths,
@@ -303,4 +320,41 @@ func replaceInFile(root *os.Root, clean string, size int64, replacements []ports
 		}
 	}
 	return text, nil
+}
+
+// requireReadBeforeRewrite rejects a proposal that rewrites or deletes an
+// existing file the model was not given. The model sees the repository listing
+// only while it chooses files, so a "new" file it names may already exist;
+// writing it blind would silently replace someone's work. A replacement needs
+// no such check: it only applies to text that is in the file.
+func requireReadBeforeRewrite(worktree string, edits []ports.FileEdit, read []ports.FileSnapshot) error {
+	given := make(map[string]struct{}, len(read))
+	for _, snapshot := range read {
+		given[snapshot.Path] = struct{}{}
+	}
+	root, err := os.OpenRoot(worktree)
+	if err != nil {
+		return fmt.Errorf("open worktree: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	for _, edit := range edits {
+		if len(edit.Replace) > 0 {
+			continue
+		}
+		clean, err := cleanRepoPath(edit.Path)
+		if err != nil {
+			continue // applyEdits rejects it with the reason
+		}
+		if _, ok := given[clean]; ok {
+			continue
+		}
+		if _, err := root.Lstat(clean); err == nil {
+			verb := "rewrites"
+			if edit.Delete {
+				verb = "deletes"
+			}
+			return fmt.Errorf("the edit to %s %s an existing file you were not given; choose it in the files to read first, or use a new path", clean, verb)
+		}
+	}
+	return nil
 }

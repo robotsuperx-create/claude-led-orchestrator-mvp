@@ -72,13 +72,35 @@ func TestProposeEditsSendsTaskContextAndDecodesEdits(t *testing.T) {
 	if !strings.Contains(*body, "use replace") {
 		t.Fatalf("the system prompt does not ask for targeted replacements: %s", *body)
 	}
-	for _, want := range []string{`\"instructions\":\"add a greeting\"`, `\"previous_failure\":\"tests failed\"`, `\"repository_files\":[\"main.go\"]`, `\"attempt\":2`} {
+	for _, want := range []string{`\"instructions\":\"add a greeting\"`, `\"previous_failure\":\"tests failed\"`, `\"attempt\":2`, `\"files\":[{\"path\":\"main.go\"`} {
 		if !strings.Contains(*body, want) {
 			t.Fatalf("provider request missing %s: %s", want, *body)
 		}
 	}
+	// The listing was only needed to choose files; writing does not resend it.
+	if strings.Contains(*body, `\"repository_files\"`) {
+		t.Fatalf("the edit request resent the repository listing: %s", *body)
+	}
 	if strings.Contains(*body, `\"Provider\"`) || strings.Contains(*body, `\"provider\":\"deepseek\"`) {
 		t.Fatalf("routing field leaked into the model input: %s", *body)
+	}
+}
+
+// Choosing files sees the whole repository grouped by directory, which names
+// each directory once.
+func TestSelectFilesSendsTheRepositoryGroupedByDirectory(t *testing.T) {
+	server, body := chatServer(t, `{"paths":["backend/x/a.go"]}`)
+	adapter := newTestAdapter(t, ProviderConfig{Provider: ports.ModelProviderDeepSeek, BaseURL: server.URL, DefaultModel: "m"})
+	selection, err := adapter.SelectFiles(context.Background(), ports.CodeAuthorRequest{
+		Provider: ports.ModelProviderDeepSeek, Instructions: "x",
+		RepositoryFiles: []string{"README.md", "backend/x/a.go", "backend/x/b.go", "go.mod"},
+	})
+	if err != nil || len(selection.Paths) != 1 || selection.Paths[0] != "backend/x/a.go" {
+		t.Fatalf("SelectFiles = %+v, %v", selection, err)
+	}
+	want := `\"repository_files\":{\".\":[\"README.md\",\"go.mod\"],\"backend/x\":[\"a.go\",\"b.go\"]}`
+	if !strings.Contains(*body, want) {
+		t.Fatalf("provider request missing %s: %s", want, *body)
 	}
 }
 

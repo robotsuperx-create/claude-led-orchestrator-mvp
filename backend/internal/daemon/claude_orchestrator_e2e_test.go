@@ -103,7 +103,9 @@ func TestClaudeOrchestratorEndToEndWritesCodeOnRunBranch(t *testing.T) {
 	}}
 	deepSeek := &fakeProvider{t: t, answer: func(system, user string, _ int) string {
 		if strings.Contains(system, "choose the files") {
-			return "```json\n{\"paths\":[\"README.md\"]}\n```"
+			// greet.txt exists only on the retry; asking for it first is harmless,
+			// and reading it is what allows the retry to rewrite it.
+			return "```json\n{\"paths\":[\"README.md\",\"greet.txt\"]}\n```"
 		}
 		// First attempt is wrong; the retry sees the validator's failure.
 		if !strings.Contains(user, "previous_failure") {
