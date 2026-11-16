@@ -305,7 +305,7 @@ func withOpenCodeCredentialPresence(env map[string]string, credentialType string
 func claudeCodeModels() []ports.AgentModelInfo {
 	return []ports.AgentModelInfo{
 		{ID: "sonnet", Label: "Sonnet"},
-		{ID: "fable", Label: "Fable 5.1"},
+		{ID: "fable", Label: "Fable 5.2"},
 		{ID: "opus", Label: "Opus"},
 		{ID: "haiku", Label: "Haiku"},
 		{ID: "opus[1m]", Label: "Opus (1M context)"},

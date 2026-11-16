@@ -119,6 +119,14 @@ const DefaultClaudeOrchestratorProviderTimeout = 3 * time.Minute
 // Claude key runs everything and no model is set.
 const DefaultClaudeOrchestratorClaudeModel = "claude-opus-5-5"
 
+// Claude's current models (Opus 5.5, Fable 5.2) always think before they
+// answer, and thinking counts toward max_tokens and the request's time. These
+// defaults leave room for it when the person sets neither.
+const (
+	DefaultClaudeOrchestratorClaudeMaxTokens = 16000
+	DefaultClaudeOrchestratorClaudeTimeout   = 10 * time.Minute
+)
+
 // ClaudeOrchestratorConfig controls the experimental Claude orchestration
 // service. FeatureEnabled is deliberately false unless explicitly enabled.
 type ClaudeOrchestratorConfig struct {
@@ -126,9 +134,13 @@ type ClaudeOrchestratorConfig struct {
 	// ClaudeOnly runs the whole crew on the one Claude key: Claude plans,
 	// writes every subtask through its API, and reviews. No other provider
 	// is used, and independent subtasks are written at the same time.
-	ClaudeOnly       bool
-	ClaudeProvider   modelgateway.ProviderConfig
-	DeepSeekProvider modelgateway.ProviderConfig
+	ClaudeOnly bool
+	// ClaudeWriterModel, when set, is the Claude model that writes code, on
+	// the same key; ClaudeProvider's model still plans and reviews. Empty
+	// writes with the planner's model.
+	ClaudeWriterModel string
+	ClaudeProvider    modelgateway.ProviderConfig
+	DeepSeekProvider  modelgateway.ProviderConfig
 	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
 	// reached through its OpenAI-compatible endpoint.
 	LocalProvider modelgateway.ProviderConfig
@@ -906,9 +918,19 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 	if cfg.ClaudeProvider, err = loadProvider(ports.ModelProviderClaude, "AO_CLAUDE_ORCHESTRATOR_CLAUDE"); err != nil {
 		return err
 	}
-	if cfg.ClaudeOnly {
-		// With one key for everything, only the key is required: the address
-		// and model default to Anthropic's API and the model shown in the app.
+	if strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MAX_TOKENS")) == "" {
+		cfg.ClaudeProvider.MaxTokens = DefaultClaudeOrchestratorClaudeMaxTokens
+	}
+	if strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_TIMEOUT")) == "" {
+		cfg.ClaudeProvider.Timeout = DefaultClaudeOrchestratorClaudeTimeout
+	}
+	cfg.ClaudeWriterModel = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL"))
+	if len(cfg.ClaudeWriterModel) > 128 || strings.ContainsAny(cfg.ClaudeWriterModel, " \t\r\n\x00") {
+		return errors.New("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL is not a valid model name")
+	}
+	if cfg.ClaudeOnly || strings.TrimSpace(cfg.ClaudeProvider.APIKey) != "" {
+		// With a Claude key, only the key is required: the address and model
+		// default to Anthropic's API and the model shown in the app.
 		if cfg.ClaudeProvider.BaseURL == "" {
 			cfg.ClaudeProvider.BaseURL = DefaultCommanderBaseURL
 		}

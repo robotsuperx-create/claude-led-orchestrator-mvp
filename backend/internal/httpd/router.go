@@ -288,6 +288,9 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 		planner = ports.ModelProviderClaude
 	}
 	workerModel := modelOf(cfg.Worker.DefaultProvider)
+	if cfg.Worker.DefaultProvider == ports.ModelProviderClaude && cfg.ClaudeWriterModel != "" {
+		workerModel = cfg.ClaudeWriterModel
+	}
 	workerMode := config.ClaudeOrchestratorWorkerModeModel
 	if cfg.Worker.Mode == config.ClaudeOrchestratorWorkerModeAgents {
 		// The agent harness, not an API model, writes the code.

@@ -48,7 +48,6 @@ describe("MissionControlSettingsSection", () => {
 		await user.click(await screen.findByRole("switch", { name: "Turn on Mission control" }));
 		await user.click(screen.getByRole("button", { name: "Choose folder" }));
 		await user.type(screen.getByLabelText("Claude API address"), "https://api.anthropic.com/v1");
-		await user.type(screen.getByLabelText("Claude model"), "claude-opus-5-5");
 		await user.type(screen.getByLabelText("Claude API key"), "sk-claude");
 		await user.type(screen.getByLabelText("DeepSeek API address"), "https://api.deepseek.com/v1");
 		await user.type(screen.getByLabelText("DeepSeek model"), "deepseek-chat");
@@ -100,6 +99,25 @@ describe("MissionControlSettingsSection", () => {
 		expect(update.values.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY).toBe("on");
 		expect(update.values.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS).toBe("5");
 		expect(update.secrets).toEqual({ AO_CLAUDE_ORCHESTRATOR_CLAUDE_API_KEY: "sk-claude" });
+	});
+
+	it("offers Claude Fable 5.2 and a separate model for writing code", async () => {
+		mocks.get.mockResolvedValue({ ok: true, value: empty });
+		renderSection();
+		const user = userEvent.setup();
+		// Empty settings show the defaults the daemon uses.
+		expect(await screen.findByRole("button", { name: "Claude model" })).toHaveTextContent("Claude Opus 5.5");
+		expect(screen.getByRole("button", { name: "Claude model for writing code" })).toHaveTextContent("Same as the planner");
+		await user.click(screen.getByRole("button", { name: "Claude model" }));
+		await user.click(await screen.findByRole("menuitem", { name: /Claude Fable 5\.2/ }));
+		expect(screen.getByRole("button", { name: "Claude model" })).toHaveTextContent("Claude Fable 5.2");
+		await user.click(screen.getByRole("button", { name: "Claude model for writing code" }));
+		await user.click(await screen.findByRole("menuitem", { name: /Claude Sonnet 5\.5/ }));
+		mocks.save.mockResolvedValue({ ok: true, value: empty });
+		await user.click(screen.getByRole("button", { name: "Save and restart" }));
+		const update = mocks.save.mock.calls[0][0];
+		expect(update.values.AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL).toBe("claude-fable-5-2");
+		expect(update.values.AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL).toBe("claude-sonnet-5-5");
 	});
 
 	it("shows environment overrides read-only and leaves them out of a save", async () => {

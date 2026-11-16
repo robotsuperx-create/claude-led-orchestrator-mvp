@@ -417,7 +417,7 @@ func TestClaudeReturnsStaticCatalogWithConfiguredFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantLabels := map[string]string{
-		"sonnet": "Sonnet", "fable": "Fable 5.1", "opus": "Opus",
+		"sonnet": "Sonnet", "fable": "Fable 5.2", "opus": "Opus",
 		"haiku": "Haiku", "opus[1m]": "Opus (1M context)",
 		"claude-opus-4-5-20251101": "claude-opus-4-5-20251101",
 	}
