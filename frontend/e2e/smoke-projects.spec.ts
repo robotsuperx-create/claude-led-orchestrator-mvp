@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 // PRJ-* RENDERER SMOKE (issue #2483, renderer slice).
 //
@@ -15,7 +16,8 @@ test("renderer: added project appears in the sidebar and board @T0 @PRJ", async 
 	// dev:web serves lib/mock-data.ts (ao-demo, docs-site). A registered project
 	// must show as a sidebar row AND drive the board it opens.
 	await page.goto("/#/");
-	await expect(page.getByText("Projects", { exact: true })).toBeVisible();
+	await openSidebarOnHome(page);
+	await expect(page.locator('[data-slot="sidebar"]').getByText("Projects", { exact: true })).toBeVisible();
 
 	// Sidebar row for the project.
 	const projectRow = page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first();

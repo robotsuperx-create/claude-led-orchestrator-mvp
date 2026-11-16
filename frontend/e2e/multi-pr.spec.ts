@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { openInspector } from "./support/open-inspector";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 // dev:web (VITE_NO_ELECTRON=1) serves lib/mock-data.ts. The api-gateway
 // workspace owns a "stacked-auth" session ("auth stack") carrying three PRs:
@@ -8,6 +9,7 @@ import { openInspector } from "./support/open-inspector";
 
 test("the inspector rail stacks every PR a session owns, actionable-first", async ({ page }) => {
 	await page.goto("/");
+	await openSidebarOnHome(page);
 	await page.getByRole("button", { name: "Open auth stack" }).click();
 	await expect(page).toHaveURL(/sessions\/stacked-auth/);
 

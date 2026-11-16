@@ -1166,6 +1166,11 @@ function ShellLayout() {
             menu); paints the chrome the frameless window drops. Renders null on
             macOS/Linux. */}
 				<WindowTitlebar />
+				{/* Always-present daemon status mirror for the smoke suite. It lives in
+				    the shell, not the sidebar, because Home hides the sidebar. */}
+				<span aria-hidden="true" className="sr-only" data-testid="daemon-status" data-state={daemonStatus.state}>
+					{daemonStatus.state}
+				</span>
 				{/* App routes render their topbar inside the framed panel, matching the board chrome across platforms while leaving OS titlebars native. */}
 				{!framedAppTopbar && !hideShellTopbar && !routeParams.sessionId ? <ShellTopbar /> : null}
 				{/* Controlled by the ui-store so TitlebarNav / Topbar toggles (which

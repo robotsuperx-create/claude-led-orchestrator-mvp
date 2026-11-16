@@ -90,7 +90,6 @@ import { useResizable } from "../hooks/useResizable";
 import { useCloudGate } from "../hooks/useCloudGate";
 import { useCloudLocalAuth } from "../hooks/useCloudLocalAuth";
 import { useLocalSignInDialogStore } from "../stores/local-signin-dialog-store";
-import { useShellMaybe } from "../lib/shell-context";
 import { useSidebarUpdateDismissal } from "../hooks/useSidebarUpdateDismissal";
 import { useUpdateStatus } from "../hooks/useUpdateStatus";
 import { MAX_SESSION_DISPLAY_NAME_LEN, useSessionRename } from "../hooks/useSessionRename";
@@ -628,9 +627,6 @@ export function Sidebar({
 	const availableUpdateVersion = updateStatus.state === "available" ? updateStatus.version : undefined;
 	const updateDismissal = useSidebarUpdateDismissal(availableUpdateVersion);
 	const openUpdateInstallPrompt = useUiStore((state) => state.openUpdateInstallPrompt);
-	// Daemon status for the smoke suite's sr-only mirror in the footer. Null when
-	// rendered outside the shell (unit tests) — the mirror simply doesn't render.
-	const daemonStatus = useShellMaybe()?.daemonStatus ?? null;
 	const commandPaletteEnabled = useCommandPaletteEnabled();
 	const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
 	const existingProjectPaths = useMemo(
@@ -1217,13 +1213,6 @@ export function Sidebar({
 			<SidebarFooter
 				className="relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-20 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:overflow-visible group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-2 group-data-[collapsible=icon]:!pt-1.5"
 			>
-				{/* Always-present daemon status mirror for the smoke suite: no visible
-				    daemon-state copy is guaranteed to be mounted elsewhere. */}
-				{daemonStatus && (
-					<span aria-hidden="true" className="sr-only" data-testid="daemon-status" data-state={daemonStatus.state}>
-						daemon {daemonStatus.state}
-					</span>
-				)}
 				<div
 					aria-hidden={isCollapsed || undefined}
 					hidden={isCollapsed}

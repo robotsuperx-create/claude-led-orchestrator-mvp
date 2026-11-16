@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { AoBridge } from "../src/preload";
 import { agentReadiness } from "../src/renderer/test/agent-readiness-fixtures";
 import { installFakeAgent } from "./support/fake-bridge";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 for (const platform of ["macOS", "Windows", "Linux"] as const) {
 test(`renderer: workspace import preserves the root branch and explains unresolved startup on ${platform} @T0`, async ({ page }) => {
@@ -52,6 +53,7 @@ test(`renderer: workspace import preserves the root branch and explains unresolv
 		await route.fulfill({ json: {} });
 	});
 	await page.goto("/#/");
+	await openSidebarOnHome(page);
 	await page.evaluate(() => {
 		// The default fixture has a running orchestrator. This test represents a
 		// failed first spawn, so every later CDC/query refresh must also have none.

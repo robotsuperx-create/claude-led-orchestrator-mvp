@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { installFakeAgent, installFakeBridge } from "./support/fake-bridge";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 // INS/DMN/BRD/SET RENDERER SMOKE (issue #2483, renderer slice).
 //
@@ -63,7 +64,8 @@ test("renderer: first-run home renders with the app launched @T0 @INS", async ({
 	await page.goto("/");
 	await expect(page.getByText("Jump back right in")).toBeVisible();
 	await expect(page.getByTestId("daemon-status")).toBeAttached();
-	await expect(page.getByText("Projects", { exact: true })).toBeVisible();
+	// Home is the X-ROBOT deck: its sections bar leads to the projects.
+	await expect(page.getByRole("link", { name: "Projects", exact: true })).toBeVisible();
 });
 
 // #2483 INS-003.
@@ -174,6 +176,7 @@ test("renderer: route nav home to board to session detail and back @T0 @BRD", as
 	// home
 	await page.goto("/");
 	await expect(page.getByText("Jump back right in")).toBeVisible();
+	await openSidebarOnHome(page);
 
 	// → project board
 	await page.locator('[data-sidebar="menu-button"]').filter({ hasText: "ao-demo" }).first().click();
