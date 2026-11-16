@@ -38,6 +38,7 @@ import { crewMember } from "../lib/x00-crew";
 import { crewMarkTone, x00StateForRuns } from "../lib/x00-fleet";
 import { XRobotWordmark } from "./BrandMark";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { VisualReview } from "./ClaudeOrchestratorVisualReview";
 import { X00Portrait } from "./X00Portrait";
 import { openX00 } from "./x00/X00Commander";
 import { x00VoiceLevel } from "../hooks/useX00";
@@ -296,6 +297,14 @@ function ConfigurationLine({ info }: { info: ClaudeOrchestratorInfo }) {
 					<span>{t("orchestrator.config.replans", { count: info.maxReplans })}</span>
 				</>
 			) : null}
+			{info.visualReview || info.visualReason ? (
+				<>
+					<span aria-hidden="true">·</span>
+					<span data-testid="claude-orchestrator-visual-config">
+						{t(info.visualReview ? "orchestrator.config.visualOn" : info.visualReason === "no_browser" ? "orchestrator.config.visualNoBrowser" : "orchestrator.config.visualNoClaude")}
+					</span>
+				</>
+			) : null}
 		</p>
 	);
 }
@@ -552,6 +561,7 @@ function RunDetails({ run, info }: { run: ClaudeOrchestratorRun; info?: ClaudeOr
 			{active ? <StageTimeline run={run} /> : null}
 			{run.state === "awaiting_approval" ? <PlanReview runId={run.runId} /> : null}
 			{outcome ? <Decision run={run} outcome={outcome} /> : null}
+			{run.state !== "pending" && run.state !== "planning" && run.state !== "awaiting_approval" ? <VisualReview runId={run.runId} live={active} /> : null}
 			<dl className="grid max-w-xl grid-cols-[96px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs">
 				{run.branch ? (
 					<>

@@ -151,7 +151,7 @@ if (typeof window !== "undefined") {
 			readText: async () => "",
 		},
 		claudeOrchestrator: {
-			info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0, plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false } }),
+			info: async () => ({ ok: true, value: { enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0, plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false, visualReview: false } }),
 			list: async () => ({ ok: false, error: "disabled" }),
 			start: async () => ({ ok: false, error: "disabled" }),
 			status: async () => ({ ok: false, error: "disabled" }),
@@ -160,6 +160,8 @@ if (typeof window !== "undefined") {
 			approve: async () => ({ ok: false, error: "disabled" }),
 			reject: async () => ({ ok: false, error: "disabled" }),
 			publish: async () => ({ ok: false, error: "disabled" }),
+			visual: async () => ({ ok: false, error: "disabled" }),
+			visualShot: async () => ({ ok: false, error: "disabled" }),
 		},
 		claudeOrchestratorSettings: {
 			get: async () => ({ ok: false, error: "unavailable" }),

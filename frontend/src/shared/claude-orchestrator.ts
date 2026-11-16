@@ -47,7 +47,41 @@ export type ClaudeOrchestratorInfo = {
 	canPublish: boolean;
 	/** Why the orchestrator is off when its saved settings need fixing. */
 	configError?: string;
+	/** Each run's pages are photographed and judged by Claude, then polished. */
+	visualReview: boolean;
+	/** Why the visual review cannot run although it was asked for. */
+	visualReason?: ClaudeOrchestratorVisualReason;
 };
+
+export type ClaudeOrchestratorVisualReason = "no_browser" | "no_claude";
+
+/** One kept screenshot of a run's page at one screen size. */
+export type ClaudeOrchestratorVisualShot = {
+	page: string;
+	viewport: string;
+	/** The picture's name under the run; absent when none was kept. */
+	name?: string;
+	/** What the browser measured there (overflow, contrast, tap targets…). */
+	findings: string[];
+};
+
+/** One look Claude took at a run's pages, as an art director. */
+export type ClaudeOrchestratorVisualRound = {
+	round: number;
+	/** The overall mark out of ten. */
+	score: number;
+	scores: Record<string, number>;
+	summary: string;
+	fixes: string[];
+	shots: ClaudeOrchestratorVisualShot[];
+	/** A writer polished the pages after this look. */
+	polished: boolean;
+	/** The look could not be finished; the run went on without it. */
+	failed: boolean;
+	findings: number;
+};
+
+export type ClaudeOrchestratorVisual = { runId: string; rounds: ClaudeOrchestratorVisualRound[] };
 
 /** A run's model usage. Agent sessions bill through their own harness. */
 export type ClaudeOrchestratorUsage = {
@@ -248,7 +282,74 @@ export function parseClaudeOrchestratorInfo(value: unknown): ClaudeOrchestratorI
 		maxReplans: Math.min(Math.floor(count(candidate.maxReplans) ?? 0), 10),
 		canPublish: candidate.canPublish === true,
 		...(boundedText(candidate.configError, 1000) ? { configError: candidate.configError as string } : {}),
+		visualReview: candidate.visualReview === true,
+		...(candidate.visualReason === "no_browser" || candidate.visualReason === "no_claude" ? { visualReason: candidate.visualReason } : {}),
 	};
+}
+
+const VISUAL_SHOT_NAME = /^r[0-9]{1,2}-[a-z0-9-]{1,64}-[a-z0-9-]{1,64}\.jpg$/;
+const VISUAL_MAX_ROUNDS = 10;
+const VISUAL_MAX_SHOTS = 12;
+
+/** A kept screenshot's name, as the daemon's camera writes it. */
+export function isClaudeOrchestratorVisualShotName(value: unknown): value is string {
+	return typeof value === "string" && VISUAL_SHOT_NAME.test(value);
+}
+
+function score(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? Math.min(Math.max(value, 0), 10) : 0;
+}
+
+function lines(value: unknown, limit: number, max: number): string[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter((line): line is string => typeof line === "string" && line.length > 0 && line.length <= max).slice(0, limit);
+}
+
+/** Rebuilds a run's visual review from allowlisted, length-bounded fields only. */
+export function parseClaudeOrchestratorVisual(value: unknown): ClaudeOrchestratorVisual | null {
+	const candidate = record(value);
+	if (!candidate || !isClaudeOrchestratorRunId(candidate.runId) || !Array.isArray(candidate.rounds)) return null;
+	const rounds: ClaudeOrchestratorVisualRound[] = [];
+	for (const raw of candidate.rounds.slice(-VISUAL_MAX_ROUNDS)) {
+		const round = record(raw);
+		if (!round || typeof round.round !== "number" || !Number.isInteger(round.round) || round.round < 1 || round.round > 99) return null;
+		const scores: Record<string, number> = {};
+		const rawScores = record(round.scores);
+		for (const [name, mark] of Object.entries(rawScores ?? {}).slice(0, 12)) {
+			if (/^[a-z]{1,40}$/.test(name)) scores[name] = score(mark);
+		}
+		const shots: ClaudeOrchestratorVisualShot[] = [];
+		for (const rawShot of Array.isArray(round.shots) ? round.shots.slice(0, VISUAL_MAX_SHOTS) : []) {
+			const shot = record(rawShot);
+			if (!shot) continue;
+			shots.push({
+				page: boundedText(shot.page, 800) ?? "",
+				viewport: boundedText(shot.viewport, 200) ?? "",
+				...(isClaudeOrchestratorVisualShotName(shot.name) ? { name: shot.name } : {}),
+				findings: lines(shot.findings, 20, 1600),
+			});
+		}
+		rounds.push({
+			round: round.round,
+			score: score(round.score),
+			scores,
+			summary: boundedText(round.summary, 4800) ?? "",
+			fixes: lines(round.fixes, 8, 1600),
+			shots,
+			polished: typeof round.polish === "string" && round.polish.length > 0,
+			failed: round.failed === true,
+			findings: Math.floor(count(round.findings) ?? 0),
+		});
+	}
+	return { runId: candidate.runId, rounds };
+}
+
+/** A screenshot handed to the renderer: a JPEG data URL, nothing else. */
+export const CLAUDE_ORCHESTRATOR_MAX_SHOT_BYTES = 24 * 1024 * 1024;
+
+export function isClaudeOrchestratorShotDataUrl(value: unknown): value is string {
+	return typeof value === "string" && value.startsWith("data:image/jpeg;base64,") && /^[A-Za-z0-9+/]*={0,2}$/.test(value.slice(23))
+		&& value.length <= 23 + Math.ceil(CLAUDE_ORCHESTRATOR_MAX_SHOT_BYTES / 3) * 4;
 }
 
 const PLAN_MAX_STEPS = 50;

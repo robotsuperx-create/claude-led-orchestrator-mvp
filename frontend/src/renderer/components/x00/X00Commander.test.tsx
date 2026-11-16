@@ -65,7 +65,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 const enabledInfo: ClaudeOrchestratorInfo = {
 	enabled: true, repository: "app", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: false, maxActiveRuns: 2,
-	plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 1, canPublish: true,
+	plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 1, canPublish: true, visualReview: false,
 };
 
 function renderCommander() {

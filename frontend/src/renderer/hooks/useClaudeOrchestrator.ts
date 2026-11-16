@@ -7,6 +7,7 @@ import {
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
 	type ClaudeOrchestratorStartInput,
+	type ClaudeOrchestratorVisual,
 } from "../../shared/claude-orchestrator";
 import { aoBridge } from "../lib/bridge";
 import type { ClaudeOrchestratorBridge } from "../lib/claude-orchestrator-preview";
@@ -15,6 +16,8 @@ export const claudeOrchestratorQueryKeys = {
 	info: ["claude-orchestrator", "info"] as const,
 	runs: ["claude-orchestrator", "runs"] as const,
 	plan: (runId: string) => ["claude-orchestrator", "plan", runId] as const,
+	visual: (runId: string) => ["claude-orchestrator", "visual", runId] as const,
+	visualShot: (runId: string, name: string) => ["claude-orchestrator", "visual", runId, name] as const,
 };
 
 /** A failed bridge call; `code` is the only detail the renderer ever sees. */
@@ -114,5 +117,27 @@ export function usePublishClaudeOrchestratorRun() {
 				current.map((item) => (item.runId === run.runId ? { ...item, ...run } : item)));
 		},
 		onSettled: () => void client.invalidateQueries({ queryKey: claudeOrchestratorQueryKeys.runs }),
+	});
+}
+
+/** A run's visual review; polled while the run is still working. */
+export function useClaudeOrchestratorVisual(runId: string, live: boolean) {
+	return useQuery<ClaudeOrchestratorVisual>({
+		queryKey: claudeOrchestratorQueryKeys.visual(runId),
+		queryFn: () => unwrap((bridge) => bridge.visual(runId)),
+		refetchInterval: live ? 3_000 : false,
+		retry: false,
+	});
+}
+
+/** One kept screenshot as a data URL. A kept picture never changes. */
+export function useClaudeOrchestratorVisualShot(runId: string, name: string | undefined) {
+	return useQuery<string>({
+		queryKey: claudeOrchestratorQueryKeys.visualShot(runId, name ?? ""),
+		queryFn: () => unwrap((bridge) => bridge.visualShot(runId, name as string)),
+		enabled: Boolean(name),
+		staleTime: Number.POSITIVE_INFINITY,
+		gcTime: 5 * 60_000,
+		retry: false,
 	});
 }

@@ -6,6 +6,7 @@ import type {
 	ClaudeOrchestratorRun,
 	ClaudeOrchestratorRunState,
 	ClaudeOrchestratorStartInput,
+	ClaudeOrchestratorVisual,
 } from "../../shared/claude-orchestrator";
 
 /** The bridge surface the renderer depends on (matches preload's shape). */
@@ -19,6 +20,8 @@ export type ClaudeOrchestratorBridge = {
 	approve: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	reject: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
 	publish: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>>;
+	visual: (runId: string) => Promise<ClaudeOrchestratorResult<ClaudeOrchestratorVisual>>;
+	visualShot: (runId: string, name: string) => Promise<ClaudeOrchestratorResult<string>>;
 };
 
 const unavailable = async () => ({ ok: false as const, error: "daemon_unavailable" as const });
@@ -27,6 +30,7 @@ const unavailable = async () => ({ ok: false as const, error: "daemon_unavailabl
 export const unavailableClaudeOrchestratorBridge: ClaudeOrchestratorBridge = {
 	info: unavailable, list: unavailable, start: unavailable, status: unavailable, cancel: unavailable,
 	plan: unavailable, approve: unavailable, reject: unavailable, publish: unavailable,
+	visual: unavailable, visualShot: unavailable,
 };
 
 // Preview-only stage timing: each stage lasts this long after the run starts.
@@ -45,6 +49,84 @@ const previewPlan = (runId: string): ClaudeOrchestratorPlan => ({
 		{ id: "tests", title: "Cover both with tests", instructions: "Add unit tests for the schema and integration tests for the form and endpoint.", provider: "deepseek", dependsOn: ["form", "api"] },
 	],
 });
+
+const PREVIEW_VISUAL_RUN = "claude-run-8a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d";
+
+const previewVisual = (runId: string): ClaudeOrchestratorVisual => ({
+	runId,
+	rounds: runId !== PREVIEW_VISUAL_RUN ? [] : [
+		{
+			round: 1, score: 6.4, polished: true, failed: false, findings: 3,
+			scores: { hierarchy: 7, typography: 6.5, spacing: 6, colour: 7.5, imagery: 5, consistency: 7, responsiveness: 4, polish: 6, originality: 6.5 },
+			summary: "A confident hero and a clear palette, but the phone layout scrolls sideways and the feature cards lose their rhythm below 768px.",
+			fixes: [
+				"Stack the hero image under the headline on phones and cap it at 320px tall.",
+				"Give the feature cards one 24px gap at every size instead of 12px and 40px.",
+				"Raise the body text from #8A8A8A to #4A4A4A so it meets 4.5:1 on white.",
+			],
+			shots: ["desktop", "tablet", "phone"].map((viewport) => ({ page: "index.html", viewport, name: `r1-index-${viewport}.jpg`, findings: viewport === "phone" ? ["The page scrolls sideways: 512px of content on a 390px screen.", "Tap target too small: “Learn more” is 28px tall."] : [] })),
+		},
+		{
+			round: 2, score: 9.1, polished: false, failed: false, findings: 0,
+			scores: { hierarchy: 9, typography: 9, spacing: 9, colour: 9.5, imagery: 8.5, consistency: 9, responsiveness: 9.5, polish: 9, originality: 8.5 },
+			summary: "All three fixes landed: the hero stacks cleanly on phones, the cards keep one rhythm, and the body text reads well.",
+			fixes: [],
+			shots: ["desktop", "tablet", "phone"].map((viewport) => ({ page: "index.html", viewport, name: `r2-index-${viewport}.jpg`, findings: [] })),
+		},
+	],
+});
+
+const PREVIEW_SIZES: Record<string, [number, number]> = { desktop: [1440, 2000], tablet: [768, 2400], phone: [390, 2600] };
+
+/** Draws a stand-in page for the preview build; real runs show real screenshots. */
+function previewShot(name: string): string | null {
+	const match = /^r(\d)-index-(desktop|tablet|phone)\.jpg$/.exec(name);
+	if (!match || typeof document === "undefined") return null;
+	const [width, height] = PREVIEW_SIZES[match[2]];
+	const canvas = document.createElement("canvas");
+	canvas.width = width;
+	canvas.height = height;
+	const context = canvas.getContext("2d");
+	if (!context) return null;
+	const first = match[1] === "1";
+	const gutter = Math.round(width * 0.06);
+	context.fillStyle = "#f7f5f2";
+	context.fillRect(0, 0, width, height);
+	context.fillStyle = "#1d2a3a";
+	context.fillRect(0, 0, width, 72);
+	context.fillStyle = "#e8553d";
+	context.fillRect(gutter, 26, 96, 20);
+	const stacked = width < 800;
+	const heroWidth = stacked ? width - gutter * 2 : (width - gutter * 3) / 2;
+	context.fillStyle = "#1d2a3a";
+	context.fillRect(gutter, 140, heroWidth * 0.9, 56);
+	context.fillRect(gutter, 212, heroWidth * 0.7, 56);
+	context.fillStyle = first ? "#b9b9b9" : "#4a4a4a";
+	for (let line = 0; line < 3; line++) context.fillRect(gutter, 300 + line * 30, heroWidth * (0.95 - line * 0.1), 14);
+	context.fillStyle = "#e8553d";
+	context.fillRect(gutter, 420, 180, first && stacked ? 28 : 48);
+	context.fillStyle = "#cfd8e3";
+	const imageTop = stacked ? 520 : 140;
+	const imageLeft = stacked ? gutter : gutter * 2 + heroWidth;
+	context.fillRect(imageLeft, imageTop, first && stacked ? width * 1.3 : heroWidth, stacked && !first ? 320 : 380);
+	const columns = width >= 1200 ? 3 : width >= 700 ? 2 : 1;
+	const gap = first ? (columns === 1 ? 12 : 40) : 24;
+	const cardWidth = (width - gutter * 2 - gap * (columns - 1)) / columns;
+	let top = stacked ? 900 : 640;
+	for (let card = 0; card < 6; card++) {
+		const column = card % columns;
+		if (column === 0 && card > 0) top += 260 + gap;
+		context.fillStyle = "#ffffff";
+		context.fillRect(gutter + column * (cardWidth + gap), top, cardWidth, 260);
+		context.fillStyle = "#e8553d";
+		context.fillRect(gutter + column * (cardWidth + gap) + 24, top + 24, 40, 40);
+		context.fillStyle = first ? "#b9b9b9" : "#4a4a4a";
+		context.fillRect(gutter + column * (cardWidth + gap) + 24, top + 96, cardWidth * 0.6, 14);
+	}
+	context.fillStyle = "#1d2a3a";
+	context.fillRect(0, height - 160, width, 160);
+	return canvas.toDataURL("image/jpeg", 0.8);
+}
 
 /**
  * In-memory stand-in used only by the browser preview build (dev:web), which
@@ -79,7 +161,7 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 	};
 	const find = (runId: string) => runs.find((run) => run.runId === runId);
 	return {
-		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2, plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true } }),
+		info: async () => ({ ok: true, value: { enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2, plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true, visualReview: true } }),
 		list: async () => ({ ok: true, value: runs.map(snapshot) }),
 		start: async (input) => {
 			const runId = `claude-run-${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
@@ -124,6 +206,11 @@ export function createClaudeOrchestratorPreview(now: () => number = Date.now): C
 			if ((run.state !== "completed" && run.state !== "held") || !run.commit) return { ok: false, error: "no_changes" };
 			run.pullRequestUrl ??= `https://github.com/robotsuperx-create/claude-led-orchestrator-mvp/pull/${13 + runs.indexOf(run)}`;
 			return { ok: true, value: snapshot(run) };
+		},
+		visual: async (runId) => (find(runId) ? { ok: true, value: previewVisual(runId) } : { ok: false, error: "not_found" }),
+		visualShot: async (runId, name) => {
+			const picture = runId === PREVIEW_VISUAL_RUN ? previewShot(name) : null;
+			return picture ? { ok: true, value: picture } : { ok: false, error: "not_found" };
 		},
 		reject: async (runId) => {
 			const run = find(runId);
