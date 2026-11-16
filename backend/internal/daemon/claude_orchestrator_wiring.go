@@ -15,6 +15,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/claudeorchestrator"
 	projectsvc "github.com/aoagents/agent-orchestrator/backend/internal/service/project"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/sandboxrunner"
+	"github.com/aoagents/agent-orchestrator/backend/internal/visualcheck"
 )
 
 // claudeOrchestratorBuildDeps is the composition seam for fake/offline tests
@@ -28,6 +29,8 @@ type claudeOrchestratorBuildDeps struct {
 	Runner    claudeorchestrator.CommandRunner
 	Sandbox   ports.SandboxRunner
 	Author    ports.CodeAuthor
+	// Visual replaces the browser and critic of the visual review in tests.
+	Visual *claudeorchestrator.VisualReview
 }
 
 // claudeOrchestratorConfigErrorMaxRunes bounds the reason shown in the app.
@@ -53,6 +56,37 @@ func claudeOrchestratorManagedRoot(cfg config.Config) string {
 // claudeOrchestratorHistoryPath is where run history persists, under ~/.ao.
 func claudeOrchestratorHistoryPath(cfg config.Config) string {
 	return filepath.Join(cfg.DataDir, "claude-orchestrator", "runs.json")
+}
+
+// claudeOrchestratorVisualDir keeps the visual review's screenshots and its
+// throwaway browser profiles, under ~/.ao like all AO state.
+func claudeOrchestratorVisualDir(cfg config.Config) string {
+	return filepath.Join(cfg.DataDir, "claude-orchestrator", "visual")
+}
+
+// visualReview builds the visual review from the settings: a browser found
+// on this machine photographs the pages and Claude, on the run's key and
+// planning model, judges them. When it cannot be built it says why.
+func visualReview(cfg config.Config, findBrowser func(string) (string, error)) (*claudeorchestrator.VisualReview, string) {
+	settings := cfg.ClaudeOrchestrator.Visual
+	claude := cfg.ClaudeOrchestrator.ClaudeProvider
+	if strings.TrimSpace(claude.BaseURL) == "" || strings.TrimSpace(claude.DefaultModel) == "" {
+		return nil, ports.VisualReasonNoClaude
+	}
+	critic, err := modelgateway.NewVisualCritic(claude)
+	if err != nil {
+		return nil, ports.VisualReasonNoClaude
+	}
+	browser, err := findBrowser(settings.Browser)
+	if err != nil {
+		return nil, ports.VisualReasonNoBrowser
+	}
+	return &claudeorchestrator.VisualReview{
+		Capturer: visualcheck.Camera{Browser: browser, Pages: settings.Pages, Dir: claudeOrchestratorVisualDir(cfg)},
+		Critic:   critic,
+		Rounds:   settings.Rounds,
+		Target:   settings.Target,
+	}, ""
 }
 
 // claudeOrchestratorWiring is the daemon composition boundary. In the default
@@ -303,7 +337,12 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		}
 		wiring.publisher = publisher
 	}
+	visual, visualUnavailable := injected.Visual, ""
+	if visual == nil && injected.Model == nil && cfg.ClaudeOrchestrator.Visual.Enabled {
+		visual, visualUnavailable = visualReview(cfg, visualcheck.FindBrowser)
+	}
 	wiring.service = claudeorchestrator.New(claudeorchestrator.Dependencies{
+		Visual: visual, VisualUnavailable: visualUnavailable,
 		Model: model, Worker: worker, Validator: validator, Memory: memory,
 		DefaultWorktreePath: cfg.ClaudeOrchestrator.Worker.WorktreePath,
 		Workspaces:          workspaces,

@@ -2032,6 +2032,8 @@ ipcMain.handle("claudeOrchestrator:plan", (event, runId: unknown) => isTrustedSh
 ipcMain.handle("claudeOrchestrator:approve", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.approve(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:reject", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.reject(runId) : untrustedOrchestratorCaller);
 ipcMain.handle("claudeOrchestrator:publish", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.publish(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:visual", (event, runId: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.visual(runId) : untrustedOrchestratorCaller);
+ipcMain.handle("claudeOrchestrator:visualShot", (event, runId: unknown, name: unknown) => isTrustedShellSender(event) ? claudeOrchestratorClient.visualShot(runId, name) : untrustedOrchestratorCaller);
 
 // X-00, the commander: the daemon holds the Claude key and talks to Claude;
 // the renderer only sends the conversation and gets back what he says and the

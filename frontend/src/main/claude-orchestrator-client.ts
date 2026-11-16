@@ -1,15 +1,19 @@
 import {
+	CLAUDE_ORCHESTRATOR_MAX_SHOT_BYTES,
 	isClaudeOrchestratorRunId,
+	isClaudeOrchestratorVisualShotName,
 	parseClaudeOrchestratorInfo,
 	parseClaudeOrchestratorPlan,
 	parseClaudeOrchestratorRun,
 	parseClaudeOrchestratorRunList,
+	parseClaudeOrchestratorVisual,
 	validClaudeOrchestratorStartInput,
 	type ClaudeOrchestratorErrorCode,
 	type ClaudeOrchestratorInfo,
 	type ClaudeOrchestratorPlan,
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
+	type ClaudeOrchestratorVisual,
 } from "../shared/claude-orchestrator";
 
 type Fetcher = (input: string, init: RequestInit) => Promise<Response>;
@@ -18,10 +22,12 @@ const BASE_PATH = "/internal/claude-orchestrator";
 const REQUEST_TIMEOUT_MS = 5_000;
 // Publishing pushes a branch and opens a pull request over the network.
 const PUBLISH_TIMEOUT_MS = 150_000;
+// A screenshot of a long page is a few megabytes read from local disk.
+const SHOT_TIMEOUT_MS = 15_000;
 
 const DISABLED_INFO: ClaudeOrchestratorInfo = {
 	enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0,
-	plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false,
+	plannerProvider: "claude", budgetTokens: 0, budgetUsd: 0, maxReplans: 0, canPublish: false, visualReview: false,
 };
 
 /**
@@ -108,6 +114,40 @@ export class ClaudeOrchestratorClient {
 		return run && run.runId === runId ? { ok: true, value: run } : { ok: false, error: "failed" };
 	}
 
+	/** The critic's looks at a run's pages, round by round. */
+	async visual(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorVisual>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const response = await this.request("GET", `${BASE_PATH}/runs/${runId}/visual`);
+		if (!response.ok) return response;
+		const visual = parseClaudeOrchestratorVisual(response.body);
+		return visual && visual.runId === runId ? { ok: true, value: visual } : { ok: false, error: "failed" };
+	}
+
+	/** One screenshot the run's visual review kept, as a JPEG data URL. */
+	async visualShot(runId: unknown, name: unknown): Promise<ClaudeOrchestratorResult<string>> {
+		if (!isClaudeOrchestratorRunId(runId) || !isClaudeOrchestratorVisualShotName(name)) return { ok: false, error: "not_found" };
+		const base = this.daemonOrigin();
+		if (!base) return { ok: false, error: "daemon_unavailable" };
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), SHOT_TIMEOUT_MS);
+		try {
+			const response = await this.fetcher(`${base}${BASE_PATH}/runs/${runId}/visual/${name}`, { method: "GET", signal: controller.signal });
+			if (!response.ok) return { ok: false, error: errorForStatus(response.status) };
+			if (response.headers.get("content-type") !== "image/jpeg") return { ok: false, error: "failed" };
+			const declared = Number(response.headers.get("content-length") ?? "0");
+			if (declared > CLAUDE_ORCHESTRATOR_MAX_SHOT_BYTES) return { ok: false, error: "failed" };
+			const bytes = Buffer.from(await response.arrayBuffer());
+			if (bytes.length < 3 || bytes.length > CLAUDE_ORCHESTRATOR_MAX_SHOT_BYTES || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
+				return { ok: false, error: "failed" };
+			}
+			return { ok: true, value: `data:image/jpeg;base64,${bytes.toString("base64")}` };
+		} catch {
+			return { ok: false, error: "daemon_unavailable" };
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
 	private async decide(runId: unknown, decision: "approve" | "reject"): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {
 		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
 		const response = await this.request("POST", `${BASE_PATH}/runs/${runId}/${decision}`);
@@ -122,21 +162,12 @@ export class ClaudeOrchestratorClient {
 		body?: object,
 		timeoutMs = REQUEST_TIMEOUT_MS,
 	): Promise<{ ok: true; body: unknown } | { ok: false; error: ClaudeOrchestratorErrorCode; code?: string }> {
-		const base = this.origin();
-		if (!base) return { ok: false, error: "daemon_unavailable" };
-		let parsed: URL;
-		try {
-			parsed = new URL(base);
-		} catch {
-			return { ok: false, error: "daemon_unavailable" };
-		}
-		if (parsed.protocol !== "http:" || parsed.hostname !== "127.0.0.1" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-			return { ok: false, error: "daemon_unavailable" };
-		}
+		const origin = this.daemonOrigin();
+		if (!origin) return { ok: false, error: "daemon_unavailable" };
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeoutMs);
 		try {
-			const response = await this.fetcher(`${parsed.origin}${pathname}`, {
+			const response = await this.fetcher(`${origin}${pathname}`, {
 				method,
 				signal: controller.signal,
 				headers: body ? { "content-type": "application/json" } : undefined,
@@ -149,6 +180,22 @@ export class ClaudeOrchestratorClient {
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+
+	/** The daemon's loopback origin, or null when it is unknown or not loopback. */
+	private daemonOrigin(): string | null {
+		const base = this.origin();
+		if (!base) return null;
+		let parsed: URL;
+		try {
+			parsed = new URL(base);
+		} catch {
+			return null;
+		}
+		if (parsed.protocol !== "http:" || parsed.hostname !== "127.0.0.1" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+			return null;
+		}
+		return parsed.origin;
 	}
 }
 

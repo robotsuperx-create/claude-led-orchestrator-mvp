@@ -38,6 +38,8 @@ const PLACEHOLDERS: Partial<Record<Key, string>> = {
 	AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT: "10m",
 	AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET: "2000000",
 	AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS: "3",
+	AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+	AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES: "index.html, shop.html",
 	AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE: "ghcr.io/…/orchestrator-worker",
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_INPUT_PER_MTOK: "3",
 	AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_OUTPUT_PER_MTOK: "15",
@@ -53,7 +55,7 @@ const WHOLE = /^\d+$/;
 const DECIMAL = /^\d+(\.\d+)?$/;
 
 type Draft = Partial<Record<Key, string>>;
-type FieldError = "required" | "duration" | "number" | "url" | "quote" | "model";
+type FieldError = "required" | "duration" | "number" | "url" | "quote" | "model" | "browserPath" | "pagePath";
 
 function isOn(value: string | undefined) {
 	return ["on", "true", "1", "yes"].includes((value ?? "").trim().toLowerCase());
@@ -84,6 +86,10 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME"] as const) {
 		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value(key))) errors[key] = "model";
 	}
+	const browser = value("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER");
+	if (browser && !/^([A-Za-z]:[\\/]|\/|\\\\)/.test(browser)) errors.AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER = "browserPath";
+	const pages = value("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES").split(",").map((page) => page.trim()).filter(Boolean);
+	if (pages.length > 5 || pages.some((page) => /^([A-Za-z]:|[\\/])/.test(page) || page.split(/[\\/]/).includes(".."))) errors.AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES = "pagePath";
 	if (commandsFromText(commands.worker).error) errors.WORKER_COMMANDS = "quote";
 	if (commandsFromText(commands.validator).error) errors.VALIDATOR_COMMANDS = "quote";
 	if (!isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED)) return errors;
@@ -275,6 +281,9 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const workerMode = draft.AO_CLAUDE_ORCHESTRATOR_WORKER_MODE || "model";
 	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "3";
+	// Unset follows the daemon's default: on when one Claude key runs everything.
+	const visualSetting = (draft.AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW ?? "").trim();
+	const visualOn = visualSetting ? isOn(visualSetting) : claudeOnly;
 
 	return (
 		<div className="flex flex-col gap-(--size-settings-section-gap,1.5rem)" data-testid="mission-control-settings">
@@ -408,6 +417,25 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				{isOn(draft.AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_ENABLED)
 					? field("AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE", t("settings.missionControl.sandboxImage"), { mono: true })
 					: null}
+			</SettingsSection>
+
+			<SettingsSection title={t("settings.missionControl.visual")} grouped>
+				<SettingsRow label={t("settings.missionControl.visualEnabled")} description={t("settings.missionControl.visualEnabledDescription")}>
+					<Switch
+						aria-label={t("settings.missionControl.visualEnabled")}
+						checked={visualOn}
+						disabled={fromEnv.has("AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW")}
+						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW", next ? "on" : "off")}
+					/>
+				</SettingsRow>
+				{visualOn ? (
+					<>
+						{choice("AO_CLAUDE_ORCHESTRATOR_VISUAL_ROUNDS", t("settings.missionControl.visualRounds"), ["0", "1", "2", "3", "4", "5"].map((value) => ({ value, label: value })), "2", t("settings.missionControl.visualRoundsDescription"))}
+						{choice("AO_CLAUDE_ORCHESTRATOR_VISUAL_TARGET", t("settings.missionControl.visualTarget"), ["7", "7.5", "8", "8.5", "9", "9.5"].map((value) => ({ value, label: value })), "9", t("settings.missionControl.visualTargetDescription"))}
+						{field("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER", t("settings.missionControl.visualBrowser"), { mono: true, description: t("settings.missionControl.visualBrowserDescription") })}
+						{field("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES", t("settings.missionControl.visualPages"), { mono: true, description: t("settings.missionControl.visualPagesDescription") })}
+					</>
+				) : null}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.limits")} grouped>

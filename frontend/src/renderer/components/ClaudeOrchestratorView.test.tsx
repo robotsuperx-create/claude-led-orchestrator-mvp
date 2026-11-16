@@ -11,7 +11,7 @@ const RUN_NEW = "claude-run-cccccccccccccccccccccccccccccccc";
 
 const enabledInfo: ClaudeOrchestratorInfo = {
 	enabled: true, repository: "agent-orchestrator", plannerModel: "claude-opus-5-5", workerProvider: "deepseek", workerModel: "deepseek-chat", workerMode: "model", sandboxed: true, maxActiveRuns: 2,
-	plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true,
+	plannerProvider: "claude", budgetTokens: 2_000_000, budgetUsd: 0, maxReplans: 1, canPublish: true, visualReview: false,
 };
 
 const mocks = vi.hoisted(() => ({
@@ -24,13 +24,15 @@ const mocks = vi.hoisted(() => ({
 	approve: vi.fn(),
 	reject: vi.fn(),
 	publish: vi.fn(),
+	visual: vi.fn(),
+	visualShot: vi.fn(),
 	writeText: vi.fn(async () => undefined),
 	openExternal: vi.fn(async () => undefined),
 }));
 
 vi.mock("../lib/bridge", () => ({
 	aoBridge: {
-		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel, plan: mocks.plan, approve: mocks.approve, reject: mocks.reject, publish: mocks.publish },
+		claudeOrchestrator: { info: mocks.info, list: mocks.list, start: mocks.start, status: mocks.status, cancel: mocks.cancel, plan: mocks.plan, approve: mocks.approve, reject: mocks.reject, publish: mocks.publish, visual: mocks.visual, visualShot: mocks.visualShot },
 		clipboard: { writeText: mocks.writeText },
 		app: { openExternal: mocks.openExternal },
 	},
@@ -54,6 +56,48 @@ describe("ClaudeOrchestratorView", () => {
 		mocks.openExternal.mockResolvedValue(undefined);
 		mocks.info.mockResolvedValue(ok(enabledInfo));
 		mocks.list.mockResolvedValue(ok([]));
+		mocks.visual.mockImplementation(async (runId: string) => ok({ runId, rounds: [] }));
+		mocks.visualShot.mockResolvedValue({ ok: false, error: "not_found" });
+	});
+
+	it("shows what Claude saw: the score after each look, the fixes it asked for, and the screenshots", async () => {
+		mocks.info.mockResolvedValue(ok({ ...enabledInfo, visualReview: true }));
+		mocks.list.mockResolvedValue(ok([
+			{ runId: RUN_B, state: "completed", title: "Landing page", branch: `ao/claude-orchestrator/${RUN_B}`, commit: "4e7a1c2f90abcdef", recommendation: "merge" },
+		]));
+		mocks.visual.mockResolvedValue(ok({
+			runId: RUN_B,
+			rounds: [
+				{ round: 1, score: 6.4, scores: { hierarchy: 7, responsiveness: 4 }, summary: "Broken on phones.", fixes: ["Stack the hero on phones"], polished: true, failed: false, findings: 2,
+					shots: [{ page: "index.html", viewport: "desktop", name: "r1-index-desktop.jpg", findings: [] }, { page: "index.html", viewport: "phone", name: "r1-index-phone.jpg", findings: ["The page scrolls sideways."] }] },
+				{ round: 2, score: 9.1, scores: {}, summary: "The fix landed.", fixes: [], polished: false, failed: false, findings: 0,
+					shots: [{ page: "index.html", viewport: "phone", name: "r2-index-phone.jpg", findings: [] }] },
+			],
+		}));
+		mocks.visualShot.mockImplementation(async (_runId: string, name: string) => ok(`data:image/jpeg;base64,${btoa(name)}`));
+		renderView();
+		expect(await screen.findByTestId("claude-orchestrator-visual-config")).toHaveTextContent("Visual review on");
+		await userEvent.click(await screen.findByRole("button", { name: "Show details for Landing page" }));
+		const review = await screen.findByTestId("claude-orchestrator-visual");
+		expect(within(review).getByTestId("claude-orchestrator-visual-trail")).toHaveTextContent("6.4/10 → 9.1/10");
+		const rounds = within(review).getAllByTestId("claude-orchestrator-visual-round");
+		expect(rounds).toHaveLength(2);
+		expect(within(rounds[0]).getByText("Writers polished the pages")).toBeInTheDocument();
+		expect(within(rounds[0]).getByText("Stack the hero on phones")).toBeInTheDocument();
+		expect(within(rounds[0]).getByTestId("claude-orchestrator-visual-criteria")).toHaveTextContent("Hierarchy 7.0");
+		// The latest look's screenshots are shown first.
+		expect(await within(review).findByRole("img", { name: "index.html · Phone" })).toHaveAttribute("src", `data:image/jpeg;base64,${btoa("r2-index-phone.jpg")}`);
+
+		await userEvent.click(within(rounds[0]).getByRole("button", { name: /Look 1/ }));
+		await userEvent.click(within(review).getByRole("button", { name: /index\.html · Phone/ }));
+		expect(await within(review).findByText("The page scrolls sideways.")).toBeInTheDocument();
+		expect(mocks.visualShot).toHaveBeenCalledWith(RUN_B, "r1-index-phone.jpg");
+	});
+
+	it("says why the visual review is off when no browser was found", async () => {
+		mocks.info.mockResolvedValue(ok({ ...enabledInfo, visualReason: "no_browser" }));
+		renderView();
+		expect(await screen.findByTestId("claude-orchestrator-visual-config")).toHaveTextContent("Visual review off: no Chrome or Edge found");
 	});
 
 	it("explains how to turn the orchestrator on when the daemon has it off", async () => {

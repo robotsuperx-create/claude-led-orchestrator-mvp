@@ -47,6 +47,12 @@ type Dependencies struct {
 	// MaxReplans is how many times Claude may revise the plan when subtasks
 	// fail after their retries. Zero never revises.
 	MaxReplans int
+	// Visual, when set, photographs the run's web pages once its subtasks are
+	// done and lets a critic that sees them ask for polish rounds.
+	Visual *VisualReview
+	// VisualUnavailable says why there is no visual review although one was
+	// asked for: ports.VisualReasonNoBrowser or ports.VisualReasonNoClaude.
+	VisualUnavailable string
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -65,6 +71,8 @@ type Service struct {
 	writer              ports.ModelProvider
 	budget              UsageBudget
 	maxReplans          int
+	visual              *VisualReview
+	visualUnavailable   string
 
 	mu        sync.RWMutex
 	states    map[string]ports.RunState
@@ -73,6 +81,7 @@ type Service struct {
 	plans     map[string]ports.ExecutionPlan
 	approvals map[string]chan bool
 	meters    map[string]*usageMeter
+	visuals   map[string][]ports.VisualRound
 	finished  []string
 }
 
@@ -102,6 +111,8 @@ func New(deps Dependencies) *Service {
 		writer:              deps.WriterProvider,
 		budget:              deps.Budget,
 		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
+		visual:              deps.Visual,
+		visualUnavailable:   deps.VisualUnavailable,
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
@@ -110,6 +121,7 @@ func New(deps Dependencies) *Service {
 
 		approvals: make(map[string]chan bool),
 		meters:    make(map[string]*usageMeter),
+		visuals:   make(map[string][]ports.VisualRound),
 	}
 }
 
@@ -338,6 +350,9 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Results = completed
 	}
 
+	plan = s.reviewVisually(runCtx, request, plan, &result)
+	result.Plan = plan
+
 	if !s.advance(runCtx, request.RunID, ports.RunStateValidating) {
 		return canceledResult(result)
 	}
@@ -359,6 +374,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		Plan:       plan,
 		Results:    result.Results,
 		Validation: result.Validation,
+		Visual:     result.Visual,
 	})
 	if err != nil {
 		return s.fail(runCtx, result, fmt.Errorf("request executive review: %w", err))
@@ -419,6 +435,7 @@ func (s *Service) release(runID string) {
 			delete(s.states, oldest)
 			delete(s.plans, oldest)
 			delete(s.meters, oldest)
+			delete(s.visuals, oldest)
 		}
 	}
 }

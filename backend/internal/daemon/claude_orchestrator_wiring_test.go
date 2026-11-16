@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/modelgateway"
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/visualcheck"
 )
 
 func TestClaudeOrchestratorWiringDefaultOffCreatesNoProvidersOrRouteService(t *testing.T) {
@@ -81,6 +83,34 @@ func TestClaudeOrchestratorWiringEnabledWithInjectedFakes(t *testing.T) {
 	}
 	if model.plans != 1 || model.reviews != 1 || worker.calls != 1 || validator.calls != 1 || memory.recorded != 1 {
 		t.Fatalf("fake calls model=%d/%d worker=%d validator=%d memory=%d; want 1 each", model.plans, model.reviews, worker.calls, validator.calls, memory.recorded)
+	}
+}
+
+// The visual review photographs pages under ~/.ao with a browser found on
+// this machine and judges them with Claude; without either it says why.
+func TestVisualReviewUsesAFoundBrowserAndClaude(t *testing.T) {
+	cfg := config.Config{DataDir: "/home/u/.ao/data", ClaudeOrchestrator: configuredClaudeOrchestratorConfig()}
+	cfg.ClaudeOrchestrator.Visual = config.ClaudeOrchestratorVisualConfig{Enabled: true, Rounds: 3, Target: 8.5, Pages: []string{"site/index.html"}}
+	var asked string
+	found := func(configured string) (string, error) { asked = configured; return "/usr/bin/chromium", nil }
+	review, reason := visualReview(cfg, found)
+	if review == nil || reason != "" {
+		t.Fatalf("visualReview = %v, %q", review, reason)
+	}
+	camera, ok := review.Capturer.(visualcheck.Camera)
+	if !ok || camera.Browser != "/usr/bin/chromium" || camera.Dir != filepath.Join(cfg.DataDir, "claude-orchestrator", "visual") || strings.Join(camera.Pages, ",") != "site/index.html" {
+		t.Fatalf("camera = %+v", review.Capturer)
+	}
+	if review.Critic == nil || review.Rounds != 3 || review.Target != 8.5 || asked != "" {
+		t.Fatalf("review = %+v, browser asked for %q", review, asked)
+	}
+
+	if _, reason := visualReview(cfg, func(string) (string, error) { return "", visualcheck.ErrNoBrowser }); reason != ports.VisualReasonNoBrowser {
+		t.Fatalf("without a browser, reason = %q", reason)
+	}
+	cfg.ClaudeOrchestrator.ClaudeProvider = modelgateway.ProviderConfig{}
+	if _, reason := visualReview(cfg, found); reason != ports.VisualReasonNoClaude {
+		t.Fatalf("without Claude, reason = %q", reason)
 	}
 }
 

@@ -14,6 +14,40 @@ function clientWith(handler: (url: string, init: RequestInit) => Response | Prom
 }
 
 describe("ClaudeOrchestratorClient", () => {
+	it("reads a run's visual review from allowlisted, bounded fields", async () => {
+		const { client, fetcher } = clientWith(() => jsonResponse(200, {
+			runId: RUN_ID,
+			rounds: [{
+				round: 1, score: 14, scores: { hierarchy: 7, "<script>": 3 }, summary: "Good hero.", fixes: ["Stack the hero", 7, ""], polish: "visual-1", findings: 2, extra: "dropped",
+				shots: [{ page: "index.html", viewport: "phone", name: "r1-index-phone.jpg", findings: ["Scrolls sideways."], file: "C:/secret" }, { page: "x", viewport: "desktop", name: "../../etc/passwd" }],
+			}],
+		}));
+		const result = await client.visual(RUN_ID);
+		expect(fetcher.mock.calls[0][0]).toBe(`${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/visual`);
+		expect(result).toEqual({ ok: true, value: { runId: RUN_ID, rounds: [{
+			round: 1, score: 10, scores: { hierarchy: 7 }, summary: "Good hero.", fixes: ["Stack the hero"], polished: true, failed: false, findings: 2,
+			shots: [{ page: "index.html", viewport: "phone", name: "r1-index-phone.jpg", findings: ["Scrolls sideways."] }, { page: "x", viewport: "desktop", findings: [] }],
+		}] } });
+		expect(await client.visual("not-a-run")).toEqual({ ok: false, error: "not_found" });
+	});
+
+	it("hands the renderer a kept screenshot only as a JPEG data URL", async () => {
+		const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2]);
+		const { client, fetcher } = clientWith((url) => url.endsWith("r1-index-phone.jpg")
+			? new Response(jpeg, { status: 200, headers: { "content-type": "image/jpeg", "content-length": String(jpeg.length) } })
+			: new Response("<html>", { status: 200, headers: { "content-type": "text/html" } }));
+		expect(await client.visualShot(RUN_ID, "r1-index-phone.jpg")).toEqual({ ok: true, value: `data:image/jpeg;base64,${Buffer.from(jpeg).toString("base64")}` });
+		expect(fetcher.mock.calls[0][0]).toBe(`${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/visual/r1-index-phone.jpg`);
+		expect(await client.visualShot(RUN_ID, "r1-index-tablet.jpg")).toEqual({ ok: false, error: "failed" });
+		fetcher.mockClear();
+		for (const name of ["../secret.jpg", "r1-index-phone.png", "", 7]) {
+			expect(await client.visualShot(RUN_ID, name)).toEqual({ ok: false, error: "not_found" });
+		}
+		expect(fetcher).not.toHaveBeenCalled();
+		const notJpeg = clientWith(() => new Response(new Uint8Array([0x89, 0x50, 0x4e, 0x47]), { status: 200, headers: { "content-type": "image/jpeg" } }));
+		expect(await notJpeg.client.visualShot(RUN_ID, "r1-index-phone.jpg")).toEqual({ ok: false, error: "failed" });
+	});
+
 	it("starts a run with an allowlisted body and explicit opt-in", async () => {
 		const { client, fetcher } = clientWith(() => jsonResponse(202, { runId: RUN_ID, state: "pending" }));
 		const result = await client.start({ task: "Add a test", maxRetries: 2 });
