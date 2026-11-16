@@ -3,6 +3,7 @@ package claudeorchestrator
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -51,6 +52,58 @@ func (w *RunWorkspaces) Changes(ctx context.Context, workspace ports.RunWorkspac
 		}
 	}
 	return newestFirst(workspace.Path, files), nil
+}
+
+var _ RunWorkspaceDiff = (*RunWorkspaces)(nil)
+
+// FullDiff is the whole of a run's change for the security guard: the diff
+// against the commit it started from, then each new file as added lines.
+// Read-only, bounded, and it takes no index lock.
+func (w *RunWorkspaces) FullDiff(ctx context.Context, workspace ports.RunWorkspace) (string, error) {
+	if w == nil || workspace.Path == "" {
+		return "", nil
+	}
+	base := workspace.BaseCommit
+	if base == "" {
+		base = "HEAD"
+	}
+	diff, err := w.gitIn(ctx, workspace.Path, "--no-optional-locks", "diff", "--no-color", "--no-ext-diff", "--no-renames", "--unified=0", base, "--")
+	if err != nil {
+		return "", err
+	}
+	var out strings.Builder
+	out.WriteString(diff)
+	untracked, err := w.gitIn(ctx, workspace.Path, "--no-optional-locks", "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return "", err
+	}
+	for _, name := range strings.Split(untracked, "\x00") {
+		if name = strings.TrimSpace(name); name == "" || out.Len() > maxGuardDiffBytes {
+			continue
+		}
+		clean := filepath.Clean(filepath.FromSlash(name))
+		if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			continue
+		}
+		path := filepath.Join(workspace.Path, clean)
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() || info.Size() > liveMaxFileBytes*4 {
+			continue
+		}
+		content, err := os.ReadFile(path) //nolint:gosec // a file Git lists inside the run's own worktree
+		if err != nil || bytes.IndexByte(content, 0) >= 0 {
+			continue
+		}
+		fmt.Fprintf(&out, "\n+++ b/%s\n@@ -0,0 +1 @@\n", filepath.ToSlash(clean))
+		for _, line := range strings.Split(strings.TrimRight(string(content), "\n"), "\n") {
+			out.WriteString("+" + line + "\n")
+		}
+	}
+	text := out.String()
+	if len(text) > maxGuardDiffBytes {
+		text = text[:maxGuardDiffBytes]
+	}
+	return text, nil
 }
 
 // parseLiveDiff turns `git diff --unified=0` into per-file counts and the last

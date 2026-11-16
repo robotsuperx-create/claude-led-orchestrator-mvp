@@ -29,6 +29,8 @@ type claudeOrchestratorBuildDeps struct {
 	Runner    claudeorchestrator.CommandRunner
 	Sandbox   ports.SandboxRunner
 	Author    ports.CodeAuthor
+	// Media makes the pictures a run's crew asks for (the media gateway).
+	Media claudeorchestrator.MediaMaker
 	// Visual replaces the browser and critic of the visual review in tests.
 	Visual *claudeorchestrator.VisualReview
 }
@@ -352,6 +354,7 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 		Budget:              runBudget(cfg.ClaudeOrchestrator.Budget),
 		MaxReplans:          cfg.ClaudeOrchestrator.MaxReplans,
 		SitePages:           sitePages(cfg.ClaudeOrchestrator.Visual.Pages),
+		Media:               injected.Media,
 	})
 	return wiring, nil
 }

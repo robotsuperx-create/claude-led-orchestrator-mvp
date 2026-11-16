@@ -37,7 +37,7 @@ const item = (n: number, overrides: Partial<MediaItem>): MediaItem => ({
 });
 
 beforeEach(() => {
-	mocks.info = { enabled: true, voice: true, capabilities: [{ id: "image", kind: "image", builtIn: true }, { id: "video", kind: "video", builtIn: true }, { id: "music", kind: "audio", builtIn: true }, { id: "animate", kind: "video", builtIn: false, title: "Animate", input: "image" }] };
+	mocks.info = { enabled: true, voice: true, capabilities: [{ id: "image", kind: "image", builtIn: true }, { id: "video", kind: "video", builtIn: true }, { id: "music", kind: "audio", builtIn: true }, { id: "animate", kind: "video", builtIn: false, title: "Animate", input: "image" }, { id: "restyle", kind: "image", builtIn: true, input: "image" }] };
 	mocks.items = [];
 	mocks.create.mockReset();
 	mocks.remove.mockReset();
@@ -81,5 +81,37 @@ describe("DeckMedia", () => {
 		expect(mocks.remove).not.toHaveBeenCalled();
 		fireEvent.click(remove);
 		expect(mocks.remove).toHaveBeenCalledWith("1".repeat(32));
+	});
+
+	it("turns one product picture into an ad pack: three shapes and a video", () => {
+		mocks.items = [item(1, { source: "upload", capability: "upload", prompt: "handbag.png" })];
+		render(<DeckMedia />);
+		fireEvent.click(screen.getByRole("button", { name: "Use" }));
+		const pack = screen.getByTestId("media-ad-pack");
+		expect(pack).toBeDisabled();
+		fireEvent.change(screen.getByTestId("media-prompt"), { target: { value: "on black marble in a luxury boutique" } });
+		fireEvent.click(pack);
+		const asked = mocks.create.mock.calls.map(([input]) => input);
+		expect(asked).toEqual([
+			{ capability: "restyle", width: 768, height: 1344, prompt: "on black marble in a luxury boutique", input: "1".repeat(32) },
+			{ capability: "restyle", width: 1024, height: 1024, prompt: "on black marble in a luxury boutique", input: "1".repeat(32) },
+			{ capability: "restyle", width: 1344, height: 768, prompt: "on black marble in a luxury boutique", input: "1".repeat(32) },
+			{ capability: "animate", seconds: 4, prompt: "on black marble in a luxury boutique", input: "1".repeat(32) },
+		]);
+	});
+
+	it("asks for a batch tonight, and shows the meter and what waits", () => {
+		mocks.items = [item(4, { state: "scheduled", files: [], runAt: "2026-11-17T02:00:00.000Z" })];
+		render(<DeckMedia />);
+		fireEvent.click(screen.getByRole("button", { name: "×10" }));
+		fireEvent.click(screen.getByTestId("media-tonight"));
+		fireEvent.change(screen.getByTestId("media-prompt"), { target: { value: "coloring pages, friendly robots" } });
+		fireEvent.click(screen.getByTestId("media-make"));
+		const asked = mocks.create.mock.calls[0][0];
+		expect(asked).toMatchObject({ capability: "image", count: 10 });
+		expect(new Date(asked.runAt).getHours()).toBe(2);
+		expect(new Date(asked.runAt).getTime()).toBeGreaterThan(Date.now());
+		expect(screen.getByTestId(`media-item-${"4".repeat(32)}`)).toHaveTextContent("Scheduled for");
+		expect(screen.getByTestId("media-meter")).toHaveTextContent("On today 0.0 h");
 	});
 });

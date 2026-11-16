@@ -210,11 +210,18 @@ type MediaGPUConfig struct {
 	Token   string
 	// Voice routes X-00's ears and voice through the server's /v1 audio API.
 	Voice bool
+	// PricePerHour is what the person pays for the server, for the meter.
+	PricePerHour float64
+	// IdleMinutes stops the server after this long with nothing to do (0: never).
+	IdleMinutes int
+	// RunPodPodID and RunPodAPIKey let the app start and stop a RunPod pod.
+	RunPodPodID  string
+	RunPodAPIKey string
 }
 
 // String keeps the token out of ordinary formatting.
 func (c MediaGPUConfig) String() string {
-	return fmt.Sprintf("MediaGPUConfig{BaseURL:%q, Voice:%t, Token:%s}", c.BaseURL, c.Voice, redactedIfSet(c.Token))
+	return fmt.Sprintf("MediaGPUConfig{BaseURL:%q, Voice:%t, PricePerHour:%v, IdleMinutes:%d, RunPodPodID:%q, Token:%s, RunPodAPIKey:%s}", c.BaseURL, c.Voice, c.PricePerHour, c.IdleMinutes, c.RunPodPodID, redactedIfSet(c.Token), redactedIfSet(c.RunPodAPIKey))
 }
 
 // GoString keeps %#v dumps redacted as well.
@@ -253,10 +260,25 @@ func loadMediaConfig(get func(string) string, dataDir string) MediaConfig {
 			voice = on
 		}
 	}
-	cfg.GPU = &MediaGPUConfig{BaseURL: baseURL, Token: token, Voice: voice}
+	gpu := &MediaGPUConfig{BaseURL: baseURL, Token: token, Voice: voice}
+	// The meter and the power switch are extras: a bad value only leaves them off.
+	if price, err := strconv.ParseFloat(strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR")), 64); err == nil && price > 0 && price <= 100 {
+		gpu.PricePerHour = price
+	}
+	if idle, err := strconv.Atoi(strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_IDLE_MINUTES"))); err == nil && idle >= 5 && idle <= 240 {
+		gpu.IdleMinutes = idle
+	}
+	pod := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_POD_ID"))
+	key := strings.TrimSpace(get("AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_API_KEY"))
+	if mediaPodPattern.MatchString(pod) && key != "" && len(key) <= mediaMaxTokenLength && !strings.ContainsAny(key, "\r\n\x00 \t") {
+		gpu.RunPodPodID, gpu.RunPodAPIKey = pod, key
+	}
+	cfg.GPU = gpu
 	cfg.Reason = ""
 	return cfg
 }
+
+var mediaPodPattern = regexp.MustCompile(`^[a-z0-9]{6,40}$`)
 
 // isLoopbackHost is true for localhost and loopback addresses.
 func isLoopbackHost(host string) bool {

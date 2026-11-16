@@ -87,6 +87,11 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 		// A self-hosted speech server names models owner/name (Hugging Face style).
 		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(\/[A-Za-z0-9._:-]{1,128})?$/.test(value(key))) errors[key] = "model";
 	}
+	if (value("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR") && !DECIMAL.test(value("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR"))) errors.AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR = "number";
+	const idle = value("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_IDLE_MINUTES");
+	if (idle && (!/^\d+$/.test(idle) || Number(idle) < 5 || Number(idle) > 240)) errors.AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_IDLE_MINUTES = "number";
+	const pod = value("AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_POD_ID");
+	if (pod && !/^[a-z0-9]{6,40}$/.test(pod)) errors.AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_POD_ID = "model";
 	const browser = value("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER");
 	if (browser && !/^([A-Za-z]:[\\/]|\/|\\\\)/.test(browser)) errors.AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER = "browserPath";
 	const pages = value("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES").split(",").map((page) => page.trim()).filter(Boolean);
@@ -357,6 +362,10 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 						onCheckedChange={(next) => set("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_VOICE", next ? "on" : "off")}
 					/>
 				</SettingsRow>
+				{field("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_PRICE_PER_HOUR", t("settings.media.price"), { mono: true, description: t("settings.media.priceDescription") })}
+				{field("AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_POD_ID", t("settings.media.runpodPod"), { mono: true, description: t("settings.media.runpodPodDescription") })}
+				{secret("AO_CLAUDE_ORCHESTRATOR_MEDIA_RUNPOD_API_KEY", t("settings.media.runpodKey"))}
+				{field("AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_IDLE_MINUTES", t("settings.media.idle"), { mono: true, description: t("settings.media.idleDescription") })}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.x00.voice")} grouped>

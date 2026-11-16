@@ -24,10 +24,12 @@ const (
 
 // Item states.
 const (
-	StateQueued  = "queued"
-	StateRunning = "running"
-	StateDone    = "done"
-	StateFailed  = "failed"
+	// StateScheduled waits for its time (the night queue) or for room in the queue.
+	StateScheduled = "scheduled"
+	StateQueued    = "queued"
+	StateRunning   = "running"
+	StateDone      = "done"
+	StateFailed    = "failed"
 )
 
 // Why an item failed: codes the app turns into words. They never carry the
@@ -48,6 +50,8 @@ const (
 	SourceX00 = "x00"
 	// SourceUpload is a picture the person added from their computer.
 	SourceUpload = "upload"
+	// SourceCrew is a picture a run's crew asked for.
+	SourceCrew = "crew"
 )
 
 // Limits on what is asked for and kept.
@@ -56,6 +60,10 @@ const (
 	MaxNegativeRunes = 1000
 	MaxListed        = 200
 	MaxCapabilities  = 64
+	// MaxBatch is how many items one request may ask for at once.
+	MaxBatch         = 30
+	maxScheduled     = 100
+	maxAhead         = 7 * 24 * time.Hour
 	maxFilesPerItem  = 8
 	maxQueued        = 16
 	maxRunning       = 2
@@ -111,13 +119,15 @@ type Item struct {
 	Seconds    int    `json:"seconds,omitempty"`
 	Seed       int64  `json:"seed"`
 	// Input is the library item whose picture the capability worked on.
-	Input     string    `json:"input,omitempty"`
-	Source    string    `json:"source"`
-	State     string    `json:"state"`
-	Failure   string    `json:"failure,omitempty"`
-	Files     []File    `json:"files"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Input string `json:"input,omitempty"`
+	// RunAt is when a scheduled item goes to the server.
+	RunAt     *time.Time `json:"runAt,omitempty"`
+	Source    string     `json:"source"`
+	State     string     `json:"state"`
+	Failure   string     `json:"failure,omitempty"`
+	Files     []File     `json:"files"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 // Request asks for one item. Zero sizes take the capability's defaults; a
@@ -134,6 +144,10 @@ type Request struct {
 	// work on one.
 	Input  string `json:"input,omitempty"`
 	Source string `json:"source,omitempty"`
+	// Count asks for several variants (each with its own seed), up to MaxBatch.
+	Count int `json:"count,omitempty"`
+	// RunAt holds the work until then (the night queue), up to a week ahead.
+	RunAt *time.Time `json:"runAt,omitempty"`
 }
 
 // Capability is one workflow the gateway can run.
@@ -164,4 +178,15 @@ type ServerStatus struct {
 	Device    string `json:"device,omitempty"`
 	VRAMBytes int64  `json:"vramBytes,omitempty"`
 	Queue     int    `json:"queue,omitempty"`
+	// What the server cost while it was on, as this app saw it.
+	OnSecondsToday int64   `json:"onSecondsToday"`
+	OnSecondsMonth int64   `json:"onSecondsMonth"`
+	PricePerHour   float64 `json:"pricePerHour,omitempty"`
+	CostToday      float64 `json:"costToday,omitempty"`
+	CostMonth      float64 `json:"costMonth,omitempty"`
+	// AutoPower is true when the app starts the server for work and stops it
+	// after IdleMinutes with nothing to do.
+	AutoPower   bool `json:"autoPower"`
+	IdleMinutes int  `json:"idleMinutes,omitempty"`
+	Scheduled   int  `json:"scheduled,omitempty"`
 }

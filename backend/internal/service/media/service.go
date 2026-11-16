@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 )
@@ -28,6 +29,9 @@ const (
 	defaultPollEvery = 2 * time.Second
 	maxPollMisses    = 5
 	statusTimeout    = 8 * time.Second
+	defaultTickEvery = 20 * time.Second
+	defaultWakeEvery = 10 * time.Second
+	wakeTimeout      = 10 * time.Minute
 )
 
 // Config sets the gateway up. With no BaseURL the library still lists,
@@ -44,6 +48,14 @@ type Config struct {
 	Logger    *slog.Logger
 	PollEvery time.Duration
 	Now       func() time.Time
+	// PricePerHour is what the person pays for the server, for the meter.
+	PricePerHour float64
+	// Power switches the server on for work and, after IdleMinutes with
+	// nothing to do, off. Nil leaves it to the person.
+	Power       PowerSwitch
+	IdleMinutes int
+	TickEvery   time.Duration
+	WakeEvery   time.Duration
 }
 
 // Service is the media gateway.
@@ -55,6 +67,15 @@ type Service struct {
 	log       *slog.Logger
 	now       func() time.Time
 	pollEvery time.Duration
+	price     float64
+	power     PowerSwitch
+	idle      time.Duration
+	tickEvery time.Duration
+	wakeEvery time.Duration
+	lastBusy  atomic.Int64
+	usageMu   sync.Mutex
+	wakeMu    sync.Mutex
+	promoteMu sync.Mutex
 
 	queue   chan string
 	mu      sync.Mutex
@@ -77,6 +98,17 @@ func New(cfg Config) *Service {
 		pollEvery: cfg.PollEvery,
 		queue:     make(chan string, maxQueued),
 		cancels:   make(map[string]context.CancelFunc),
+		price:     cfg.PricePerHour,
+		power:     cfg.Power,
+		idle:      time.Duration(cfg.IdleMinutes) * time.Minute,
+		tickEvery: cfg.TickEvery,
+		wakeEvery: cfg.WakeEvery,
+	}
+	if s.tickEvery <= 0 {
+		s.tickEvery = defaultTickEvery
+	}
+	if s.wakeEvery <= 0 {
+		s.wakeEvery = defaultWakeEvery
 	}
 	if s.log == nil {
 		s.log = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -108,7 +140,24 @@ func New(cfg Config) *Service {
 		s.wg.Add(1)
 		go s.worker()
 	}
+	s.lastBusy.Store(s.now().UnixNano())
+	s.wg.Add(1)
+	go s.ticker()
 	return s
+}
+
+func (s *Service) ticker() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(s.tickEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.tick()
+		}
+	}
 }
 
 // Close stops the workers; unfinished work is marked interrupted next time.
@@ -128,7 +177,8 @@ func (s *Service) Info() Info {
 	}
 }
 
-// Status asks the GPU server how it is. An unreachable server is not an error.
+// Status asks the GPU server how it is, with the meter and the night queue.
+// An unreachable server is not an error.
 func (s *Service) Status(ctx context.Context) ServerStatus {
 	if s.server == nil {
 		return ServerStatus{}
@@ -137,7 +187,25 @@ func (s *Service) Status(ctx context.Context) ServerStatus {
 	defer cancel()
 	status, err := s.server.stats(ctx)
 	if err != nil {
-		return ServerStatus{}
+		status = ServerStatus{}
+	}
+	now := s.now()
+	status.OnSecondsToday, status.OnSecondsMonth = s.onTime(now)
+	if s.price > 0 {
+		status.PricePerHour = s.price
+		status.CostToday = cost(status.OnSecondsToday, s.price)
+		status.CostMonth = cost(status.OnSecondsMonth, s.price)
+	}
+	if s.power != nil {
+		status.AutoPower = true
+		status.IdleMinutes = int(s.idle / time.Minute)
+	}
+	if items, err := s.lib.list(); err == nil {
+		for _, item := range items {
+			if item.State == StateScheduled {
+				status.Scheduled++
+			}
+		}
 	}
 	return status
 }
@@ -171,6 +239,17 @@ func (s *Service) Create(request Request) (Item, error) {
 	if err != nil {
 		return Item{}, err
 	}
+	count := request.Count
+	if count == 0 {
+		count = 1
+	}
+	now := s.now()
+	if count < 1 || count > MaxBatch || (request.RunAt != nil && request.RunAt.After(now.Add(maxAhead))) {
+		return Item{}, ErrInvalidRequest
+	}
+	if count > 1 || (request.RunAt != nil && request.RunAt.After(now)) {
+		return s.schedule(request, file, item, count)
+	}
 	s.mu.Lock()
 	if s.pending >= maxQueued {
 		s.mu.Unlock()
@@ -185,6 +264,50 @@ func (s *Service) Create(request Request) (Item, error) {
 	// The queue holds maxQueued and pending never exceeds it, so this never waits.
 	s.queue <- item.ID
 	return item, nil
+}
+
+// schedule keeps a batch, or work for later, as scheduled items; the ticker
+// sends each to the queue when its time comes and there is room.
+func (s *Service) schedule(request Request, file workflowFile, first Item, count int) (Item, error) {
+	waiting := 0
+	if items, err := s.lib.list(); err == nil {
+		for _, item := range items {
+			if item.State == StateScheduled {
+				waiting++
+			}
+		}
+	}
+	if waiting+count > maxScheduled {
+		return Item{}, ErrBusy
+	}
+	when := s.now().UTC()
+	if request.RunAt != nil && request.RunAt.After(when) {
+		when = request.RunAt.UTC()
+	}
+	for i := 0; i < count; i++ {
+		item := first
+		if i > 0 {
+			next, err := s.newItem(request, file)
+			if err != nil {
+				return Item{}, err
+			}
+			item = next
+			if request.Seed > 0 {
+				item.Seed = request.Seed + int64(i)
+			}
+		}
+		at := when
+		item.RunAt = &at
+		item.State = StateScheduled
+		if err := s.lib.save(item); err != nil {
+			return Item{}, err
+		}
+		if i == 0 {
+			first = item
+		}
+	}
+	go s.promote()
+	return first, nil
 }
 
 // newItem checks a request against its capability and fills the defaults.
@@ -216,7 +339,7 @@ func (s *Service) newItem(request Request, file workflowFile) (Item, error) {
 		seed = randomSeed()
 	}
 	source := request.Source
-	if source != SourceX00 {
+	if source != SourceX00 && source != SourceCrew {
 		source = SourceApp
 	}
 	now := s.now().UTC()
@@ -276,6 +399,40 @@ func pick(asked, preset, fallback int) int {
 }
 
 func validSide(side, most int) bool { return side >= MinSide && side <= most }
+
+// Enabled is true when a GPU server is set.
+func (s *Service) Enabled() bool { return s.server != nil }
+
+// MakePicture makes one picture for a run and waits for it: the crew's own
+// request, kept in the library like any other.
+func (s *Service) MakePicture(ctx context.Context, prompt string, width, height int) ([]byte, error) {
+	item, err := s.Create(Request{Capability: KindImage, Prompt: prompt, Width: width, Height: height, Source: SourceCrew})
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, imageTimeout+wakeTimeout)
+	defer cancel()
+	for {
+		current, err := s.lib.get(item.ID)
+		if err != nil {
+			return nil, err
+		}
+		switch current.State {
+		case StateDone:
+			if len(current.Files) == 0 || !ValidFileName(current.Files[0].Name) {
+				return nil, failure(FailNoOutput)
+			}
+			return os.ReadFile(filepath.Join(s.lib.itemDir(item.ID), current.Files[0].Name)) //nolint:gosec // a file in the library's own item folder
+		case StateFailed:
+			return nil, failure(current.Failure)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(s.pollEvery):
+		}
+	}
+}
 
 // Upload adds a picture from the person's computer to the library, so a
 // capability can work on it. It needs no server.
@@ -397,7 +554,7 @@ func (s *Service) run(id string) {
 	if err := s.lib.update(id, func(item *Item) { item.State = StateRunning; item.UpdatedAt = s.now().UTC() }); err != nil {
 		return
 	}
-	files, err := s.make(ctx, item, file)
+	files, err := s.wakeAndMake(ctx, item, file)
 	if err != nil {
 		// Deleted, or the app is closing: nothing to report.
 		if errors.Is(err, context.Canceled) || s.ctx.Err() != nil {
@@ -411,6 +568,14 @@ func (s *Service) run(id string) {
 		item.Files = files
 		item.UpdatedAt = s.now().UTC()
 	})
+}
+
+// wakeAndMake starts the server first when the app may switch it on.
+func (s *Service) wakeAndMake(ctx context.Context, item Item, file workflowFile) ([]File, error) {
+	if err := s.wake(ctx); err != nil {
+		return nil, err
+	}
+	return s.make(ctx, item, file)
 }
 
 // make runs one item on the server and keeps what it saved.

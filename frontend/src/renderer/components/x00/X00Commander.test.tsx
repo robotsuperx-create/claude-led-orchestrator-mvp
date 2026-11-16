@@ -81,7 +81,7 @@ function renderCommander() {
 describe("X00Commander", () => {
 	beforeEach(() => {
 		for (const mock of Object.values(mocks)) mock.mockReset();
-		useX00Store.setState({ open: false, entries: [], thinking: false, speaking: false, hearing: "idle", unseen: 0, mood: "neutral", prefs: { voice: false, alerts: true, voiceURI: null } });
+		useX00Store.setState({ open: false, entries: [], thinking: false, speaking: false, hearing: "idle", unseen: 0, mood: "neutral", prefs: { voice: false, alerts: true, voiceURI: null, handsFree: false } });
 		useUiStore.setState({ settingsModal: null });
 		mocks.x00Info.mockResolvedValue({ ok: true, value: { enabled: true, model: "claude-haiku-5-5" } });
 		mocks.info.mockResolvedValue({ ok: true, value: enabledInfo });

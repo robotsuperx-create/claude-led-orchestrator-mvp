@@ -11,7 +11,8 @@ export type X00Entry =
 	| { id: string; kind: "alert"; content: string; tone: X00Mood; at: number }
 	| { id: string; kind: "error"; code: string; at: number };
 
-export type X00Prefs = { voice: boolean; alerts: boolean; voiceURI: string | null };
+/** handsFree: X-00 listens all the time and answers when he hears his name. */
+export type X00Prefs = { voice: boolean; alerts: boolean; voiceURI: string | null; handsFree: boolean };
 
 type X00Store = {
 	open: boolean;
@@ -36,7 +37,7 @@ type X00Store = {
 
 const STORAGE_KEY = "x-robot.x00.v1";
 const MAX_ENTRIES = 60;
-const DEFAULT_PREFS: X00Prefs = { voice: true, alerts: true, voiceURI: null };
+const DEFAULT_PREFS: X00Prefs = { voice: true, alerts: true, voiceURI: null, handsFree: false };
 
 type Saved = { entries?: unknown; prefs?: unknown };
 
@@ -54,6 +55,7 @@ function readSaved(): { entries: X00Entry[]; prefs: X00Prefs } {
 				voice: typeof prefs.voice === "boolean" ? prefs.voice : DEFAULT_PREFS.voice,
 				alerts: typeof prefs.alerts === "boolean" ? prefs.alerts : DEFAULT_PREFS.alerts,
 				voiceURI: typeof prefs.voiceURI === "string" ? prefs.voiceURI : null,
+				handsFree: prefs.handsFree === true,
 			},
 		};
 	} catch {
