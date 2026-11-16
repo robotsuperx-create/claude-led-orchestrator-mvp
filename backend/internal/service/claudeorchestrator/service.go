@@ -53,6 +53,9 @@ type Dependencies struct {
 	// VisualUnavailable says why there is no visual review although one was
 	// asked for: ports.VisualReasonNoBrowser or ports.VisualReasonNoClaude.
 	VisualUnavailable string
+	// SitePages, when set, finds a run's web pages in its worktree (paths
+	// relative to it) for the deck's live preview.
+	SitePages func(worktree string) []string
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -73,6 +76,7 @@ type Service struct {
 	maxReplans          int
 	visual              *VisualReview
 	visualUnavailable   string
+	sitePages           func(worktree string) []string
 
 	mu        sync.RWMutex
 	states    map[string]ports.RunState
@@ -82,6 +86,7 @@ type Service struct {
 	approvals map[string]chan bool
 	meters    map[string]*usageMeter
 	visuals   map[string][]ports.VisualRound
+	live      map[string]*liveRun
 	finished  []string
 }
 
@@ -113,6 +118,7 @@ func New(deps Dependencies) *Service {
 		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
 		visual:              deps.Visual,
 		visualUnavailable:   deps.VisualUnavailable,
+		sitePages:           deps.SitePages,
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),
@@ -122,6 +128,7 @@ func New(deps Dependencies) *Service {
 		approvals: make(map[string]chan bool),
 		meters:    make(map[string]*usageMeter),
 		visuals:   make(map[string][]ports.VisualRound),
+		live:      make(map[string]*liveRun),
 	}
 }
 
@@ -323,6 +330,8 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	}
 	plan = bindTrustedWorkspace(plan, result.Workspace.Path)
 	result.Plan = plan
+	s.liveWorkspace(request.RunID, result.Workspace)
+	s.liveStart(request.RunID, plan)
 
 	if !s.advance(runCtx, request.RunID, ports.RunStateExecuting) {
 		return canceledResult(result)
@@ -342,6 +351,7 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		}
 		result.Replans++
 		revised = bindTrustedWorkspace(revised, result.Workspace.Path)
+		s.liveStart(request.RunID, revised)
 		completed, completedTasks := completedResults(result.Results)
 		completedTasks = append(completedTasks, revised.Subtasks...)
 		plan = ports.ExecutionPlan{Summary: revised.Summary, Subtasks: completedTasks}
@@ -436,6 +446,7 @@ func (s *Service) release(runID string) {
 			delete(s.plans, oldest)
 			delete(s.meters, oldest)
 			delete(s.visuals, oldest)
+			delete(s.live, oldest)
 		}
 	}
 }
@@ -586,6 +597,7 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 				}
 				execution := ports.WorkerExecution{Status: ports.WorkerOutcomeBlocked, Error: reason}
 				results[i] = ports.CollectedTaskResult{Task: task, FinalExecution: execution}
+				s.liveStep(request.RunID, task.ID, ports.LiveStepBlocked, 0)
 				status[i] = done
 				remaining--
 				continue
@@ -596,7 +608,7 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 			status[i] = running
 			active++
 			go func(i int, task ports.PlannedSubtask) {
-				results[i] = s.runSubtask(ctx, task, maxAttempts)
+				results[i] = s.runSubtask(ctx, request.RunID, task, maxAttempts)
 				finished <- i
 			}(i, task)
 		}
@@ -611,6 +623,11 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 		active--
 		status[i] = done
 		succeeded[i] = results[i].FinalExecution.Status == ports.WorkerOutcomeCompleted
+		if succeeded[i] {
+			s.liveStep(request.RunID, plan.Subtasks[i].ID, ports.LiveStepDone, 0)
+		} else {
+			s.liveStep(request.RunID, plan.Subtasks[i].ID, ports.LiveStepFailed, 0)
+		}
 		remaining--
 	}
 	// Return only settled subtasks, in plan order.
@@ -624,10 +641,11 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 }
 
 // runSubtask executes one subtask with retries, feeding each failure back.
-func (s *Service) runSubtask(ctx context.Context, task ports.PlannedSubtask, maxAttempts int) ports.CollectedTaskResult {
+func (s *Service) runSubtask(ctx context.Context, runID string, task ports.PlannedSubtask, maxAttempts int) ports.CollectedTaskResult {
 	taskResult := ports.CollectedTaskResult{Task: task}
 	previousFailure := ""
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		s.liveStep(runID, task.ID, ports.LiveStepRunning, attempt)
 		execution, err := s.worker.Execute(ctx, ports.WorkerRequest{
 			Task:            task,
 			Attempt:         attempt,

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { AoBridge } from "../src/preload";
 import { agentReadiness } from "../src/renderer/test/agent-readiness-fixtures";
 import { installFakeAgent } from "./support/fake-bridge";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 // Renderer integration: real project-add API client and import dialogs, with
 // deterministic daemon responses and a fake native picker/workspace snapshot.
@@ -37,6 +38,7 @@ test("renderer: importing an alias opens the registered project without starting
 		await route.fulfill({ json: { status: "ok", project: { id: projectId, config: {} } } });
 	});
 	await page.goto("/#/");
+	await openSidebarOnHome(page);
 	await page.evaluate((path) => {
 		const bridge = (window as unknown as { ao: AoBridge }).ao;
 		bridge.app.chooseDirectory = async () => path;

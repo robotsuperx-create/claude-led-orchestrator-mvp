@@ -3,9 +3,11 @@ import {
 	isTerminalClaudeOrchestratorState,
 	type ClaudeOrchestratorErrorCode,
 	type ClaudeOrchestratorInfo,
+	type ClaudeOrchestratorLive,
 	type ClaudeOrchestratorPlan,
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
+	type ClaudeOrchestratorSitePages,
 	type ClaudeOrchestratorStartInput,
 	type ClaudeOrchestratorVisual,
 } from "../../shared/claude-orchestrator";
@@ -18,6 +20,8 @@ export const claudeOrchestratorQueryKeys = {
 	plan: (runId: string) => ["claude-orchestrator", "plan", runId] as const,
 	visual: (runId: string) => ["claude-orchestrator", "visual", runId] as const,
 	visualShot: (runId: string, name: string) => ["claude-orchestrator", "visual", runId, name] as const,
+	live: (runId: string) => ["claude-orchestrator", "live", runId] as const,
+	sitePages: (runId: string) => ["claude-orchestrator", "site", runId] as const,
 };
 
 /** A failed bridge call; `code` is the only detail the renderer ever sees. */
@@ -138,6 +142,28 @@ export function useClaudeOrchestratorVisualShot(runId: string, name: string | un
 		enabled: Boolean(name),
 		staleTime: Number.POSITIVE_INFINITY,
 		gcTime: 5 * 60_000,
+		retry: false,
+	});
+}
+
+/** What a run is doing right now; polled quickly while it is live, so the deck's code stream and crew map move. */
+export function useClaudeOrchestratorLive(runId: string, live: boolean) {
+	return useQuery<ClaudeOrchestratorLive>({
+		queryKey: claudeOrchestratorQueryKeys.live(runId),
+		queryFn: () => unwrap((bridge) => bridge.live(runId)),
+		enabled: runId !== "",
+		refetchInterval: live ? 1_500 : false,
+		retry: false,
+	});
+}
+
+/** A run's page names for the live preview; none until the run has a worktree with pages. */
+export function useClaudeOrchestratorSitePages(runId: string, live: boolean) {
+	return useQuery<ClaudeOrchestratorSitePages>({
+		queryKey: claudeOrchestratorQueryKeys.sitePages(runId),
+		queryFn: () => unwrap((bridge) => bridge.sitePages(runId)),
+		enabled: runId !== "",
+		refetchInterval: live ? 5_000 : false,
 		retry: false,
 	});
 }

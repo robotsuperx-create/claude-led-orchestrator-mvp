@@ -3,16 +3,20 @@ import {
 	isClaudeOrchestratorRunId,
 	isClaudeOrchestratorVisualShotName,
 	parseClaudeOrchestratorInfo,
+	parseClaudeOrchestratorLive,
 	parseClaudeOrchestratorPlan,
 	parseClaudeOrchestratorRun,
 	parseClaudeOrchestratorRunList,
+	parseClaudeOrchestratorSite,
 	parseClaudeOrchestratorVisual,
 	validClaudeOrchestratorStartInput,
 	type ClaudeOrchestratorErrorCode,
 	type ClaudeOrchestratorInfo,
+	type ClaudeOrchestratorLive,
 	type ClaudeOrchestratorPlan,
 	type ClaudeOrchestratorResult,
 	type ClaudeOrchestratorRun,
+	type ClaudeOrchestratorSitePages,
 	type ClaudeOrchestratorVisual,
 } from "../shared/claude-orchestrator";
 
@@ -24,6 +28,8 @@ const REQUEST_TIMEOUT_MS = 5_000;
 const PUBLISH_TIMEOUT_MS = 150_000;
 // A screenshot of a long page is a few megabytes read from local disk.
 const SHOT_TIMEOUT_MS = 15_000;
+// Where a run's pages live is asked of the daemon at most this often per run.
+const SITE_ROOT_TTL_MS = 15_000;
 
 const DISABLED_INFO: ClaudeOrchestratorInfo = {
 	enabled: false, repository: "", plannerModel: "", workerProvider: "", workerModel: "", workerMode: "model", sandboxed: false, maxActiveRuns: 0,
@@ -38,7 +44,9 @@ const DISABLED_INFO: ClaudeOrchestratorInfo = {
  * daemon, provider, or worker text reaches the renderer.
  */
 export class ClaudeOrchestratorClient {
-	constructor(private readonly origin: () => string | null, private readonly fetcher: Fetcher = fetch) {}
+	private readonly siteRoots = new Map<string, { root: string; at: number }>();
+
+	constructor(private readonly origin: () => string | null, private readonly fetcher: Fetcher = fetch, private readonly now: () => number = Date.now) {}
 
 	async info(): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorInfo>> {
 		const response = await this.request("GET", BASE_PATH);
@@ -146,6 +154,41 @@ export class ClaudeOrchestratorClient {
 		} finally {
 			clearTimeout(timer);
 		}
+	}
+
+	/** What a run is doing right now: its steps and the code it has written. */
+	async live(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorLive>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const response = await this.request("GET", `${BASE_PATH}/runs/${runId}/live`);
+		if (!response.ok) return response;
+		const live = parseClaudeOrchestratorLive(response.body);
+		return live && live.runId === runId ? { ok: true, value: live } : { ok: false, error: "failed" };
+	}
+
+	/** A run's page names for the live preview. Where they live stays in this process. */
+	async sitePages(runId: unknown): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorSitePages>> {
+		if (!isClaudeOrchestratorRunId(runId)) return { ok: false, error: "not_found" };
+		const site = await this.site(runId);
+		if (!site.ok) return site;
+		return { ok: true, value: { runId, pages: site.value.pages } };
+	}
+
+	/** The worktree a run's pages are served from, for the preview's scheme handler only. */
+	async siteRoot(runId: string): Promise<string | null> {
+		if (!isClaudeOrchestratorRunId(runId)) return null;
+		const cached = this.siteRoots.get(runId);
+		if (cached && this.now() - cached.at < SITE_ROOT_TTL_MS) return cached.root;
+		const site = await this.site(runId);
+		return site.ok ? site.value.root : null;
+	}
+
+	private async site(runId: string): Promise<ClaudeOrchestratorResult<{ root: string; pages: string[] }>> {
+		const response = await this.request("GET", `${BASE_PATH}/runs/${runId}/site`);
+		if (!response.ok) return response;
+		const site = parseClaudeOrchestratorSite(response.body);
+		if (!site || site.runId !== runId) return { ok: false, error: "failed" };
+		this.siteRoots.set(runId, { root: site.root, at: this.now() });
+		return { ok: true, value: { root: site.root, pages: site.pages } };
 	}
 
 	private async decide(runId: unknown, decision: "approve" | "reject"): Promise<ClaudeOrchestratorResult<ClaudeOrchestratorRun>> {

@@ -33,6 +33,20 @@ vi.mock("../components/x00/X00Commander", () => ({
 	useX00PortraitState: () => ({ state: "watching", speaking: false }),
 }));
 
+// Home is the X-ROBOT deck; its runs come from the orchestrator bridge and
+// X-00 is drawn with WebGL, neither of which these harnesses have.
+vi.mock("../hooks/useClaudeOrchestrator", () => ({
+	useClaudeOrchestratorInfo: () => ({ data: { enabled: false } }),
+	useClaudeOrchestratorRuns: () => ({ data: [] }),
+	useClaudeOrchestratorPlan: () => ({ data: undefined }),
+	useCancelClaudeOrchestratorRun: () => ({ mutate: vi.fn() }),
+	useClaudeOrchestratorLive: () => ({ data: undefined }),
+	useClaudeOrchestratorSitePages: () => ({ data: undefined }),
+	useClaudeOrchestratorVisual: () => ({ data: undefined }),
+	useClaudeOrchestratorVisualShot: () => ({ data: undefined }),
+}));
+vi.mock("../components/deck/DeckPortrait", () => ({ DeckPortrait: () => null }));
+
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-router")>()),
 	useNavigate: () => routeMocks.navigate,

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { installFakeAgent } from "./support/fake-bridge";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 test.use({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36" });
 
@@ -35,6 +36,7 @@ for (const mode of ["chat", "tui"] as const) {
 				window.ao!.window.isFullScreen = async () => fullscreen;
 			}, fullScreen);
 			await page.goto("/");
+			await openSidebarOnHome(page);
 			await page.getByRole("button", { name: "Toggle fake-proj sessions", exact: true }).click();
 			await page.getByRole("button", { name: "Open Chrome worker", exact: true }).click();
 			await expect(page.locator('[data-testid="session-topbar-host"]')).toBeVisible();

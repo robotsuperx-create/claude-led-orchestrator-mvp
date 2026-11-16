@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { AoBridge } from "../src/preload";
 import { agentReadiness } from "../src/renderer/test/agent-readiness-fixtures";
 import { installFakeAgent } from "./support/fake-bridge";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 for (const destinationMode of ["picker", "typed"] as const) {
 	test(`renderer: clone cancel and retry use the matching preparation ID with ${destinationMode} destination @T0`, async ({ page }) => {
@@ -54,6 +55,7 @@ for (const destinationMode of ["picker", "typed"] as const) {
 		});
 
 		await page.goto("/#/");
+		await openSidebarOnHome(page);
 		await page.evaluate(() => {
 			const bridge = (window as unknown as { ao: AoBridge }).ao;
 			bridge.app.chooseDirectory = async () => "/repos";

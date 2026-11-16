@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openInspector } from "./support/open-inspector";
+import { openSidebarOnHome } from "./support/home-sidebar";
 
 // Dragging a panel edge must clamp at the panel's minimum width — never
 // auto-collapse. Collapse belongs to the explicit controls only (⌘B / topbar
@@ -15,6 +16,7 @@ async function dragPointer(page: Page, from: { x: number; y: number }, to: { x: 
 
 test("sidebar drag stops at its minimum width instead of collapsing", async ({ page }) => {
 	await page.goto("/");
+	await openSidebarOnHome(page);
 
 	const sidebar = page.locator('[data-slot="sidebar"]');
 	await expect(sidebar).toHaveAttribute("data-state", "expanded");
