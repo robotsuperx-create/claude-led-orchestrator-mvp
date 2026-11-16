@@ -141,6 +141,8 @@ type ReviewRequest struct {
 	Plan       ExecutionPlan         `json:"plan"`
 	Results    []CollectedTaskResult `json:"results"`
 	Validation ValidationReport      `json:"validation"`
+	// Visual is what the visual critic found, round by round.
+	Visual []VisualRound `json:"visual,omitempty"`
 }
 
 // ReviewOutcome is the reviewer's recommendation for the collected work.
@@ -293,6 +295,8 @@ type OrchestrationResult struct {
 	Usage RunUsage
 	// Replans counts how many times Claude revised the plan after failures.
 	Replans int
+	// Visual is each look the critic took at the run's pages, in order.
+	Visual []VisualRound
 }
 
 // RunWorkspace is the server-owned worktree a run executed in, its branch,
