@@ -72,7 +72,7 @@ export class MediaClient {
 	async upload(input: unknown): Promise<MediaResult<MediaItem>> {
 		const upload = parseMediaUploadInput(input);
 		if (!upload) return { ok: false, error: "invalid" };
-		const response = await this.request("POST", `${BASE_PATH}/uploads?name=${encodeURIComponent(upload.name)}`, upload.data, "application/octet-stream", UPLOAD_TIMEOUT_MS);
+		const response = await this.request("POST", `${BASE_PATH}/uploads?name=${encodeURIComponent(upload.name)}`, new Uint8Array(upload.data), "application/octet-stream", UPLOAD_TIMEOUT_MS);
 		if (!response.ok) return response;
 		const item = parseMediaItem(response.body);
 		return item ? { ok: true, value: item } : { ok: false, error: "failed" };

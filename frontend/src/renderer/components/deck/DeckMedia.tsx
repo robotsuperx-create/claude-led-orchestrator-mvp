@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { MEDIA_MAX_PROMPT_CHARS, MEDIA_MAX_UPLOAD_BYTES, type MediaCapability, type MediaItem } from "../../../shared/media";
 import { useUiStore } from "../../stores/ui-store";
@@ -44,9 +45,11 @@ function ServerLine() {
 	);
 }
 
-function capabilityName(t: (key: string) => string, capability: MediaCapability): string {
-	if (capability.builtIn && ["image", "video", "music"].includes(capability.id)) return t(`deck.media.kind.${capability.id}`);
-	return capability.title || capability.id;
+const BUILT_IN_NAMES = { image: "deck.media.kind.image", video: "deck.media.kind.video", music: "deck.media.kind.music" } as const;
+
+function capabilityName(t: TFunction, capability: MediaCapability): string {
+	const key = capability.builtIn ? BUILT_IN_NAMES[capability.id as keyof typeof BUILT_IN_NAMES] : undefined;
+	return key ? t(key) : capability.title || capability.id;
 }
 
 /** What to make: the kind, the words, the shape or length, and a picture to start from. */
