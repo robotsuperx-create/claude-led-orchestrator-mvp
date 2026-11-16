@@ -84,9 +84,9 @@ describe("MissionControlSettingsSection", () => {
 		expect(screen.queryByLabelText("DeepSeek API key")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText("Local model")).not.toBeInTheDocument();
 		expect(screen.queryByText("Plans and reviews")).not.toBeInTheDocument();
-		expect(screen.getByTestId("mission-control-claude-writers")).toHaveTextContent("Claude, up to 3 subtasks at once");
+		expect(screen.getByText(/^Claude, up to 3 subtasks at once/)).toBeInTheDocument();
 		await user.type(screen.getByLabelText("Subtasks at once"), "5");
-		expect(screen.getByTestId("mission-control-claude-writers")).toHaveTextContent("up to 5 subtasks");
+		expect(screen.getByText(/^Claude, up to 5 subtasks at once/)).toBeInTheDocument();
 
 		// The Claude address and model may stay empty: they have defaults.
 		await user.click(screen.getByRole("button", { name: "Choose folder" }));
