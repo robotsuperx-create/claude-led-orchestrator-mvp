@@ -64,6 +64,7 @@ func newX00Voice(cfg config.X00VoiceConfig) *x00voice.Voice {
 			TranscribeModel: cfg.Cloud.TranscribeModel,
 			SpeechModel:     cfg.Cloud.SpeechModel,
 			Voice:           cfg.Cloud.Voice,
+			GPU:             cfg.Cloud.GPU,
 		}
 		client := x00voice.NewCloudClient()
 		ears = append(ears, &x00voice.CloudEar{Config: cloud, Client: client})

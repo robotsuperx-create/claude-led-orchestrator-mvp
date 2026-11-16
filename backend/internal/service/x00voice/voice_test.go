@@ -411,3 +411,31 @@ func TestLocalMouthKeepsAVoiceWarm(t *testing.T) {
 		t.Fatalf("restart: started %d, err %v", len(started), err)
 	}
 }
+
+func TestTheGPUServerSpeaksAsItsOwnEngineAndNeedsNoKeyOnThisMachine(t *testing.T) {
+	var authorization []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = append(authorization, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "audio/mpeg")
+		_, _ = w.Write([]byte("ID3audio"))
+	}))
+	defer server.Close()
+	mouth := &CloudMouth{Config: CloudConfig{BaseURL: server.URL + "/v1", SpeechModel: "speaches-ai/Kokoro-82M-v1.0-ONNX", Voice: "am_onyx", GPU: true}, Client: server.Client()}
+	if !mouth.Available() || mouth.Kind() != KindGPU {
+		t.Fatalf("GPU mouth available=%v kind=%q", mouth.Available(), mouth.Kind())
+	}
+	if _, err := mouth.Synthesize(context.Background(), "مرحبا", "ar"); err != nil {
+		t.Fatalf("Synthesize: %v", err)
+	}
+	keyed := &CloudMouth{Config: CloudConfig{BaseURL: server.URL + "/v1", APIKey: "gpu-token", SpeechModel: "m", Voice: "v", GPU: true}, Client: server.Client()}
+	if _, err := keyed.Synthesize(context.Background(), "hello", "en"); err != nil {
+		t.Fatalf("Synthesize with a token: %v", err)
+	}
+	if len(authorization) != 2 || authorization[0] != "" || authorization[1] != "Bearer gpu-token" {
+		t.Fatalf("authorization headers = %q", authorization)
+	}
+	cloud := &CloudMouth{Config: CloudConfig{BaseURL: server.URL, SpeechModel: "m", Voice: "v"}}
+	if cloud.Available() || cloud.Kind() != KindCloud {
+		t.Fatal("a cloud service with no key is not available")
+	}
+}

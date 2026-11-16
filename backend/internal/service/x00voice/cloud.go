@@ -21,6 +21,28 @@ type CloudConfig struct {
 	TranscribeModel string
 	SpeechModel     string
 	Voice           string
+	// GPU marks the person's own GPU server (a self-hosted speech server
+	// behind the media gateway's address). It may run with no key on this
+	// machine, and it is reported as its own engine.
+	GPU bool
+}
+
+// kind is how the app names this service.
+func (c CloudConfig) kind() string {
+	if c.GPU {
+		return KindGPU
+	}
+	return KindCloud
+}
+
+// keyed is true when a key is set, or the GPU server needs none.
+func (c CloudConfig) keyed() bool { return c.APIKey != "" || c.GPU }
+
+// authorize adds the key, when there is one.
+func (c CloudConfig) authorize(request *http.Request) {
+	if c.APIKey != "" {
+		request.Header.Set("Authorization", "Bearer "+c.APIKey)
+	}
 }
 
 const (
@@ -47,12 +69,12 @@ type CloudEar struct {
 	Client *http.Client
 }
 
-// Kind reports that this ear is the cloud service.
-func (e *CloudEar) Kind() string { return KindCloud }
+// Kind reports that this ear is the cloud service (or the GPU server).
+func (e *CloudEar) Kind() string { return e.Config.kind() }
 
 // Available reports whether a key, address and model are set.
 func (e *CloudEar) Available() bool {
-	return e.Config.APIKey != "" && e.Config.BaseURL != "" && e.Config.TranscribeModel != ""
+	return e.Config.keyed() && e.Config.BaseURL != "" && e.Config.TranscribeModel != ""
 }
 
 // Transcribe sends the recording to the service and returns its text.
@@ -86,7 +108,7 @@ func (e *CloudEar) Transcribe(ctx context.Context, wav []byte, lang string) (str
 		return "", err
 	}
 	request.Header.Set("Content-Type", form.FormDataContentType())
-	request.Header.Set("Authorization", "Bearer "+e.Config.APIKey)
+	e.Config.authorize(request)
 	data, err := doCloud(e.Client, request, maxCloudTranscript)
 	if err != nil {
 		return "", err
@@ -106,12 +128,12 @@ type CloudMouth struct {
 	Client *http.Client
 }
 
-// Kind reports that this voice is the cloud service.
-func (m *CloudMouth) Kind() string { return KindCloud }
+// Kind reports that this voice is the cloud service (or the GPU server).
+func (m *CloudMouth) Kind() string { return m.Config.kind() }
 
 // Available reports whether a key, address, model and voice are set.
 func (m *CloudMouth) Available() bool {
-	return m.Config.APIKey != "" && m.Config.BaseURL != "" && m.Config.SpeechModel != "" && m.Config.Voice != ""
+	return m.Config.keyed() && m.Config.BaseURL != "" && m.Config.SpeechModel != "" && m.Config.Voice != ""
 }
 
 // Synthesize asks the service to speak the line and returns MP3 audio.
@@ -134,7 +156,7 @@ func (m *CloudMouth) Synthesize(ctx context.Context, text, _ string) (Audio, err
 		return Audio{}, err
 	}
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+m.Config.APIKey)
+	m.Config.authorize(request)
 	data, err := doCloud(m.Client, request, maxCloudSpeechBytes)
 	if err != nil {
 		return Audio{}, err

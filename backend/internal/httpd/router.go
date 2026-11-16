@@ -91,7 +91,8 @@ func NewRouterWithControl(cfg config.Config, log *slog.Logger, termMgr *terminal
 	if orchestrator != nil {
 		fleet = orchestrator.Fleet
 	}
-	mountX00(r, deps.X00, deps.X00Voice, cfg.ClaudeOrchestrator.Commander, fleet)
+	mountMedia(r, deps.Media)
+	mountX00(r, deps.X00, deps.X00Voice, cfg.ClaudeOrchestrator.Commander, withMedia(fleet, deps.Media))
 	api.Register(r)
 
 	return r
