@@ -23,6 +23,7 @@ import {
 } from "./shared/tray";
 import type { DaemonStatus } from "./shared/daemon-status";
 import type { ClaudeOrchestratorInfo, ClaudeOrchestratorLive, ClaudeOrchestratorPlan, ClaudeOrchestratorResult, ClaudeOrchestratorRun, ClaudeOrchestratorSitePages, ClaudeOrchestratorStartInput, ClaudeOrchestratorVisual } from "./shared/claude-orchestrator";
+import { mediaFileUrl, type MediaCreateInput, type MediaInfo, type MediaItem, type MediaResult, type MediaServerStatus, type MediaUploadInput } from "./shared/media";
 import type { X00ChatInput, X00Heard, X00Info, X00ListenInput, X00Reply, X00Result, X00SpeakInput, X00Speech } from "./shared/x00";
 import type { RemoteHostView } from "./main/remotes-ipc";
 import type { ConnectedHostView } from "./main/remote-registry";
@@ -364,6 +365,15 @@ const api = {
 		visualShot: (runId: string, name: string) => ipcRenderer.invoke("claudeOrchestrator:visualShot", runId, name) as Promise<ClaudeOrchestratorResult<string>>,
 		live: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:live", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorLive>>,
 		sitePages: (runId: string) => ipcRenderer.invoke("claudeOrchestrator:sitePages", runId) as Promise<ClaudeOrchestratorResult<ClaudeOrchestratorSitePages>>,
+	},
+	media: {
+		info: () => ipcRenderer.invoke("media:info") as Promise<MediaResult<MediaInfo>>,
+		status: () => ipcRenderer.invoke("media:status") as Promise<MediaResult<MediaServerStatus>>,
+		list: () => ipcRenderer.invoke("media:list") as Promise<MediaResult<MediaItem[]>>,
+		create: (input: MediaCreateInput) => ipcRenderer.invoke("media:create", input) as Promise<MediaResult<MediaItem>>,
+		upload: (input: MediaUploadInput) => ipcRenderer.invoke("media:upload", { name: input.name, data: input.data }) as Promise<MediaResult<MediaItem>>,
+		remove: (id: string) => ipcRenderer.invoke("media:remove", id) as Promise<MediaResult<true>>,
+		fileUrl: (itemId: string, name: string) => mediaFileUrl(itemId, name),
 	},
 	x00: {
 		info: () => ipcRenderer.invoke("x00:info") as Promise<X00Result<X00Info>>,

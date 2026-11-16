@@ -10,6 +10,7 @@ import { X00Recorder, X00RecorderError } from "../lib/x00-ear";
 import { unavailableX00Bridge, type X00Bridge } from "../lib/x00-preview";
 import { conversationForClaude, useX00Store, x00Id, type X00Proposal } from "../stores/x00-store";
 import { useUiStore } from "../stores/ui-store";
+import { useCreateMedia } from "./useMedia";
 import {
 	useCancelClaudeOrchestratorRun,
 	useClaudeOrchestratorInfo,
@@ -249,6 +250,7 @@ export function useX00Actions() {
 	const decide = useDecideClaudeOrchestratorPlan();
 	const cancel = useCancelClaudeOrchestratorRun();
 	const publish = usePublishClaudeOrchestratorRun();
+	const makeMedia = useCreateMedia();
 	const navigate = useNavigate();
 	const openGlobalSettings = useUiStore((state) => state.openGlobalSettings);
 	return useCallback(async (entryId: string, proposal: X00Proposal) => {
@@ -281,9 +283,19 @@ export function useX00Actions() {
 					if (action.screen === "settings") openGlobalSettings("missionControl");
 					else void navigate({ to: action.screen === "home" ? "/" : "/orchestrator" });
 					return;
+				case "make_media": {
+					// The first built-in or added capability that makes this kind from words alone.
+					const info = await aoBridge.media.info();
+					const capability = info.ok ? info.value.capabilities.find((item) => item.kind === action.media && !item.input) : undefined;
+					if (!capability) throw new Error("no capability");
+					await makeMedia.mutateAsync({ capability: capability.id, prompt: action.prompt, source: "x00" });
+					await navigate({ to: "/" });
+					document.getElementById("deck-media")?.scrollIntoView({ behavior: "smooth", block: "start" });
+					return;
+				}
 			}
 		}
-	}, [start, decide, cancel, publish, navigate, openGlobalSettings]);
+	}, [start, decide, cancel, publish, makeMedia, navigate, openGlobalSettings]);
 }
 
 type AlertKind = "awaiting" | "completed" | "held" | "failed";

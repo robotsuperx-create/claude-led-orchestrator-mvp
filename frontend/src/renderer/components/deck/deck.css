@@ -388,3 +388,38 @@ to { opacity: 1; transform: none; }
 .xrd .preview-shot img { display: block; max-width: 100%; box-shadow: 0 0 0 1px var(--hairline), 0 24px 60px rgba(0, 0, 0, .6); }
 .xrd .preview-empty { align-self: center; text-align: center; }
 @container xrd (max-width: 720px) { .xrd .live-work { padding-inline: var(--s2); } .xrd .code-screen { height: 340px; } .xrd .preview-screen { height: 440px; } }
+
+/* ---- X-ROBOT-AI: the media library (the GPU server's pictures, video and sound) ---- */
+.xrd .media-server { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); margin: 0 0 var(--s3); font-size: 13px; color: var(--ivory); }
+.xrd .media-composer { display: grid; gap: var(--s2); padding: var(--s3) 0; border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); margin-bottom: var(--s4); }
+.xrd .media-kinds, .xrd .media-shapes { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.xrd .media-kind { min-height: 32px; padding: 0 var(--s2); background: none; border: 1px solid var(--hairline); border-radius: 2px; color: var(--ivory-2); cursor: pointer; font: 500 13px/18px var(--f-text); transition: color var(--t1) var(--ease), border-color var(--t1) var(--ease); }
+.xrd .media-kind:hover { color: var(--ivory); }
+.xrd .media-kind.on { color: var(--ion); border-color: rgba(var(--ion-rgb), .55); }
+.xrd .media-prompt { width: 100%; resize: vertical; min-height: 84px; padding: var(--s2); background: var(--graphite); border: 1px solid var(--hairline); border-radius: 2px; color: var(--ivory); font: 400 15px/24px var(--f-text); }
+.xrd .media-prompt:focus { outline: none; border-color: rgba(var(--ion-rgb), .55); }
+.xrd .media-prompt::placeholder { color: var(--ivory-3); }
+.xrd .media-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.xrd .media-row .grow, .xrd .media-meta .grow { flex: 1; }
+.xrd .media-seconds { display: inline-flex; align-items: center; gap: var(--s1); }
+.xrd .media-seconds input { accent-color: var(--ion); width: 140px; }
+.xrd .media-input { display: flex; align-items: center; gap: var(--s1); margin: 0; }
+.xrd .media-error { color: var(--short); margin: 0; }
+.xrd .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s3); }
+.xrd .media-card { display: grid; gap: var(--s1); min-width: 0; }
+.xrd .media-frame { position: relative; aspect-ratio: 1; background: var(--graphite); border: 1px solid var(--hairline); border-radius: 2px; overflow: hidden; display: grid; place-items: center; }
+.xrd .media-frame img, .xrd .media-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.xrd .media-card.running .media-frame, .xrd .media-card.queued .media-frame { background: linear-gradient(110deg, var(--graphite) 30%, rgba(var(--ion-rgb), .08) 50%, var(--graphite) 70%); background-size: 220% 100%; animation: xrd-media-work 2.4s var(--ease) infinite; }
+.xrd .media-card.failed .media-state { color: var(--short); }
+.xrd .media-state { padding: var(--s2); text-align: center; color: var(--ivory-2); }
+.xrd .media-sound { width: 100%; height: 100%; display: grid; grid-template-rows: 1fr auto; gap: var(--s1); padding: var(--s2); }
+.xrd .media-sound audio { width: 100%; height: 32px; }
+.xrd .media-wave { display: flex; align-items: center; gap: 3px; }
+.xrd .media-wave i { flex: 1; background: rgba(var(--ion-rgb), .45); border-radius: 1px; }
+.xrd .media-words { margin: 0; color: var(--ivory); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.xrd .media-meta { display: flex; align-items: center; gap: var(--s1); margin: 0; }
+.xrd .media-act { background: none; border: 0; padding: 0; color: var(--ivory-2); cursor: pointer; font: inherit; text-decoration: none; }
+.xrd .media-act:hover { color: var(--ivory); }
+.xrd .media-act.armed { color: var(--veto); }
+@keyframes xrd-media-work { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .xrd .media-card.running .media-frame, .xrd .media-card.queued .media-frame { animation: none; } }

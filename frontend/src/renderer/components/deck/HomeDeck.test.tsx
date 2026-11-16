@@ -23,6 +23,16 @@ vi.mock("../x00/X00Commander", () => ({
 	openX00: mocks.openX00,
 	useX00PortraitState: () => ({ state: "watching", speaking: false }),
 }));
+vi.mock("../../hooks/useMedia", () => ({
+	useMediaInfo: () => ({ data: undefined }),
+	useMediaServerStatus: () => ({ data: undefined }),
+	useMediaItems: () => ({ data: [] }),
+	useCreateMedia: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+	useUploadMedia: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+	useRemoveMedia: () => ({ mutate: vi.fn() }),
+	mediaErrorCode: () => null,
+	mediaUrl: () => "",
+}));
 vi.mock("../../hooks/useClaudeOrchestrator", () => ({
 	useClaudeOrchestratorInfo: () => ({ data: { enabled: mocks.enabled, plannerProvider: "claude", plannerModel: "claude-opus" } }),
 	useClaudeOrchestratorRuns: () => ({ data: mocks.runs }),

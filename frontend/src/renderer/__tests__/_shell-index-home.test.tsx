@@ -35,6 +35,16 @@ vi.mock("../components/x00/X00Commander", () => ({
 
 // Home is the X-ROBOT deck; its runs come from the orchestrator bridge and
 // X-00 is drawn with WebGL, neither of which these harnesses have.
+vi.mock("../hooks/useMedia", () => ({
+	useMediaInfo: () => ({ data: undefined }),
+	useMediaServerStatus: () => ({ data: undefined }),
+	useMediaItems: () => ({ data: [] }),
+	useCreateMedia: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+	useUploadMedia: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+	useRemoveMedia: () => ({ mutate: vi.fn() }),
+	mediaErrorCode: () => null,
+	mediaUrl: () => "",
+}));
 vi.mock("../hooks/useClaudeOrchestrator", () => ({
 	useClaudeOrchestratorInfo: () => ({ data: { enabled: false } }),
 	useClaudeOrchestratorRuns: () => ({ data: [] }),
