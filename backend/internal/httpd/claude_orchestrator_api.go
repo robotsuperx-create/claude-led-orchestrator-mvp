@@ -21,6 +21,7 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/claudeorchestrator"
 	"github.com/aoagents/agent-orchestrator/backend/internal/service/x00"
+	"github.com/aoagents/agent-orchestrator/backend/internal/writerskills"
 )
 
 const (
@@ -788,6 +789,8 @@ type ClaudeOrchestratorPlanSubtask struct {
 	Instructions string              `json:"instructions"`
 	Provider     ports.ModelProvider `json:"provider,omitempty"`
 	DependsOn    []string            `json:"dependsOn,omitempty"`
+	// Skills are names from the writers' library, already checked against it.
+	Skills []string `json:"skills,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) planApprover() (ports.OrchestrationPlanApprover, bool) {
@@ -837,6 +840,7 @@ func displayPlan(runID string, plan ports.ExecutionPlan) ClaudeOrchestratorPlan 
 			}
 			step.DependsOn = append(step.DependsOn, boundedPlanText(dependency, claudeOrchestratorMaxPlanIdentRunes))
 		}
+		step.Skills = writerskills.Known(task.Skills)
 		shown.Subtasks = append(shown.Subtasks, step)
 	}
 	return shown

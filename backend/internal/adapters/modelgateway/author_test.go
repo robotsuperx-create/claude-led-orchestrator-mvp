@@ -59,10 +59,14 @@ func TestProposeEditsSendsTaskContextAndDecodesEdits(t *testing.T) {
 	proposal, err := adapter.ProposeEdits(context.Background(), ports.CodeAuthorRequest{
 		Provider: ports.ModelProviderDeepSeek, Instructions: "add a greeting", Attempt: 2,
 		PreviousFailure: "tests failed", RepositoryFiles: []string{"main.go"},
-		Files: []ports.FileSnapshot{{Path: "main.go", Content: "package main"}},
+		Files:  []ports.FileSnapshot{{Path: "main.go", Content: "package main"}},
+		Skills: []ports.SkillGuidance{{Name: "design-taste", Guidance: "One accent colour."}},
 	})
 	if err != nil {
 		t.Fatalf("ProposeEdits: %v", err)
+	}
+	if !strings.Contains(*body, `\"skills\":[{\"name\":\"design-taste\",\"guidance\":\"One accent colour.\"}]`) {
+		t.Fatalf("the edit request did not carry the subtask's skills: %s", *body)
 	}
 	if proposal.Summary != "add greeting" || len(proposal.Edits) != 3 ||
 		proposal.Edits[0].Path != "greet.go" || proposal.Edits[0].Content != "package main\n" || !proposal.Edits[1].Delete ||
@@ -94,6 +98,7 @@ func TestSelectFilesSendsTheRepositoryGroupedByDirectory(t *testing.T) {
 	selection, err := adapter.SelectFiles(context.Background(), ports.CodeAuthorRequest{
 		Provider: ports.ModelProviderDeepSeek, Instructions: "x",
 		RepositoryFiles: []string{"README.md", "backend/x/a.go", "backend/x/b.go", "go.mod"},
+		Skills:          []ports.SkillGuidance{{Name: "design-taste", Guidance: "One accent colour."}},
 	})
 	if err != nil || len(selection.Paths) != 1 || selection.Paths[0] != "backend/x/a.go" {
 		t.Fatalf("SelectFiles = %+v, %v", selection, err)
@@ -101,6 +106,10 @@ func TestSelectFilesSendsTheRepositoryGroupedByDirectory(t *testing.T) {
 	want := `\"repository_files\":{\".\":[\"README.md\",\"go.mod\"],\"backend/x\":[\"a.go\",\"b.go\"]}`
 	if !strings.Contains(*body, want) {
 		t.Fatalf("provider request missing %s: %s", want, *body)
+	}
+	// Skills shape what is written, not which files are read.
+	if strings.Contains(*body, "One accent colour.") {
+		t.Fatalf("choosing files was sent the skills: %s", *body)
 	}
 }
 

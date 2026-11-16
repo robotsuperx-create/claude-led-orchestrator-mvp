@@ -21,6 +21,7 @@ const (
 
 	proposeEditsPrompt = "You are a software engineer completing one task in a repository. " +
 		"files holds the current content of the files you asked to read. " +
+		"skills, when present, is guidance chosen for this task: follow it closely, it sets the standard your work is judged by. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
 		"Return only valid JSON matching " +
 		"{\"summary\":string,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
@@ -60,12 +61,13 @@ func (a *ProviderAdapter) ProposeEdits(ctx context.Context, request ports.CodeAu
 // once instead of once per file and so fits a whole repository in about the
 // space a flat list of its first files took.
 type authorRequestInput struct {
-	Title           string               `json:"title,omitempty"`
-	Instructions    string               `json:"instructions"`
-	Attempt         int                  `json:"attempt"`
-	PreviousFailure string               `json:"previous_failure,omitempty"`
-	RepositoryFiles map[string][]string  `json:"repository_files,omitempty"`
-	Files           []ports.FileSnapshot `json:"files,omitempty"`
+	Title           string                `json:"title,omitempty"`
+	Instructions    string                `json:"instructions"`
+	Attempt         int                   `json:"attempt"`
+	PreviousFailure string                `json:"previous_failure,omitempty"`
+	RepositoryFiles map[string][]string   `json:"repository_files,omitempty"`
+	Files           []ports.FileSnapshot  `json:"files,omitempty"`
+	Skills          []ports.SkillGuidance `json:"skills,omitempty"`
 }
 
 func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorRequestInput {
@@ -78,6 +80,9 @@ func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorReq
 	}
 	if withRepository {
 		input.RepositoryFiles = groupByDirectory(request.RepositoryFiles)
+	} else {
+		// Skills shape what is written, not which files are read.
+		input.Skills = request.Skills
 	}
 	return input
 }

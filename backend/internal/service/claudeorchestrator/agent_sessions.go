@@ -14,6 +14,7 @@ import (
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	"github.com/aoagents/agent-orchestrator/backend/internal/writerskills"
 )
 
 // AgentSessionAPI is the subset of the AO session service that the agent
@@ -633,6 +634,9 @@ func agentTaskPrompt(request ports.AgentImplementRequest) string {
 	prompt.WriteString("- Do not edit .git, .env files, keys, or other secrets.\n")
 	prompt.WriteString("- Run the project's tests that cover your change before you finish.\n")
 	prompt.WriteString("- When you are done, run `ao report --done --note \"<one-line summary>\"`. If you cannot finish, run `ao report --stuck --note \"<why>\"`.\n")
+	for _, skill := range writerskills.Guidance(request.Task.Skills) {
+		fmt.Fprintf(&prompt, "\nGuidance (%s):\n%s\n", skill.Name, skill.Guidance)
+	}
 	if failure := strings.TrimSpace(request.PreviousFailure); failure != "" {
 		prompt.WriteString("\nA previous attempt failed:\n")
 		prompt.WriteString(failure)

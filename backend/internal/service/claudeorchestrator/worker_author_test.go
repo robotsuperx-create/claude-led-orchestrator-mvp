@@ -196,3 +196,20 @@ func TestWorkerRefusesToRewriteFilesTheModelDidNotRead(t *testing.T) {
 		})
 	}
 }
+
+// The writer receives the full guidance of its subtask's skills.
+func TestWorkerSendsTheSubtasksSkillsToTheWriter(t *testing.T) {
+	worktree := t.TempDir()
+	runner := &lsFilesRunner{files: []string{"index.html"}}
+	author := &authorFake{proposal: ports.EditProposal{Edits: []ports.FileEdit{{Path: "about.html", Content: "<h1>About</h1>\n"}}}}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	request := authoringRequest(worktree)
+	request.Task.Skills = []string{"design-taste", "unknown"}
+	if _, err := runtime.Execute(context.Background(), request); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	skills := author.editRequest.Skills
+	if len(skills) != 1 || skills[0].Name != "design-taste" || !strings.Contains(skills[0].Guidance, "accent") {
+		t.Fatalf("writer skills = %+v, want the design-taste guidance", skills)
+	}
+}

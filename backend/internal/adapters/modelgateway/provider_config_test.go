@@ -97,6 +97,31 @@ func TestProviderAdapterMapPlanRequest(t *testing.T) {
 	if !strings.Contains(request.Messages[0].Content, `"subtasks"`) {
 		t.Fatalf("system prompt does not require plan JSON: %s", request.Messages[0].Content)
 	}
+	if strings.Contains(request.Messages[1].Content, "available_skills") {
+		t.Fatalf("an empty skill list was sent: %s", request.Messages[1].Content)
+	}
+}
+
+// The planner sees the skill library and is told to keep a page in one
+// subtask, to order dependent work, and to write a design brief for UI.
+func TestPlanRequestOffersSkillsAndKeepsPagesWhole(t *testing.T) {
+	adapter := newTestAdapter(t, ProviderConfig{Provider: ports.ModelProviderClaude, BaseURL: "https://claude.example.invalid/v1", DefaultModel: "m"})
+	request, err := adapter.MapPlanRequest(ports.PlanRequest{
+		Provider: ports.ModelProviderClaude, Task: "build a landing page",
+		Skills: []ports.SkillSummary{{Name: "design-taste", Description: "Any user-facing page."}},
+	})
+	if err != nil {
+		t.Fatalf("MapPlanRequest: %v", err)
+	}
+	if want := `"available_skills":[{"name":"design-taste","description":"Any user-facing page."}]`; !strings.Contains(request.Messages[1].Content, want) {
+		t.Fatalf("plan input missing %s: %s", want, request.Messages[1].Content)
+	}
+	system := request.Messages[0].Content
+	for _, want := range []string{`"skills":[string]`, "HTML, its CSS and its JavaScript are one subtask", "design brief", "depends_on"} {
+		if !strings.Contains(system, want) {
+			t.Errorf("planning prompt is missing %q", want)
+		}
+	}
 }
 
 func TestProviderAdapterMapReviewRequest(t *testing.T) {
