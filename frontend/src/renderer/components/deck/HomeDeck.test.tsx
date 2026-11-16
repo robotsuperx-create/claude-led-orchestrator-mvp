@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator";
+import type { ClaudeOrchestratorLiveFile, ClaudeOrchestratorLiveStep, ClaudeOrchestratorRun } from "../../../shared/claude-orchestrator";
 import { useX00Store } from "../../stores/x00-store";
 import { HomeDeck } from "./HomeDeck";
 
@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 	runs: [] as ClaudeOrchestratorRun[],
 	steps: [] as Array<{ id: string; title: string; instructions: string; dependsOn: string[] }>,
 	enabled: true,
+	live: null as null | { steps: ClaudeOrchestratorLiveStep[]; files: ClaudeOrchestratorLiveFile[] },
+	pages: [] as string[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
@@ -26,6 +28,10 @@ vi.mock("../../hooks/useClaudeOrchestrator", () => ({
 	useClaudeOrchestratorRuns: () => ({ data: mocks.runs }),
 	useClaudeOrchestratorPlan: (runId: string) => ({ data: { runId, summary: "", steps: mocks.steps } }),
 	useCancelClaudeOrchestratorRun: () => ({ mutate: mocks.cancel }),
+	useClaudeOrchestratorLive: (runId: string) => ({ data: mocks.live ? { ...mocks.live, runId } : undefined }),
+	useClaudeOrchestratorSitePages: (runId: string) => ({ data: { runId, pages: mocks.pages } }),
+	useClaudeOrchestratorVisual: () => ({ data: undefined }),
+	useClaudeOrchestratorVisualShot: () => ({ data: undefined }),
 }));
 vi.mock("../../lib/shell-context", () => ({ useShell: () => ({ daemonStatus: { state: "ready" } }) }));
 vi.mock("./DeckPortrait", () => ({
@@ -48,6 +54,8 @@ beforeEach(() => {
 	mocks.runs = [];
 	mocks.steps = [];
 	mocks.enabled = true;
+	mocks.live = null;
+	mocks.pages = [];
 	useX00Store.setState({ entries: [], speaking: false, thinking: false });
 });
 
@@ -146,5 +154,47 @@ describe("HomeDeck", () => {
 		mocks.enabled = false;
 		render(<HomeDeck projects={null} />);
 		expect(screen.getByTestId("deck-live")).toHaveTextContent("Mission control is off");
+	});
+
+	it("shows the crew at work under X-00: the code as it lands, the map, and the page they build", () => {
+		mocks.runs = [run({ state: "executing" })];
+		mocks.steps = [
+			{ id: "read", title: "Read the parser", instructions: "", dependsOn: [] },
+			{ id: "fix", title: "Fix the quoting", instructions: "", dependsOn: ["read"] },
+		];
+		mocks.live = {
+			steps: [
+				{ index: 0, id: "read", title: "Read the parser", state: "done", attempt: 1 },
+				{ index: 1, id: "fix", title: "Fix the quoting", state: "running", attempt: 2 },
+			],
+			files: [
+				{ path: "src/parser.ts", added: 3, removed: 1, created: false, lines: ["if (quoted) {", "  return field;", "}"] },
+				{ path: "src/parser.test.ts", added: 1, removed: 0, created: true, lines: ["it(\"keeps quotes\", () => {});"] },
+			],
+		};
+		mocks.pages = ["index.html", "docs/about.html"];
+		render(<HomeDeck projects={null} />);
+
+		const code = screen.getByTestId("deck-code-stream");
+		expect(code).toHaveAttribute("data-live", "true");
+		expect(within(screen.getByTestId("deck-code-lines")).getByText("return field;", { exact: false })).toBeInTheDocument();
+		fireEvent.click(within(code).getByRole("tab", { name: /src\/parser\.test\.ts/ }));
+		expect(within(screen.getByTestId("deck-code-lines")).getByText("it(\"keeps quotes\", () => {});")).toBeInTheDocument();
+
+		const map = screen.getByTestId("deck-crew-map");
+		expect(within(map).getByTestId("deck-map-node-1")).toHaveAttribute("data-state", "running");
+		expect(within(screen.getByTestId("deck-map-card")).getByText("Fix the quoting")).toBeInTheDocument();
+		expect(within(screen.getByTestId("deck-map-card")).getByText(/attempt 2/)).toBeInTheDocument();
+
+		const frame = screen.getByTestId("deck-preview-frame");
+		expect(frame).toHaveAttribute("src", "xrobot-site://run-" + "a".repeat(32) + "/index.html");
+		expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-same-origin");
+		fireEvent.click(within(screen.getByTestId("deck-live-preview")).getByRole("tab", { name: "docs/about.html" }));
+		expect(screen.getByTestId("deck-preview-frame")).toHaveAttribute("src", "xrobot-site://run-" + "a".repeat(32) + "/docs/about.html");
+
+		// The rail follows the live board: X-01 is done, X-02 is at work.
+		const rail = screen.getByTestId("deck-crew");
+		expect(within(rail).getByRole("button", { name: /X-01/ })).toHaveAttribute("data-tone", "ready");
+		expect(within(rail).getByRole("button", { name: /X-02/ })).toHaveAttribute("data-tone", "thinking");
 	});
 });

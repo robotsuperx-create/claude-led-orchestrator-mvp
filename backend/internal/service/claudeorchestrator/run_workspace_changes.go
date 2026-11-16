@@ -58,25 +58,32 @@ func (w *RunWorkspaces) Changes(ctx context.Context, workspace ports.RunWorkspac
 func parseLiveDiff(diff string) []ports.LiveFileChange {
 	var files []ports.LiveFileChange
 	current := -1
+	inHunk := false
 	for _, line := range strings.Split(diff, "\n") {
-		switch {
-		case strings.HasPrefix(line, "diff --git "):
-			files = append(files, ports.LiveFileChange{})
-			current = len(files) - 1
-		case current < 0:
+		if strings.HasPrefix(line, "diff --git ") {
+			// The header names the file even when no +++ line follows (binary files).
+			files = append(files, ports.LiveFileChange{Path: diffHeaderPath(line)})
+			current, inHunk = len(files)-1, false
 			continue
-		case strings.HasPrefix(line, "new file mode"):
-			files[current].New = true
-		case strings.HasPrefix(line, "+++ "):
-			if path := strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/"); path != "/dev/null" {
-				files[current].Path = path
+		}
+		if current < 0 {
+			continue
+		}
+		if !inHunk {
+			switch {
+			case strings.HasPrefix(line, "@@"):
+				inHunk = true
+			case strings.HasPrefix(line, "new file mode"):
+				files[current].New = true
+			case strings.HasPrefix(line, "+++ "):
+				if path := strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/"); path != "/dev/null" {
+					files[current].Path = path
+				}
 			}
-		case strings.HasPrefix(line, "--- "):
-			if files[current].Path == "" {
-				files[current].Path = strings.TrimPrefix(strings.TrimPrefix(line, "--- "), "a/")
-			}
-		case strings.HasPrefix(line, "Binary files "):
-			files[current].Lines = nil
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "@@"):
 		case strings.HasPrefix(line, "+"):
 			files[current].Added++
 			files[current].Lines = keepLast(files[current].Lines, liveLine(strings.TrimPrefix(line, "+")))
@@ -91,6 +98,15 @@ func parseLiveDiff(diff string) []ports.LiveFileChange {
 		}
 	}
 	return kept
+}
+
+// diffHeaderPath reads the new name from `diff --git a/<old> b/<new>`.
+func diffHeaderPath(line string) string {
+	header := strings.TrimPrefix(line, "diff --git ")
+	if i := strings.LastIndex(header, " b/"); i >= 0 {
+		return header[i+len(" b/"):]
+	}
+	return ""
 }
 
 // readNewFile reads a file the run created, inside its worktree only. Binary

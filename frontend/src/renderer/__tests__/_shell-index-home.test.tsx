@@ -40,6 +40,10 @@ vi.mock("../hooks/useClaudeOrchestrator", () => ({
 	useClaudeOrchestratorRuns: () => ({ data: [] }),
 	useClaudeOrchestratorPlan: () => ({ data: undefined }),
 	useCancelClaudeOrchestratorRun: () => ({ mutate: vi.fn() }),
+	useClaudeOrchestratorLive: () => ({ data: undefined }),
+	useClaudeOrchestratorSitePages: () => ({ data: undefined }),
+	useClaudeOrchestratorVisual: () => ({ data: undefined }),
+	useClaudeOrchestratorVisualShot: () => ({ data: undefined }),
 }));
 vi.mock("../components/deck/DeckPortrait", () => ({ DeckPortrait: () => null }));
 

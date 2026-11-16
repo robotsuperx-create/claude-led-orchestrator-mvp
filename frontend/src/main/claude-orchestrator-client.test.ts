@@ -14,6 +14,51 @@ function clientWith(handler: (url: string, init: RequestInit) => Response | Prom
 }
 
 describe("ClaudeOrchestratorClient", () => {
+	it("reads a run's live work: known step states, safe paths, bounded code lines", async () => {
+		const { client, fetcher } = clientWith(() => jsonResponse(200, {
+			runId: RUN_ID,
+			steps: [
+				{ index: 0, id: "read", title: "Read the parser", state: "done", attempt: 1, secret: "x" },
+				{ index: 1, id: "fix", title: "Fix the quoting", state: "exploded" },
+				{ index: 2, id: "docs", title: "Document it", state: "running", attempt: 3 },
+			],
+			files: [
+				{ path: "src/parser.ts", added: 2, removed: 1, new: false, lines: ["\tif (quoted) {", 7, "x".repeat(241)] },
+				{ path: "../etc/passwd", added: 1, lines: ["root"] },
+				{ path: "C:/Windows/win.ini", added: 1 },
+				{ path: "/abs/path.ts", added: 1 },
+				{ path: "docs/new.md", added: 1, new: true },
+			],
+		}));
+		const result = await client.live(RUN_ID);
+		expect(fetcher.mock.calls[0][0]).toBe(`${ORIGIN}/internal/claude-orchestrator/runs/${RUN_ID}/live`);
+		expect(result).toEqual({ ok: true, value: { runId: RUN_ID,
+			steps: [
+				{ index: 0, id: "read", title: "Read the parser", state: "done", attempt: 1 },
+				{ index: 2, id: "docs", title: "Document it", state: "running", attempt: 3 },
+			],
+			files: [
+				{ path: "src/parser.ts", added: 2, removed: 1, created: false, lines: ["\tif (quoted) {"] },
+				{ path: "docs/new.md", added: 1, removed: 0, created: true, lines: [] },
+			],
+		} });
+	});
+
+	it("gives the renderer a run's page names and keeps where they live in this process", async () => {
+		let now = 1_000;
+		const fetcher = vi.fn(async () => jsonResponse(200, { runId: RUN_ID, root: "/home/me/.ao/worktrees/run", pages: ["index.html", "../up.html", "docs/about.html", "notes.txt"] }));
+		const client = new ClaudeOrchestratorClient(() => ORIGIN, fetcher, () => now);
+		const pages = await client.sitePages(RUN_ID);
+		expect(pages).toEqual({ ok: true, value: { runId: RUN_ID, pages: ["index.html", "docs/about.html"] } });
+		expect(JSON.stringify(pages)).not.toContain(".ao");
+		expect(await client.siteRoot(RUN_ID)).toBe("/home/me/.ao/worktrees/run");
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		now += 20_000;
+		await client.siteRoot(RUN_ID);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+		expect(await client.siteRoot("not-a-run")).toBeNull();
+	});
+
 	it("reads a run's visual review from allowlisted, bounded fields", async () => {
 		const { client, fetcher } = clientWith(() => jsonResponse(200, {
 			runId: RUN_ID,

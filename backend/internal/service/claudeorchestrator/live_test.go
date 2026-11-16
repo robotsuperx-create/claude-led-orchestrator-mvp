@@ -109,10 +109,11 @@ func TestParseLiveDiffCountsLinesAndKeepsTheLastAdded(t *testing.T) {
 		"index 1111111..2222222 100644",
 		"--- a/parser.go",
 		"+++ b/parser.go",
-		"@@ -3 +3,2 @@",
+		"@@ -3 +3,3 @@",
 		"-\treturn nil",
 		"+\tif quoted {",
 		"+\t\treturn field",
+		"+++ counter",
 		"diff --git a/docs/new.md b/docs/new.md",
 		"new file mode 100644",
 		"--- /dev/null",
@@ -126,8 +127,8 @@ func TestParseLiveDiffCountsLinesAndKeepsTheLastAdded(t *testing.T) {
 	if len(files) != 3 {
 		t.Fatalf("files = %+v", files)
 	}
-	if files[0].Path != "parser.go" || files[0].Added != 2 || files[0].Removed != 1 || files[0].Lines[0] != "\tif quoted {" {
-		t.Errorf("parser.go = %+v (indentation must be kept)", files[0])
+	if files[0].Path != "parser.go" || files[0].Added != 3 || files[0].Removed != 1 || files[0].Lines[0] != "\tif quoted {" || files[0].Lines[2] != "++ counter" {
+		t.Errorf("parser.go = %+v (indentation kept, a line that starts with ++ is code)", files[0])
 	}
 	if files[1].Path != "docs/new.md" || !files[1].New || files[1].Added != 1 {
 		t.Errorf("docs/new.md = %+v", files[1])
