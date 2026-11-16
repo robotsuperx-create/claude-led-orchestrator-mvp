@@ -11,6 +11,9 @@ type VisualShot struct {
 	Height   int
 	JPEG     []byte
 	Findings []string
+	// Tiles is the picture cut top to bottom into pieces a model can read at
+	// full detail. Empty means JPEG is read whole.
+	Tiles [][]byte
 	// File is where the picture was kept for people to look at, when it was.
 	File string
 }
@@ -71,4 +74,21 @@ type VisualShotRecord struct {
 	Viewport string   `json:"viewport"`
 	Name     string   `json:"name,omitempty"`
 	Findings []string `json:"findings,omitempty"`
+	// File is where the picture is on disk. It never leaves the daemon.
+	File string `json:"-"`
 }
+
+// OrchestrationVisualReporter reports a service's visual review: whether it
+// is on (and why not, when it was asked for but cannot run), each run's
+// rounds, and the kept pictures by name.
+type OrchestrationVisualReporter interface {
+	VisualReviewStatus() (enabled bool, reason string)
+	VisualFor(runID string) []VisualRound
+	VisualShotFile(runID, name string) (string, bool)
+}
+
+// Reasons the visual review is off although it was asked for.
+const (
+	VisualReasonNoBrowser = "no_browser"
+	VisualReasonNoClaude  = "no_claude"
+)

@@ -60,6 +60,31 @@ func TestFindBrowserLooksUpBareNamesOnLinux(t *testing.T) {
 	}
 }
 
+func TestTileSpansCutLongPagesIntoReadablePieces(t *testing.T) {
+	if spans := tileSpans(900, 1440); len(spans) != 1 || spans[0] != [2]int{0, 900} {
+		t.Fatalf("a short page = %v, want one tile", spans)
+	}
+	spans := tileSpans(4000, 1440)
+	covered := 0
+	for i, span := range spans {
+		if span[0] != covered || span[1]*1440 > tilePixels+tilePixels/5*2 {
+			t.Fatalf("tile %d = %v", i, span)
+		}
+		covered += span[1]
+	}
+	if covered != 4000 || len(spans) != 4 {
+		t.Fatalf("tiles = %v cover %d of 4000px", spans, covered)
+	}
+	// A sliver at the bottom joins the tile above it.
+	step := tileHeight(390)
+	if spans := tileSpans(step*2+10, 390); len(spans) != 2 || spans[1][1] != step+10 {
+		t.Fatalf("tiles with a sliver = %v", spans)
+	}
+	if spans := tileSpans(100_000, 390); len(spans) != maxTiles {
+		t.Fatalf("a very long page has %d tiles, want at most %d", len(spans), maxTiles)
+	}
+}
+
 func TestReadDevToolsPort(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "DevToolsActivePort")
@@ -189,8 +214,8 @@ func TestCaptureInARealBrowser(t *testing.T) {
 		t.Fatalf("got %d shots, want one per viewport", len(shots))
 	}
 	phone := shots[len(shots)-1]
-	if phone.Viewport.Name != "phone" || !bytes.HasPrefix(phone.JPEG, []byte{0xFF, 0xD8}) {
-		t.Fatalf("phone shot = %s, %d bytes", phone.Viewport.Name, len(phone.JPEG))
+	if phone.Viewport.Name != "phone" || !bytes.HasPrefix(phone.JPEG, []byte{0xFF, 0xD8}) || len(phone.Tiles) == 0 {
+		t.Fatalf("phone shot = %s, %d bytes, %d tiles", phone.Viewport.Name, len(phone.JPEG), len(phone.Tiles))
 	}
 	all := strings.Join(phone.Findings, "\n")
 	for _, want := range []string{"scrolls sideways", "does not load", "no h1", "Low contrast", "Tap target too small", "boom from the page"} {

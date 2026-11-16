@@ -55,6 +55,9 @@ type Shot struct {
 	// short of it at the height limit.
 	Height   int
 	Findings []string
+	// Tiles is the same picture cut top to bottom into pieces small enough
+	// for a model to read at full detail; a short page is one tile.
+	Tiles [][]byte
 }
 
 // Options configures one capture. Browser is required; the rest has defaults.
@@ -78,7 +81,39 @@ const (
 	defaultPageTimeout = 45 * time.Second
 	startTimeout       = 20 * time.Second
 	jpegQuality        = 80
+	// A model scales a picture down past about 1.15 megapixels or a 1568px
+	// edge, which blurs a tall page's text. Tiles keep within a little more
+	// than that, and a page is cut into at most maxTiles of them.
+	tilePixels = 1_600_000
+	tileEdge   = 1568
+	maxTiles   = 6
 )
+
+// tileHeight is how tall one tile of a page this wide may be.
+func tileHeight(width int) int {
+	if width <= 0 {
+		return tileEdge
+	}
+	return max(min(tilePixels/width, tileEdge), 200)
+}
+
+// tileSpans cuts a captured height into tiles: [top, height] pairs. A last
+// sliver shorter than a fifth of a tile is folded into the tile before it.
+func tileSpans(captured, width int) [][2]int {
+	step := tileHeight(width)
+	if captured <= step+step/5 {
+		return [][2]int{{0, captured}}
+	}
+	var spans [][2]int
+	for top := 0; top < captured && len(spans) < maxTiles; top += step {
+		spans = append(spans, [2]int{top, min(step, captured-top)})
+	}
+	if last := len(spans) - 1; last > 0 && spans[last][1] < step/5 {
+		spans[last-1][1] += spans[last][1]
+		spans = spans[:last]
+	}
+	return spans
+}
 
 // Capture renders every page at every viewport in one headless browser.
 func Capture(ctx context.Context, options Options, pages []Page) ([]Shot, error) {
@@ -298,18 +333,22 @@ func capturePage(parent context.Context, client *cdpClient, options Options, pag
 		height = viewport.Height
 	}
 	captured := min(height, options.MaxHeight)
-	var picture struct {
-		Data string `json:"data"`
-	}
-	if err := client.call(ctx, session, "Page.captureScreenshot", map[string]any{
-		"format": "jpeg", "quality": jpegQuality, "captureBeyondViewport": true, "fromSurface": true,
-		"clip": map[string]any{"x": 0, "y": 0, "width": viewport.Width, "height": captured, "scale": 1},
-	}, &picture); err != nil {
+	data, err := screenshot(ctx, client, session, viewport.Width, 0, captured)
+	if err != nil {
 		return Shot{}, err
 	}
-	data, err := base64.StdEncoding.DecodeString(picture.Data)
-	if err != nil {
-		return Shot{}, fmt.Errorf("decode the screenshot: %w", err)
+	var tiles [][]byte
+	spans := tileSpans(captured, viewport.Width)
+	if len(spans) == 1 {
+		tiles = [][]byte{data}
+	} else {
+		for _, span := range spans {
+			tile, err := screenshot(ctx, client, session, viewport.Width, span[0], span[1])
+			if err != nil {
+				return Shot{}, err
+			}
+			tiles = append(tiles, tile)
+		}
 	}
 	// Errors raised while the audit scrolled the page count too.
 	_ = collectFor(ctx, client, session, 0, errorsSeen)
@@ -318,7 +357,25 @@ func capturePage(parent context.Context, client *cdpClient, options Options, pag
 	if height > captured {
 		findings = append(findings, fmt.Sprintf("The page is %dpx tall; the screenshot shows the first %dpx.", height, captured))
 	}
-	return Shot{Page: page.Label, Viewport: viewport, JPEG: data, Height: height, Findings: findings}, nil
+	return Shot{Page: page.Label, Viewport: viewport, JPEG: data, Height: height, Findings: findings, Tiles: tiles}, nil
+}
+
+// screenshot takes a JPEG of the page from top, height pixels tall.
+func screenshot(ctx context.Context, client *cdpClient, session string, width, top, height int) ([]byte, error) {
+	var picture struct {
+		Data string `json:"data"`
+	}
+	if err := client.call(ctx, session, "Page.captureScreenshot", map[string]any{
+		"format": "jpeg", "quality": jpegQuality, "captureBeyondViewport": true, "fromSurface": true,
+		"clip": map[string]any{"x": 0, "y": top, "width": width, "height": height, "scale": 1},
+	}, &picture); err != nil {
+		return nil, err
+	}
+	data, err := base64.StdEncoding.DecodeString(picture.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode the screenshot: %w", err)
+	}
+	return data, nil
 }
 
 // waitForEvent waits for method on session, noting script errors meanwhile.

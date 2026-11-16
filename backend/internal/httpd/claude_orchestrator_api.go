@@ -99,6 +99,11 @@ type ClaudeOrchestratorInfo struct {
 	// ConfigError explains why the orchestrator is off when its saved
 	// settings need fixing. It names settings, never their values.
 	ConfigError string `json:"configError,omitempty"`
+	// VisualReview is true when each run's pages are photographed and judged.
+	// VisualReason says why not when it was asked for: "no_browser" or
+	// "no_claude".
+	VisualReview bool   `json:"visualReview"`
+	VisualReason string `json:"visualReason,omitempty"`
 }
 
 // ClaudeOrchestratorRunPublisher pushes one run branch for review.
@@ -177,6 +182,8 @@ func (api *ClaudeOrchestratorAPI) Register(r chi.Router) {
 	r.Post("/internal/claude-orchestrator/runs/{runId}/approve", api.decidePlan(true))
 	r.Post("/internal/claude-orchestrator/runs/{runId}/reject", api.decidePlan(false))
 	r.Post("/internal/claude-orchestrator/runs/{runId}/publish", api.publish)
+	r.Get("/internal/claude-orchestrator/runs/{runId}/visual", api.visual)
+	r.Get("/internal/claude-orchestrator/runs/{runId}/visual/{name}", api.visualShot)
 }
 
 type claudeOrchestratorRunRequest struct {
@@ -443,6 +450,9 @@ func (api *ClaudeOrchestratorAPI) info(w http.ResponseWriter, r *http.Request) {
 	info := api.Info
 	info.Enabled = api.Gate != nil && api.Service != nil
 	info.CanPublish = api.Publisher != nil
+	if reporter, ok := api.Service.(ports.OrchestrationVisualReporter); ok {
+		info.VisualReview, info.VisualReason = reporter.VisualReviewStatus()
+	}
 	if info.MaxActiveRuns <= 0 {
 		info.MaxActiveRuns = api.MaxActiveRuns
 		if info.MaxActiveRuns <= 0 {

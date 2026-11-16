@@ -150,6 +150,9 @@ type ClaudeOrchestratorConfig struct {
 	Validator       ClaudeOrchestratorValidatorConfig
 	// Budget limits each run's model usage.
 	Budget ClaudeOrchestratorBudgetConfig
+	// Visual is the visual review: the pages a run built are photographed
+	// in a browser on this machine, judged by Claude, and polished.
+	Visual ClaudeOrchestratorVisualConfig
 	// MaxReplans is how many times Claude may revise a plan whose subtasks
 	// failed after their retries.
 	MaxReplans int
@@ -351,6 +354,81 @@ type ClaudeOrchestratorBudgetConfig struct {
 type ClaudeOrchestratorPrice struct {
 	InputUSDPerMTok  float64
 	OutputUSDPerMTok float64
+}
+
+// ClaudeOrchestratorVisualConfig configures the visual review. It is on by
+// default when the one Claude key runs everything, since the critic is
+// Claude; it needs Chrome, Edge or Chromium on this machine.
+type ClaudeOrchestratorVisualConfig struct {
+	Enabled bool
+	// Rounds is how many polish rounds may follow the first look.
+	Rounds int
+	// Target is the score out of ten that ends the review early.
+	Target float64
+	// Browser is the browser to use; empty finds one.
+	Browser string
+	// Pages are the pages to photograph, relative to the repository; empty
+	// finds the site's front page.
+	Pages []string
+}
+
+// Visual review defaults and ceilings.
+const (
+	DefaultClaudeOrchestratorVisualRounds = 2
+	MaxClaudeOrchestratorVisualRounds     = 5
+	DefaultClaudeOrchestratorVisualTarget = 9.0
+	MaxClaudeOrchestratorVisualPages      = 5
+)
+
+// loadClaudeOrchestratorVisual reads the visual review settings.
+func loadClaudeOrchestratorVisual(getenv func(string) string, claudeOnly bool) (ClaudeOrchestratorVisualConfig, error) {
+	visual := ClaudeOrchestratorVisualConfig{
+		Enabled: claudeOnly,
+		Rounds:  DefaultClaudeOrchestratorVisualRounds,
+		Target:  DefaultClaudeOrchestratorVisualTarget,
+	}
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW")); raw != "" {
+		on, err := parseToggleEnv("AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW", raw)
+		if err != nil {
+			return visual, err
+		}
+		visual.Enabled = on
+	}
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_ROUNDS")); raw != "" {
+		rounds, err := strconv.Atoi(raw)
+		if err != nil || rounds < 0 || rounds > MaxClaudeOrchestratorVisualRounds {
+			return visual, fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_VISUAL_ROUNDS must be a whole number from 0 to %d", MaxClaudeOrchestratorVisualRounds)
+		}
+		visual.Rounds = rounds
+	}
+	if raw := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_TARGET")); raw != "" {
+		target, err := strconv.ParseFloat(raw, 64)
+		if err != nil || math.IsNaN(target) || target < 1 || target > 10 {
+			return visual, errors.New("AO_CLAUDE_ORCHESTRATOR_VISUAL_TARGET must be a score from 1 to 10")
+		}
+		visual.Target = target
+	}
+	if browser := strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER")); browser != "" {
+		if !filepath.IsAbs(browser) || strings.ContainsRune(browser, '\x00') {
+			return visual, errors.New("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER must be the full path to a browser")
+		}
+		visual.Browser = filepath.Clean(browser)
+	}
+	for _, page := range strings.Split(getenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES"), ",") {
+		page = strings.TrimSpace(page)
+		if page == "" {
+			continue
+		}
+		if len(visual.Pages) == MaxClaudeOrchestratorVisualPages {
+			return visual, fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES may name at most %d pages", MaxClaudeOrchestratorVisualPages)
+		}
+		clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(page)))
+		if filepath.IsAbs(page) || strings.HasPrefix(page, "/") || clean == ".." || strings.HasPrefix(clean, "../") || strings.ContainsRune(page, '\x00') {
+			return visual, errors.New("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES must name pages inside the repository")
+		}
+		visual.Pages = append(visual.Pages, clean)
+	}
+	return visual, nil
 }
 
 // Run budget and re-planning defaults and ceilings.
@@ -955,6 +1033,9 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 		return fmt.Errorf("AO_CLAUDE_ORCHESTRATOR_PLANNER_PROVIDER must be %q or %q", ports.ModelProviderClaude, ports.ModelProviderLocal)
 	}
 	if cfg.Budget, err = loadClaudeOrchestratorBudget(getenv); err != nil {
+		return err
+	}
+	if cfg.Visual, err = loadClaudeOrchestratorVisual(getenv, cfg.ClaudeOnly); err != nil {
 		return err
 	}
 	cfg.PublishRemote = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_PUBLISH_REMOTE"))

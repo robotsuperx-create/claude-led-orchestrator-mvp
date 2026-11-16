@@ -33,6 +33,20 @@ const (
 // polishSkills is the guidance every polish round's writer gets.
 var polishSkills = []string{"design-taste", "responsive-accessible", "motion", "code-illustration"}
 
+var _ ports.OrchestrationVisualReporter = (*Service)(nil)
+
+// VisualReviewStatus reports whether runs get a visual review, and why not
+// when one was asked for but cannot run.
+func (s *Service) VisualReviewStatus() (bool, string) {
+	if s == nil {
+		return false, ""
+	}
+	if s.visual != nil && s.visual.Capturer != nil && s.visual.Critic != nil {
+		return true, ""
+	}
+	return false, s.visualUnavailable
+}
+
 // VisualFor returns the visual rounds a run has had so far.
 func (s *Service) VisualFor(runID string) []ports.VisualRound {
 	if s == nil {
@@ -41,6 +55,24 @@ func (s *Service) VisualFor(runID string) []ports.VisualRound {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return append([]ports.VisualRound(nil), s.visuals[runID]...)
+}
+
+// VisualShotFile returns where a run's kept picture is, by the name its
+// round recorded. Only pictures the capturer reported can be found.
+func (s *Service) VisualShotFile(runID, name string) (string, bool) {
+	if s == nil || name == "" {
+		return "", false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, round := range s.visuals[runID] {
+		for _, shot := range round.Shots {
+			if shot.Name == name && shot.File != "" {
+				return shot.File, true
+			}
+		}
+	}
+	return "", false
 }
 
 func (s *Service) addVisual(runID string, result *ports.OrchestrationResult, round ports.VisualRound) {
@@ -175,6 +207,7 @@ func shotRecords(shots []ports.VisualShot) []ports.VisualShotRecord {
 		record := ports.VisualShotRecord{Page: shot.Page, Viewport: shot.Viewport, Findings: shot.Findings}
 		if shot.File != "" {
 			record.Name = filepath.Base(shot.File)
+			record.File = shot.File
 		}
 		records = append(records, record)
 	}

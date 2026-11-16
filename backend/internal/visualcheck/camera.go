@@ -51,6 +51,7 @@ func (c Camera) Capture(ctx context.Context, runID string, round int, worktree s
 			Height:   shot.Height,
 			JPEG:     shot.JPEG,
 			Findings: shot.Findings,
+			Tiles:    shot.Tiles,
 		}
 		if folder != "" {
 			name := fmt.Sprintf("r%d-%s-%s.jpg", round, safeName(strings.TrimSuffix(shot.Page, filepath.Ext(shot.Page))), safeName(shot.Viewport.Name))

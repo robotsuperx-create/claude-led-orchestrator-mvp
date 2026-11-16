@@ -25,11 +25,12 @@ const (
 	criticMaxRequestBytes  = 32 << 20
 	criticMaxResponseBytes = 4 << 20
 	criticMaxShots         = 9
+	criticMaxImages        = 20
 	criticMaxFixes         = 8
 )
 
 const visualCriticPrompt = "You are the art director and design critic of a web studio. " +
-	"You are shown screenshots of a page at desktop, tablet and phone sizes, the brief it was built from, " +
+	"You are shown screenshots of a page at desktop, tablet and phone sizes (a long page is cut top to bottom into numbered parts), the brief it was built from, " +
 	"and automated measurements taken in the browser (overflow, contrast, tap targets, broken images, script errors). " +
 	"Judge it as a demanding senior designer would before showing it to a client. Score each criterion from 0 to 10: " +
 	"hierarchy (the eye moves from the headline to the main action without hesitating), typography (a deliberate pairing, a clear scale, comfortable reading), " +
@@ -200,6 +201,8 @@ func (c *VisualCritic) request(request ports.VisualCritiqueRequest) messagesRequ
 		Viewport string   `json:"viewport"`
 		Width    int      `json:"width"`
 		Height   int      `json:"height"`
+		Parts    int      `json:"parts"`
+		Shown    int      `json:"parts_shown"`
 		Findings []string `json:"findings,omitempty"`
 	}
 	facts := struct {
@@ -210,12 +213,31 @@ func (c *VisualCritic) request(request ports.VisualCritiqueRequest) messagesRequ
 		Screenshots   []measured `json:"screenshots"`
 	}{Task: request.Task, Brief: request.Brief, Round: request.Round, PreviousFixes: request.PreviousFixes}
 	content := []messagesContent{}
+	image := func(data []byte) messagesContent {
+		return messagesContent{Type: "image", Source: &messagesSource{Type: "base64", MediaType: "image/jpeg", Data: base64.StdEncoding.EncodeToString(data)}}
+	}
+	parts, shown := pictures(shots)
 	for i, shot := range shots {
-		facts.Screenshots = append(facts.Screenshots, measured{Page: shot.Page, Viewport: shot.Viewport, Width: shot.Width, Height: shot.Height, Findings: shot.Findings})
-		content = append(content,
-			messagesContent{Type: "text", Text: fmt.Sprintf("Screenshot %d: %s at %s (%dpx wide).", i+1, shot.Page, shot.Viewport, shot.Width)},
-			messagesContent{Type: "image", Source: &messagesSource{Type: "base64", MediaType: "image/jpeg", Data: base64.StdEncoding.EncodeToString(shot.JPEG)}},
-		)
+		facts.Screenshots = append(facts.Screenshots, measured{
+			Page: shot.Page, Viewport: shot.Viewport, Width: shot.Width, Height: shot.Height,
+			Parts: len(parts[i]), Shown: len(shown[i]), Findings: shot.Findings,
+		})
+		if len(parts[i]) <= 1 {
+			for _, picture := range shown[i] {
+				content = append(content,
+					messagesContent{Type: "text", Text: fmt.Sprintf("Screenshot %d: %s at %s (%dpx wide).", i+1, shot.Page, shot.Viewport, shot.Width)},
+					image(picture))
+			}
+			continue
+		}
+		for j, picture := range shown[i] {
+			content = append(content,
+				messagesContent{Type: "text", Text: fmt.Sprintf("Screenshot %d, part %d of %d: %s at %s (%dpx wide).", i+1, j+1, len(parts[i]), shot.Page, shot.Viewport, shot.Width)},
+				image(picture))
+		}
+		if len(shown[i]) < len(parts[i]) {
+			content = append(content, messagesContent{Type: "text", Text: fmt.Sprintf("Screenshot %d: parts %d to %d are not shown.", i+1, len(shown[i])+1, len(parts[i]))})
+		}
 	}
 	encoded, _ := json.Marshal(facts)
 	content = append([]messagesContent{{Type: "text", Text: string(encoded)}}, content...)
@@ -223,6 +245,35 @@ func (c *VisualCritic) request(request ports.VisualCritiqueRequest) messagesRequ
 		Model: c.model, MaxTokens: c.maxTokens, System: visualCriticPrompt,
 		Messages: []messagesTurn{{Role: "user", Content: content}},
 	}
+}
+
+// pictures returns every shot's parts and the ones the critic is shown: the
+// top of every shot first, since that is what a visitor sees, then the next
+// part of each in turn until criticMaxImages pictures are chosen.
+func pictures(shots []ports.VisualShot) (parts, shown [][][]byte) {
+	parts = make([][][]byte, len(shots))
+	shown = make([][][]byte, len(shots))
+	for i, shot := range shots {
+		parts[i] = shot.Tiles
+		if len(parts[i]) == 0 && len(shot.JPEG) > 0 {
+			parts[i] = [][]byte{shot.JPEG}
+		}
+	}
+	left := criticMaxImages
+	for depth := 0; left > 0; depth++ {
+		added := false
+		for i := range shots {
+			if depth < len(parts[i]) && left > 0 {
+				shown[i] = append(shown[i], parts[i][depth])
+				left--
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+	return parts, shown
 }
 
 // send makes one request; a transport failure is an error, any answer is a

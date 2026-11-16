@@ -50,6 +50,9 @@ type Dependencies struct {
 	// Visual, when set, photographs the run's web pages once its subtasks are
 	// done and lets a critic that sees them ask for polish rounds.
 	Visual *VisualReview
+	// VisualUnavailable says why there is no visual review although one was
+	// asked for: ports.VisualReasonNoBrowser or ports.VisualReasonNoClaude.
+	VisualUnavailable string
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -69,6 +72,7 @@ type Service struct {
 	budget              UsageBudget
 	maxReplans          int
 	visual              *VisualReview
+	visualUnavailable   string
 
 	mu        sync.RWMutex
 	states    map[string]ports.RunState
@@ -108,6 +112,7 @@ func New(deps Dependencies) *Service {
 		budget:              deps.Budget,
 		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
 		visual:              deps.Visual,
+		visualUnavailable:   deps.VisualUnavailable,
 
 		states:  make(map[string]ports.RunState),
 		running: make(map[string]bool),

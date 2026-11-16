@@ -1,6 +1,8 @@
 package config
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,6 +159,55 @@ func TestLoadClaudeOrchestratorClaudeOnly(t *testing.T) {
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "sometimes")
 	if _, err := Load(); err == nil {
 		t.Fatal("an invalid Claude-only toggle was accepted")
+	}
+}
+
+func TestLoadClaudeOrchestratorVisualReview(t *testing.T) {
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED", "on")
+	cfg, err := Load()
+	if err != nil || cfg.ClaudeOrchestrator.Visual.Enabled {
+		t.Fatalf("visual = %+v, %v; want off without the one Claude key", cfg.ClaudeOrchestrator.Visual, err)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY", "on")
+	if cfg, err = Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	visual := cfg.ClaudeOrchestrator.Visual
+	if !visual.Enabled || visual.Rounds != DefaultClaudeOrchestratorVisualRounds || visual.Target != DefaultClaudeOrchestratorVisualTarget || visual.Browser != "" || len(visual.Pages) != 0 {
+		t.Fatalf("Claude-only visual defaults = %+v", visual)
+	}
+
+	browser := filepath.Join(t.TempDir(), "chrome")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_ROUNDS", "4")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_TARGET", "8.5")
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER", browser)
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES", " index.html, shop/cart.html ,")
+	if cfg, err = Load(); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	visual = cfg.ClaudeOrchestrator.Visual
+	if visual.Rounds != 4 || visual.Target != 8.5 || visual.Browser != browser || strings.Join(visual.Pages, "|") != "index.html|shop/cart.html" {
+		t.Fatalf("visual = %+v", visual)
+	}
+	t.Setenv("AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW", "off")
+	if cfg, err = Load(); err != nil || cfg.ClaudeOrchestrator.Visual.Enabled {
+		t.Fatalf("visual review could not be turned off: %+v, %v", cfg.ClaudeOrchestrator.Visual, err)
+	}
+
+	for name, env := range map[string][2]string{
+		"bad toggle":         {"AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW", "maybe"},
+		"too many rounds":    {"AO_CLAUDE_ORCHESTRATOR_VISUAL_ROUNDS", "9"},
+		"score out of range": {"AO_CLAUDE_ORCHESTRATOR_VISUAL_TARGET", "11"},
+		"relative browser":   {"AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER", "chrome"},
+		"page outside":       {"AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES", "../other/index.html"},
+		"too many pages":     {"AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES", "a.html,b.html,c.html,d.html,e.html,f.html"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv(env[0], env[1])
+			if _, err := Load(); err == nil {
+				t.Fatalf("Load accepted %s=%s", env[0], env[1])
+			}
+		})
 	}
 }
 

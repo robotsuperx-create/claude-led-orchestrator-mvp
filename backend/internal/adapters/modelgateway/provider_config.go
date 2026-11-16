@@ -260,7 +260,9 @@ func (a *ProviderAdapter) MapReviewRequest(request ports.ReviewRequest) (ChatReq
 		return ChatRequest{}, errors.New("review request could not be encoded")
 	}
 	return a.mapRequest(a.config.DefaultModel, []ChatMessage{
-		{Role: "system", Content: "Review the supplied execution and validation results. Return only valid JSON matching {\"decision\":\"approve\"|\"request_changes\",\"summary\":string,\"issues\":[string]}. Do not include markdown."},
+		{Role: "system", Content: "Review the supplied execution and validation results. " +
+			"When visual is present, an art director looked at screenshots of the pages after each polish round; its last round is how the pages look now, and a low score there is an issue. " +
+			"Return only valid JSON matching {\"decision\":\"approve\"|\"request_changes\",\"summary\":string,\"issues\":[string]}. Do not include markdown."},
 		{Role: "user", Content: string(input)},
 	}, 0)
 }

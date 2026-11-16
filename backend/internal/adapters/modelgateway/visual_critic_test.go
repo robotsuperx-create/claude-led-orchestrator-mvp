@@ -86,6 +86,48 @@ func TestVisualCriticSendsThePicturesThroughTheMessagesAPI(t *testing.T) {
 	}
 }
 
+// A long page reaches the critic in parts it can read; with many shots, the
+// top of every one comes before the rest of any.
+func TestVisualCriticReadsLongPagesInPartsWithinABudget(t *testing.T) {
+	tiles := func(n int, mark byte) [][]byte {
+		out := make([][]byte, n)
+		for i := range out {
+			out[i] = []byte{0xFF, 0xD8, mark, byte(i)}
+		}
+		return out
+	}
+	var shots []ports.VisualShot
+	for i := 0; i < 9; i++ {
+		shots = append(shots, ports.VisualShot{Page: "index.html", Viewport: "desktop", Width: 1440, JPEG: []byte{0xFF, 0xD8}, Tiles: tiles(6, byte(i))})
+	}
+	parts, shown := pictures(shots)
+	total := 0
+	for i := range shots {
+		if len(parts[i]) != 6 || len(shown[i]) < 2 || len(shown[i]) > 3 || shown[i][0][3] != 0 {
+			t.Fatalf("shot %d: %d parts, %d shown", i, len(parts[i]), len(shown[i]))
+		}
+		total += len(shown[i])
+	}
+	if total != criticMaxImages {
+		t.Fatalf("%d pictures chosen, want %d", total, criticMaxImages)
+	}
+
+	critic := &VisualCritic{model: "m", maxTokens: 10}
+	body := critic.request(ports.VisualCritiqueRequest{Task: "t", Shots: []ports.VisualShot{{Page: "index.html", Viewport: "phone", Width: 390, Tiles: tiles(3, 1)}}})
+	var labels []string
+	images := 0
+	for _, block := range body.Messages[0].Content[1:] {
+		if block.Type == "image" {
+			images++
+			continue
+		}
+		labels = append(labels, block.Text)
+	}
+	if images != 3 || !strings.Contains(labels[0], "part 1 of 3") || !strings.Contains(labels[2], "part 3 of 3") {
+		t.Fatalf("images = %d, labels = %q", images, labels)
+	}
+}
+
 func TestVisualCriticRetriesWhenClaudeIsBusy(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
