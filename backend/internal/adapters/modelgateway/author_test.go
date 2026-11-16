@@ -53,7 +53,7 @@ func TestAuthorRouterDispatchesByProviderWithFallback(t *testing.T) {
 }
 
 func TestProposeEditsSendsTaskContextAndDecodesEdits(t *testing.T) {
-	server, body := chatServer(t, "```json\n"+`{"summary":"add greeting","edits":[{"path":"greet.go","content":"package main\n"},{"path":"old.go","delete":true}]}`+"\n```")
+	server, body := chatServer(t, "```json\n"+`{"summary":"add greeting","edits":[{"path":"greet.go","content":"package main\n"},{"path":"old.go","delete":true},{"path":"main.go","replace":[{"old":"package main","new":"package app"}]}]}`+"\n```")
 	adapter := newTestAdapter(t, ProviderConfig{Provider: ports.ModelProviderDeepSeek, BaseURL: server.URL, DefaultModel: "m"})
 
 	proposal, err := adapter.ProposeEdits(context.Background(), ports.CodeAuthorRequest{
@@ -64,9 +64,13 @@ func TestProposeEditsSendsTaskContextAndDecodesEdits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProposeEdits: %v", err)
 	}
-	if proposal.Summary != "add greeting" || len(proposal.Edits) != 2 ||
-		proposal.Edits[0].Path != "greet.go" || proposal.Edits[0].Content != "package main\n" || !proposal.Edits[1].Delete {
+	if proposal.Summary != "add greeting" || len(proposal.Edits) != 3 ||
+		proposal.Edits[0].Path != "greet.go" || proposal.Edits[0].Content != "package main\n" || !proposal.Edits[1].Delete ||
+		len(proposal.Edits[2].Replace) != 1 || proposal.Edits[2].Replace[0] != (ports.TextReplacement{Old: "package main", New: "package app"}) {
 		t.Fatalf("proposal = %+v, want decoded edits from a fenced JSON answer", proposal)
+	}
+	if !strings.Contains(*body, "use replace") {
+		t.Fatalf("the system prompt does not ask for targeted replacements: %s", *body)
 	}
 	for _, want := range []string{`\"instructions\":\"add a greeting\"`, `\"previous_failure\":\"tests failed\"`, `\"repository_files\":[\"main.go\"]`, `\"attempt\":2`} {
 		if !strings.Contains(*body, want) {

@@ -29,11 +29,21 @@ type FileSelection struct {
 	Paths []string `json:"paths"`
 }
 
-// FileEdit replaces Path with Content, or removes it when Delete is true.
+// FileEdit changes one file. With Replace it swaps exact passages of the
+// existing file, in order, and leaves the rest as it is; otherwise it writes
+// Content as the whole file, or removes the file when Delete is true.
 type FileEdit struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-	Delete  bool   `json:"delete,omitempty"`
+	Path    string            `json:"path"`
+	Content string            `json:"content"`
+	Delete  bool              `json:"delete,omitempty"`
+	Replace []TextReplacement `json:"replace,omitempty"`
+}
+
+// TextReplacement swaps one passage of a file, which must occur in it
+// exactly once, for New.
+type TextReplacement struct {
+	Old string `json:"old"`
+	New string `json:"new"`
 }
 
 // EditProposal is the coding model's complete answer for one attempt.

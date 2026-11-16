@@ -93,6 +93,97 @@ func TestApplyEditsRejectsWholeProposalWhenAnyEditIsUnsafe(t *testing.T) {
 	}
 }
 
+func replacements(pairs ...string) []ports.TextReplacement {
+	var out []ports.TextReplacement
+	for i := 0; i+1 < len(pairs); i += 2 {
+		out = append(out, ports.TextReplacement{Old: pairs[i], New: pairs[i+1]})
+	}
+	return out
+}
+
+// A writer changes a large file by naming only the passages it changes; the
+// rest of the file is kept byte for byte.
+func TestApplyEditsReplacesPassagesAndKeepsTheRestOfTheFile(t *testing.T) {
+	worktree := t.TempDir()
+	body := strings.Repeat("// unchanged line\n", 5000)
+	mustWrite(t, filepath.Join(worktree, "config.go"), "package config\n\ntype Config struct {\n\tClaudeOnly bool\n}\n"+body)
+	mustWrite(t, filepath.Join(worktree, "keep.txt"), "before")
+
+	applied, err := applyEdits(worktree, []ports.FileEdit{
+		{Path: "config.go", Replace: replacements(
+			"\tClaudeOnly bool\n", "\t// ClaudeOnly lets one Claude key do everything.\n\tClaudeOnly bool\n",
+			// Later replacements see the earlier ones.
+			"everything.", "everything: plan, write and review.",
+		)},
+		{Path: "keep.txt", Content: "after"},
+	})
+	if err != nil {
+		t.Fatalf("applyEdits() error = %v", err)
+	}
+	want := "package config\n\ntype Config struct {\n\t// ClaudeOnly lets one Claude key do everything: plan, write and review.\n\tClaudeOnly bool\n}\n" + body
+	if got := mustRead(t, filepath.Join(worktree, "config.go")); got != want {
+		t.Fatalf("config.go head = %q", got[:120])
+	}
+	if got := mustRead(t, filepath.Join(worktree, "keep.txt")); got != "after" {
+		t.Fatalf("keep.txt = %q", got)
+	}
+	if strings.Join(applied.Written, ",") != "config.go,keep.txt" {
+		t.Fatalf("applied = %+v", applied)
+	}
+}
+
+// Git for Windows checks files out with CRLF line endings; a model quoting
+// them with plain newlines still matches, and its new text gets CRLF too.
+func TestApplyEditsReplacementsMatchCRLFCheckouts(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "a.go"), "one\r\ntwo\r\nthree\r\n")
+	if _, err := applyEdits(worktree, []ports.FileEdit{{Path: "a.go", Replace: replacements("one\ntwo\n", "1\n2\n")}}); err != nil {
+		t.Fatalf("applyEdits() error = %v", err)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "a.go")); got != "1\r\n2\r\nthree\r\n" {
+		t.Fatalf("a.go = %q", got)
+	}
+	// Quoting the CRLF exactly works as well.
+	if _, err := applyEdits(worktree, []ports.FileEdit{{Path: "a.go", Replace: replacements("2\r\nthree", "2\r\n3")}}); err != nil {
+		t.Fatalf("applyEdits() error = %v", err)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "a.go")); got != "1\r\n2\r\n3\r\n" {
+		t.Fatalf("a.go = %q", got)
+	}
+}
+
+// A replacement that does not match exactly once rejects the whole proposal
+// with a reason the model can act on in its retry.
+func TestApplyEditsRejectsReplacementsThatDoNotMatchOnce(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "a.txt"), "original")
+	mustWrite(t, filepath.Join(worktree, "b.txt"), "x = 1\nx = 1\n")
+	tooMany := make([]ports.TextReplacement, maxReplacementsPerEdit+1)
+	for i := range tooMany {
+		tooMany[i] = ports.TextReplacement{Old: "x", New: "y"}
+	}
+	for want, bad := range map[string]ports.FileEdit{
+		"not in the file":   {Path: "b.txt", Replace: replacements("y = 2", "y = 3")},
+		"occurs 2 times":    {Path: "b.txt", Replace: replacements("x = 1", "x = 2")},
+		"has no old text":   {Path: "b.txt", Replace: replacements("", "x")},
+		"does not exist":    {Path: "missing.txt", Replace: replacements("a", "b")},
+		"one of them":       {Path: "b.txt", Content: "x", Replace: replacements("x", "y")},
+		"at most 100":       {Path: "b.txt", Replace: tooMany},
+		"replacement 2 for": {Path: "b.txt", Replace: replacements("x = 1\nx", "z = 1\nx", "x = 1\nx", "w")},
+	} {
+		_, err := applyEdits(worktree, []ports.FileEdit{{Path: "a.txt", Content: "changed"}, bad})
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), bad.Path) {
+			t.Errorf("applyEdits(%s) = %v, want an error naming the file and %q", bad.Path, err, want)
+		}
+		if got := mustRead(t, filepath.Join(worktree, "a.txt")); got != "original" {
+			t.Fatalf("a.txt = %q after a rejected proposal; nothing should be written", got)
+		}
+		if got := mustRead(t, filepath.Join(worktree, "b.txt")); got != "x = 1\nx = 1\n" {
+			t.Fatalf("b.txt = %q after a rejected proposal", got)
+		}
+	}
+}
+
 func TestApplyEditsRefusesSymlinks(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation needs privileges on Windows")
@@ -118,6 +209,9 @@ func TestApplyEditsRefusesSymlinks(t *testing.T) {
 		if _, err := applyEdits(worktree, []ports.FileEdit{{Path: path, Content: "pwned"}}); err == nil {
 			t.Errorf("applyEdits(%q) succeeded through a symlink", path)
 		}
+	}
+	if _, err := applyEdits(worktree, []ports.FileEdit{{Path: "linkfile.txt", Replace: replacements("outside", "pwned")}}); err == nil {
+		t.Error("a replacement went through a symlink")
 	}
 	if got := mustRead(t, filepath.Join(outside, "target.txt")); got != "outside" {
 		t.Fatalf("file outside the worktree was modified: %q", got)
