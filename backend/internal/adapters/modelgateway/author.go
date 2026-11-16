@@ -19,9 +19,14 @@ const (
 	proposeEditsPrompt = "You are a software engineer completing one task in a repository. " +
 		"files holds the current content of the files you asked to read; repository_files lists every tracked file. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
-		"Return only valid JSON matching {\"summary\":string,\"edits\":[{\"path\":string,\"content\":string,\"delete\":boolean}]}. " +
-		"Each edit replaces the whole file at path (a slash-separated path relative to the repository root) with content, " +
-		"or removes it when delete is true. Never edit .git or secret files. Do not include markdown."
+		"Return only valid JSON matching " +
+		"{\"summary\":string,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
+		"path is slash-separated and relative to the repository root. Each edit uses exactly one of replace, content or delete. " +
+		"To change a file you were given, use replace: each old is a passage copied exactly from the file's current content, " +
+		"whitespace included, that occurs in it only once (add neighbouring lines if needed), and new is the text that takes its place; " +
+		"replacements apply in order and the rest of the file stays as it is. " +
+		"Use content only to create a file or to rewrite a short one: it becomes the whole file. Set delete to true to remove a file. " +
+		"Never edit .git or secret files. Do not include markdown."
 )
 
 var _ ports.CodeAuthor = (*ProviderAdapter)(nil)

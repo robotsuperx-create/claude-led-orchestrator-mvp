@@ -20,6 +20,7 @@ const (
 	maxReadFileBytes         = 128 * 1024
 	maxReadTotalBytes        = 512 * 1024
 	maxEditsPerAttempt       = 50
+	maxReplacementsPerEdit   = 100
 	maxEditFileBytes         = 512 * 1024
 	maxEditTotalBytes        = 4 * 1024 * 1024
 )
@@ -177,6 +178,7 @@ func applyEdits(worktree string, edits []ports.FileEdit) (appliedEdits, error) {
 	defer func() { _ = root.Close() }()
 
 	cleaned := make([]string, len(edits))
+	contents := make([]string, len(edits))
 	seen := make(map[string]struct{}, len(edits))
 	total := 0
 	for i, edit := range edits {
@@ -188,24 +190,39 @@ func applyEdits(worktree string, edits []ports.FileEdit) (appliedEdits, error) {
 			return appliedEdits{}, fmt.Errorf("the proposal edits %s more than once", clean)
 		}
 		seen[clean] = struct{}{}
-		if !edit.Delete {
-			if len(edit.Content) > maxEditFileBytes {
-				return appliedEdits{}, fmt.Errorf("edit to %s exceeds %d bytes", clean, maxEditFileBytes)
-			}
-			if !utf8.ValidString(edit.Content) {
-				return appliedEdits{}, fmt.Errorf("edit to %s is not valid UTF-8 text", clean)
-			}
-			total += len(edit.Content)
-		}
 		if err := ensureNoSymlinkComponents(root, clean); err != nil {
 			return appliedEdits{}, err
 		}
-		if info, err := root.Lstat(clean); err == nil && !info.Mode().IsRegular() {
+		info, statErr := root.Lstat(clean)
+		exists := statErr == nil
+		if exists && !info.Mode().IsRegular() {
 			return appliedEdits{}, fmt.Errorf("%s exists and is not a regular file", clean)
-		} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return appliedEdits{}, fmt.Errorf("inspect %s: %w", clean, err)
+		} else if statErr != nil && !errors.Is(statErr, fs.ErrNotExist) {
+			return appliedEdits{}, fmt.Errorf("inspect %s: %w", clean, statErr)
+		}
+		content := edit.Content
+		switch {
+		case len(edit.Replace) > 0 && (edit.Delete || edit.Content != ""):
+			return appliedEdits{}, fmt.Errorf("edit to %s sets replace together with content or delete; use one of them", clean)
+		case len(edit.Replace) > 0:
+			if !exists {
+				return appliedEdits{}, fmt.Errorf("edit to %s replaces text in a file that does not exist; use content to create it", clean)
+			}
+			if content, err = replaceInFile(root, clean, info.Size(), edit.Replace); err != nil {
+				return appliedEdits{}, err
+			}
+		}
+		if !edit.Delete {
+			if len(content) > maxEditFileBytes {
+				return appliedEdits{}, fmt.Errorf("edit to %s exceeds %d bytes", clean, maxEditFileBytes)
+			}
+			if !utf8.ValidString(content) {
+				return appliedEdits{}, fmt.Errorf("edit to %s is not valid UTF-8 text", clean)
+			}
+			total += len(content)
 		}
 		cleaned[i] = clean
+		contents[i] = content
 	}
 	if total > maxEditTotalBytes {
 		return appliedEdits{}, fmt.Errorf("the proposal writes %d bytes; at most %d are allowed", total, maxEditTotalBytes)
@@ -230,10 +247,60 @@ func applyEdits(worktree string, edits []ports.FileEdit) (appliedEdits, error) {
 		if info, err := root.Lstat(clean); err == nil {
 			mode = info.Mode().Perm()
 		}
-		if err := root.WriteFile(clean, []byte(edit.Content), mode); err != nil {
+		if err := root.WriteFile(clean, []byte(contents[i]), mode); err != nil {
 			return applied, fmt.Errorf("write %s: %w", clean, err)
 		}
 		applied.Written = append(applied.Written, clean)
 	}
 	return applied, nil
+}
+
+// replaceInFile applies replacements, in order, to the current content of an
+// existing file and returns the result; nothing is written here. Each old
+// passage must occur exactly once, so a model that misremembers the file gets
+// an error it can act on instead of a silent wrong change. A file checked out
+// with CRLF line endings (core.autocrlf on Windows) also matches a passage
+// written with plain newlines.
+func replaceInFile(root *os.Root, clean string, size int64, replacements []ports.TextReplacement) (string, error) {
+	if len(replacements) > maxReplacementsPerEdit {
+		return "", fmt.Errorf("edit to %s has %d replacements; at most %d are allowed", clean, len(replacements), maxReplacementsPerEdit)
+	}
+	if size > maxEditFileBytes {
+		return "", fmt.Errorf("%s is larger than %d bytes and cannot be edited", clean, maxEditFileBytes)
+	}
+	data, err := root.ReadFile(clean)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", clean, err)
+	}
+	if !utf8.Valid(data) {
+		return "", fmt.Errorf("%s is not UTF-8 text and cannot be edited", clean)
+	}
+	text := string(data)
+	crlf := strings.Contains(text, "\r\n")
+	for i, replacement := range replacements {
+		oldText, newText := replacement.Old, replacement.New
+		if oldText == "" {
+			return "", fmt.Errorf("replacement %d for %s has no old text", i+1, clean)
+		}
+		count := strings.Count(text, oldText)
+		if count == 0 && crlf && !strings.Contains(oldText, "\r") {
+			oldText = strings.ReplaceAll(oldText, "\n", "\r\n")
+			if !strings.Contains(newText, "\r") {
+				newText = strings.ReplaceAll(newText, "\n", "\r\n")
+			}
+			count = strings.Count(text, oldText)
+		}
+		switch count {
+		case 1:
+			text = strings.Replace(text, oldText, newText, 1)
+		case 0:
+			return "", fmt.Errorf("replacement %d for %s: the old text is not in the file; copy it exactly from the file's current content", i+1, clean)
+		default:
+			return "", fmt.Errorf("replacement %d for %s: the old text occurs %d times; include neighbouring lines so it occurs once", i+1, clean, count)
+		}
+		if len(text) > maxEditFileBytes {
+			return "", fmt.Errorf("edit to %s exceeds %d bytes", clean, maxEditFileBytes)
+		}
+	}
+	return text, nil
 }
