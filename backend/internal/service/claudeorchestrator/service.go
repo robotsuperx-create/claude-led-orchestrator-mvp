@@ -382,6 +382,8 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 	if err != nil {
 		return s.fail(runCtx, result, fmt.Errorf("validate delegated work: %w", err))
 	}
+	// The security guard reads everything the run added before Claude reviews it.
+	s.guard(runCtx, result.Workspace, &result.Validation)
 
 	if !s.advance(runCtx, request.RunID, ports.RunStateReviewing) {
 		return canceledResult(result)
