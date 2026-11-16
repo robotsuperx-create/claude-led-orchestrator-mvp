@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 )
 
 // CommandRunner runs an executable with an explicit working directory and
@@ -52,7 +52,8 @@ func NewManagerWithManagedRoot(runner CommandRunner, managedRoot string) *Manage
 type execRunner struct{}
 
 func (execRunner) Run(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
+	// Hidden, so git opens no console window on Windows.
+	cmd := aoprocess.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	return cmd.CombinedOutput()
 }
