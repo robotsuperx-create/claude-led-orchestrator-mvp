@@ -248,7 +248,12 @@ func Run() error {
 		// Run worktrees live under the data dir (~/.ao), like session worktrees.
 		orchestratorWorktrees = worktreesvc.NewManagerWithManagedRoot(nil, claudeOrchestratorManagedRoot(cfg))
 	}
-	claudeOrchestrator, err = newClaudeOrchestratorWiring(cfg, claudeOrchestratorBuildDeps{Worktrees: orchestratorWorktrees})
+	// The media gateway: the library under the data dir and, when it is set,
+	// the person's GPU server. Its workers stop with the daemon. Runs use it
+	// for the pictures their crew asks for.
+	mediaGateway := newMedia(cfg.ClaudeOrchestrator.Media, log)
+	defer mediaGateway.Close()
+	claudeOrchestrator, err = newClaudeOrchestratorWiring(cfg, claudeOrchestratorBuildDeps{Worktrees: orchestratorWorktrees, Media: mediaGateway})
 	if err != nil {
 		if !cfg.ClaudeOrchestrator.FromSettingsFile {
 			return err
@@ -906,10 +911,6 @@ func Run() error {
 			claudeOrchestratorHistory = history
 		}
 	}
-	// The media gateway: the library under the data dir and, when it is set,
-	// the person's GPU server. Its workers stop with the daemon.
-	mediaGateway := newMedia(cfg.ClaudeOrchestrator.Media, log)
-	defer mediaGateway.Close()
 	srv, err := httpd.NewWithDeps(cfg, log, termMgr, httpd.APIDeps{
 		Projects:                    projectSvc,
 		HostID:                      hostIdentity.HostID,

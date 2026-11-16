@@ -165,3 +165,22 @@ func TestRunPodSwitchesThePodWithTheKey(t *testing.T) {
 }
 
 func ptr[T any](value T) *T { return &value }
+
+func TestARunsCrewGetsItsPictureBackAndTheLibraryKeepsIt(t *testing.T) {
+	service, _ := newGateway(t, &fakeComfy{})
+	if !service.Enabled() {
+		t.Fatal("a gateway with a server is not enabled")
+	}
+	picture, err := service.MakePicture(t.Context(), "hero image for the tint store", 1344, 768)
+	if err != nil || string(picture) != string(pngBytes) {
+		t.Fatalf("MakePicture = %d bytes, %v", len(picture), err)
+	}
+	items, _ := service.List()
+	if len(items) != 1 || items[0].Source != SourceCrew || items[0].Width != 1344 {
+		t.Fatalf("library = %+v", items)
+	}
+	failing, _ := newGateway(t, &fakeComfy{submitAs: http.StatusBadRequest})
+	if _, err := failing.MakePicture(t.Context(), "x", 1024, 1024); err == nil || codeOf(err) != FailRejected {
+		t.Fatalf("a refused picture = %v", err)
+	}
+}

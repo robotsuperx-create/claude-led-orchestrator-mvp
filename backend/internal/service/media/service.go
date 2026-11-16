@@ -339,7 +339,7 @@ func (s *Service) newItem(request Request, file workflowFile) (Item, error) {
 		seed = randomSeed()
 	}
 	source := request.Source
-	if source != SourceX00 {
+	if source != SourceX00 && source != SourceCrew {
 		source = SourceApp
 	}
 	now := s.now().UTC()
@@ -399,6 +399,40 @@ func pick(asked, preset, fallback int) int {
 }
 
 func validSide(side, most int) bool { return side >= MinSide && side <= most }
+
+// Enabled is true when a GPU server is set.
+func (s *Service) Enabled() bool { return s.server != nil }
+
+// MakePicture makes one picture for a run and waits for it: the crew's own
+// request, kept in the library like any other.
+func (s *Service) MakePicture(ctx context.Context, prompt string, width, height int) ([]byte, error) {
+	item, err := s.Create(Request{Capability: KindImage, Prompt: prompt, Width: width, Height: height, Source: SourceCrew})
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, imageTimeout+wakeTimeout)
+	defer cancel()
+	for {
+		current, err := s.lib.get(item.ID)
+		if err != nil {
+			return nil, err
+		}
+		switch current.State {
+		case StateDone:
+			if len(current.Files) == 0 || !ValidFileName(current.Files[0].Name) {
+				return nil, failure(FailNoOutput)
+			}
+			return os.ReadFile(filepath.Join(s.lib.itemDir(item.ID), current.Files[0].Name)) //nolint:gosec // a file in the library's own item folder
+		case StateFailed:
+			return nil, failure(current.Failure)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(s.pollEvery):
+		}
+	}
+}
 
 // Upload adds a picture from the person's computer to the library, so a
 // capability can work on it. It needs no server.

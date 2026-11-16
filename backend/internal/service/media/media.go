@@ -50,6 +50,8 @@ const (
 	SourceX00 = "x00"
 	// SourceUpload is a picture the person added from their computer.
 	SourceUpload = "upload"
+	// SourceCrew is a picture a run's crew asked for.
+	SourceCrew = "crew"
 )
 
 // Limits on what is asked for and kept.

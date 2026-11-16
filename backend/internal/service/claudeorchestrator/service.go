@@ -56,6 +56,9 @@ type Dependencies struct {
 	// SitePages, when set, finds a run's web pages in its worktree (paths
 	// relative to it) for the deck's live preview.
 	SitePages func(worktree string) []string
+	// Media, when set, makes the pictures the crew asks for on the person's
+	// GPU server (the media gateway).
+	Media MediaMaker
 }
 
 // Service coordinates a single executive planning and delegation run. Run
@@ -74,6 +77,7 @@ type Service struct {
 	writer              ports.ModelProvider
 	budget              UsageBudget
 	maxReplans          int
+	media               MediaMaker
 	visual              *VisualReview
 	visualUnavailable   string
 	sitePages           func(worktree string) []string
@@ -116,6 +120,7 @@ func New(deps Dependencies) *Service {
 		writer:              deps.WriterProvider,
 		budget:              deps.Budget,
 		maxReplans:          min(max(deps.MaxReplans, 0), maxReplanAttempts),
+		media:               deps.Media,
 		visual:              deps.Visual,
 		visualUnavailable:   deps.VisualUnavailable,
 		sitePages:           deps.SitePages,
@@ -360,6 +365,9 @@ func (s *Service) Run(ctx context.Context, request ports.OrchestrationRequest) (
 		result.Results = completed
 	}
 
+	// Pictures the crew asked for, made on the GPU server and put in place
+	// before anyone looks at the pages.
+	s.fulfilMedia(runCtx, result.Workspace.Path)
 	plan = s.reviewVisually(runCtx, request, plan, &result)
 	result.Plan = plan
 
@@ -647,7 +655,7 @@ func (s *Service) runSubtask(ctx context.Context, runID string, task ports.Plann
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		s.liveStep(runID, task.ID, ports.LiveStepRunning, attempt)
 		execution, err := s.worker.Execute(ctx, ports.WorkerRequest{
-			Task:            task,
+			Task:            s.withMediaNote(task),
 			Attempt:         attempt,
 			PreviousFailure: previousFailure,
 		})
