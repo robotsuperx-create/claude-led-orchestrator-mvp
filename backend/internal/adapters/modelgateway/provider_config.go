@@ -316,7 +316,7 @@ func (a *ProviderAdapter) Plan(ctx context.Context, request ports.PlanRequest) (
 	if err != nil {
 		return result, err
 	}
-	content := ""
+	var content string
 	for asked := 1; ; asked++ {
 		response, err := a.complete(ctx, chatRequest)
 		if err != nil {
