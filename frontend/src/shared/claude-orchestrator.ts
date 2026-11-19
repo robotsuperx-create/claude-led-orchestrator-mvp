@@ -432,13 +432,15 @@ export function parseClaudeOrchestratorLive(value: unknown): ClaudeOrchestratorL
 		if (!step || !id || typeof state !== "string" || !(CLAUDE_ORCHESTRATOR_LIVE_STEP_STATES as readonly string[]).includes(state)) continue;
 		const index = count(step.index);
 		if (index === undefined || !Number.isInteger(index) || index >= LIVE_MAX_STEPS) continue;
+		// The daemon bounds a failure reason in runes; keep at most 300 here too.
+		const failure = typeof step.failure === "string" ? Array.from(step.failure).slice(0, 300).join("").trim() : "";
 		steps.push({
 			index,
 			id,
 			title: boundedText(step.title, 800) ?? "",
 			state: state as ClaudeOrchestratorLiveStepState,
 			attempt: Math.min(Math.floor(count(step.attempt) ?? 0), 99),
-			...(boundedText(step.failure, 300) ? { failure: boundedText(step.failure, 300) } : {}),
+			...(failure ? { failure } : {}),
 		});
 	}
 	const files: ClaudeOrchestratorLiveFile[] = [];
