@@ -23,13 +23,23 @@
 	};
 
 	try { await document.fonts.ready; } catch (e) {}
+	// A page that scrolls smoothly would still be gliding when the next step
+	// or the screenshot comes: it never reaches the sections below, so they
+	// stay unrevealed, and a sticky header is caught partway down. Jump.
+	const smooth = [document.documentElement, document.body].map((el) => [el, el.style.scrollBehavior]);
+	for (const [el] of smooth) el.style.scrollBehavior = "auto";
+	const jump = (y) => scrollTo({ top: y, left: 0, behavior: "instant" });
 	const step = Math.max(200, Math.floor(innerHeight * 0.8));
 	for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
-		scrollTo(0, y);
-		await sleep(140);
+		jump(y);
+		await sleep(160);
 	}
-	scrollTo(0, 0);
-	await sleep(400);
+	jump(document.documentElement.scrollHeight);
+	await sleep(160);
+	jump(0);
+	// Reveals and count-ups that started on the way down finish before the shot.
+	await sleep(1800);
+	for (const [el, behavior] of smooth) el.style.scrollBehavior = behavior;
 
 	const root = document.documentElement;
 	if (root.scrollWidth > innerWidth + 1) {
