@@ -16,13 +16,16 @@ import (
 // prompt size, provider cost, and the blast radius of a bad proposal.
 const (
 	maxRepositoryFilesListed = 5000
-	maxFilesRead             = 20
+	maxFilesRead             = 16
 	maxReadFileBytes         = 128 * 1024
-	maxReadTotalBytes        = 512 * 1024
-	maxEditsPerAttempt       = 50
-	maxReplacementsPerEdit   = 100
-	maxEditFileBytes         = 512 * 1024
-	maxEditTotalBytes        = 4 * 1024 * 1024
+	// maxReadTotalBytes bounds the files one reply is sent. Every reply of
+	// an attempt is sent them again, so this, more than anything, sets what
+	// a subtask costs: 192KB is about 60k input tokens a reply.
+	maxReadTotalBytes      = 192 * 1024
+	maxEditsPerAttempt     = 50
+	maxReplacementsPerEdit = 100
+	maxEditFileBytes       = 512 * 1024
+	maxEditTotalBytes      = 4 * 1024 * 1024
 )
 
 var errProtectedPath = errors.New("path is protected")
@@ -125,9 +128,17 @@ func ensureNoSymlinkComponents(root *os.Root, clean string) error {
 // the repository file list, protected paths, symlinks, non-regular files,
 // binary files, and anything beyond the read budget are skipped.
 func readSnapshots(worktree string, requested, repositoryFiles []string) ([]ports.FileSnapshot, error) {
+	snapshots, _, err := snapshotsFor(worktree, requested, repositoryFiles)
+	return snapshots, err
+}
+
+// snapshotsFor reads the requested files like readSnapshots and also names
+// the readable text files that were asked for but not sent because they were
+// too large, or did not fit in what one reply may be sent.
+func snapshotsFor(worktree string, requested, repositoryFiles []string) ([]ports.FileSnapshot, []string, error) {
 	root, err := os.OpenRoot(worktree)
 	if err != nil {
-		return nil, fmt.Errorf("open worktree: %w", err)
+		return nil, nil, fmt.Errorf("open worktree: %w", err)
 	}
 	defer func() { _ = root.Close() }()
 
@@ -136,12 +147,12 @@ func readSnapshots(worktree string, requested, repositoryFiles []string) ([]port
 		known[file] = struct{}{}
 	}
 	seen := make(map[string]struct{})
-	var snapshots []ports.FileSnapshot
+	var (
+		snapshots []ports.FileSnapshot
+		left      []string
+	)
 	total := 0
 	for _, name := range requested {
-		if len(snapshots) >= maxFilesRead {
-			break
-		}
 		clean, err := cleanRepoPath(name)
 		if err != nil {
 			continue
@@ -157,7 +168,11 @@ func readSnapshots(worktree string, requested, repositoryFiles []string) ([]port
 			continue
 		}
 		info, err := root.Lstat(clean)
-		if err != nil || !info.Mode().IsRegular() || info.Size() > maxReadFileBytes || total+int(info.Size()) > maxReadTotalBytes {
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		if len(snapshots) >= maxFilesRead || info.Size() > maxReadFileBytes || total+int(info.Size()) > maxReadTotalBytes {
+			left = append(left, clean)
 			continue
 		}
 		data, err := root.ReadFile(clean)
@@ -167,7 +182,7 @@ func readSnapshots(worktree string, requested, repositoryFiles []string) ([]port
 		total += len(data)
 		snapshots = append(snapshots, ports.FileSnapshot{Path: clean, Content: string(data)})
 	}
-	return snapshots, nil
+	return snapshots, left, nil
 }
 
 // appliedEdits records what applyEdits changed, for the worker summary.

@@ -272,3 +272,30 @@ func mustRead(t *testing.T, path string) string {
 	}
 	return string(data)
 }
+
+// What one reply is sent is bounded; the files left out are named, so the
+// writer knows they exist, and only files that are really there are named.
+func TestFilesPastTheReadLimitAreNamedAsNotShown(t *testing.T) {
+	worktree := t.TempDir()
+	half := strings.Repeat("a", maxReadTotalBytes/2+1)
+	mustWrite(t, filepath.Join(worktree, "css/one.css"), half)
+	mustWrite(t, filepath.Join(worktree, "css/two.css"), half)
+	mustWrite(t, filepath.Join(worktree, "js/small.js"), "x")
+	mustWrite(t, filepath.Join(worktree, "huge.txt"), strings.Repeat("a", maxReadFileBytes+1))
+	known := []string{"css/one.css", "css/two.css", "js/small.js", "huge.txt", "missing.go"}
+
+	snapshots, left, err := snapshotsFor(worktree, []string{"css/one.css", "css/two.css", "js/small.js", "huge.txt", "missing.go"}, known)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent []string
+	for _, snapshot := range snapshots {
+		sent = append(sent, snapshot.Path)
+	}
+	if strings.Join(sent, ",") != "css/one.css,js/small.js" {
+		t.Fatalf("sent %v, want the files that fit, in the order asked", sent)
+	}
+	if strings.Join(left, ",") != "css/two.css,huge.txt" {
+		t.Fatalf("not shown = %v, want the existing files that did not fit", left)
+	}
+}

@@ -56,3 +56,17 @@ func TestAnAnswerThatIsNotJSONSaysWhatIsWrong(t *testing.T) {
 		t.Fatalf("err = %v, want the JSON named invalid", err)
 	}
 }
+
+// Fable sometimes reasons in prose before the answer, and the prose holds
+// brackets of its own; the answer is still found.
+func TestTheAnswerIsFoundAfterProseThatHoldsBrackets(t *testing.T) {
+	content := "Looking at the [hero] section and the {stage}, I will pin it. Example: {\"x\":1}.\n" +
+		"```json\n{\"summary\":\"pinned the hero\",\"edits\":[{\"path\":\"js/hero.js\",\"content\":\"\\\"use strict\\\";\\n\"}]}\n```\nDone."
+	var proposal ports.EditProposal
+	if err := decodeModelJSON(content, &proposal); err != nil {
+		t.Fatal(err)
+	}
+	if proposal.Summary != "pinned the hero" || len(proposal.Edits) != 1 || proposal.Edits[0].Path != "js/hero.js" {
+		t.Fatalf("proposal = %+v, want the answer, not the example", proposal)
+	}
+}

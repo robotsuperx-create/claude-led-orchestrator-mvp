@@ -397,7 +397,7 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	if err != nil {
 		return "", &authorAttemptError{stage: "select files to read", err: err}
 	}
-	authorRequest.Files, err = readSnapshots(worktreePath, selection.Paths, files)
+	authorRequest.Files, authorRequest.NotShown, err = snapshotsFor(worktreePath, selection.Paths, files)
 	if err != nil {
 		return "", err
 	}
@@ -419,10 +419,11 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	)
 	wrote := func() bool { return len(applied.Written)+len(applied.Deleted) > 0 }
 	refresh := func() error {
-		// The next reply sees every file it chose and every file this
-		// attempt wrote, as they are now.
+		// The next reply sees every file this attempt wrote and every file
+		// it chose, as they are now; the written ones come first, so they
+		// are never the ones left out for size.
 		var err error
-		authorRequest.Files, err = readSnapshots(worktreePath, appendNew(append([]string(nil), selection.Paths...), applied.Written...), currentFiles(ctx, runner, worktreePath, files))
+		authorRequest.Files, authorRequest.NotShown, err = snapshotsFor(worktreePath, appendNew(append([]string(nil), applied.Written...), selection.Paths...), currentFiles(ctx, runner, worktreePath, files))
 		return err
 	}
 	for turn := 1; turn <= maxAuthorTurns; turn++ {
@@ -478,7 +479,8 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		}
 		if len(reply.Edits) == 0 && len(reply.Read) > 0 && turn < maxAuthorTurns {
 			// The writer asked to see more before writing: show it, then ask again.
-			selection.Paths = appendNew(selection.Paths, reply.Read...)
+			// What it asked for goes first, so it is what fits.
+			selection.Paths = appendNew(append([]string(nil), reply.Read...), selection.Paths...)
 			if err := refresh(); err != nil {
 				return "", err
 			}

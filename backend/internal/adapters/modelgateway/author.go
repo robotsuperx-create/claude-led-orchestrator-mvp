@@ -18,9 +18,11 @@ const (
 	selectFilesPrompt = "You are a software engineer about to change a repository. " +
 		"repository_files maps each directory (\".\" is the repository root) to the names of the files in it. " +
 		"brief, when present, is the whole job a crew of writers is building at the same time, and instructions are your part of it. " +
-		"From repository_files, choose the files you must read to complete the instructions, including every existing file you will change " +
-		"and the shared files your part builds on, such as the design tokens and base styles " +
-		"(at most 20, only files listed in repository_files). " +
+		"From repository_files, choose the files you must read to complete the instructions: first every existing file you will change, " +
+		"then only the shared files your part truly builds on, such as the design tokens. " +
+		"Every reply you write is sent these files again and they cost the run on every reply, so leave out what you do not need; " +
+		"about 190KB in all is sent and files past that are left out " +
+		"(at most 16, only files listed in repository_files). " +
 		"Return only valid JSON matching {\"paths\":[string]}, each path slash-separated and relative to the repository root " +
 		"(the directory, a slash, then the name; just the name for a file in \".\"). Do not include markdown."
 
@@ -45,9 +47,11 @@ const (
 		"You write the task over several short replies, never all at once: each reply stays well under the output limit, at most about 300 new lines (one large file, or two or three small ones), " +
 		"and you think briefly, because thinking counts toward that limit. A file longer than about 300 lines is written in parts: create it with its first part and end it with the line " +
 		"<!-- continue --> (/* continue */ in CSS and JavaScript), then in the next reply replace that line with the next part, until the file is whole and the line is gone. " +
-		"and sets more to true while work remains; you are then called again with turn increased, progress listing what your earlier replies did, " +
+		"Each reply returns its edits and sets more to true while work remains; you are then called again with turn increased, progress listing what your earlier replies did, " +
 		"and files holding their current content. Set more to false only when the whole task is done. " +
 		"If you must see a file you were not given before you can write, list its path in read and leave edits empty; you are then called again with it. " +
+		"files_not_shown, when present, names files you asked for that were not sent because they did not fit: they exist, so never recreate them; " +
+		"you cannot change them in this reply, and you may ask for one in read only if your part cannot be done without it. " +
 		"Always answer with the JSON object, even when you cannot finish: then leave edits empty and say why in summary. " +
 		"screenshots, when present, describe the pictures attached after this message, in order: the pages as they render now. Look at them closely, they are what people will see, " +
 		"and make your changes fix what they show. " +
@@ -110,8 +114,9 @@ type screenshotNote struct {
 	Findings []string `json:"findings,omitempty"`
 }
 
-// maxWriterImages bounds the pictures one writer reply is shown.
-const maxWriterImages = 14
+// maxWriterImages bounds the pictures one writer reply is shown; each is
+// up to about 1,600 input tokens.
+const maxWriterImages = 10
 
 // writerImages orders the screenshots desktop, phone, then tablet, each top
 // to bottom, and keeps at most maxWriterImages pictures.
@@ -212,6 +217,7 @@ type authorRequestInput struct {
 	PreviousFailure string                `json:"previous_failure,omitempty"`
 	RepositoryFiles map[string][]string   `json:"repository_files,omitempty"`
 	Files           []ports.FileSnapshot  `json:"files,omitempty"`
+	FilesNotShown   []string              `json:"files_not_shown,omitempty"`
 	Skills          []ports.SkillGuidance `json:"skills,omitempty"`
 }
 
@@ -226,6 +232,7 @@ func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorReq
 		Review:          request.Review,
 		PreviousFailure: request.PreviousFailure,
 		Files:           request.Files,
+		FilesNotShown:   request.NotShown,
 	}
 	if withRepository {
 		input.RepositoryFiles = groupByDirectory(request.RepositoryFiles)
@@ -382,16 +389,45 @@ func decodeModelJSON(content string, target any) error {
 	if json.Valid([]byte(text)) {
 		return json.Unmarshal([]byte(text), target)
 	}
-	start := strings.IndexAny(text, "{[")
-	if start < 0 {
+	// Prose around the value may itself hold brackets ("the [hero] section",
+	// a small example object), so every opening brace is tried and the
+	// largest value that reads is the answer.
+	var (
+		best     json.RawMessage
+		firstErr error
+	)
+	tried := 0
+	for from := 0; tried < maxJSONStarts; {
+		at := strings.IndexAny(text[from:], "{[")
+		if at < 0 {
+			break
+		}
+		start := from + at
+		from = start + 1
+		tried++
+		var value json.RawMessage
+		err := json.NewDecoder(strings.NewReader(repairJSONStrings(text[start:]))).Decode(&value)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		if len(value) > len(best) {
+			best = value
+		}
+	}
+	if best != nil {
+		return json.Unmarshal(best, target)
+	}
+	if firstErr == nil {
 		return fmt.Errorf("not JSON: %w", json.Unmarshal([]byte(text), new(json.RawMessage)))
 	}
-	var value json.RawMessage
-	if err := json.NewDecoder(strings.NewReader(repairJSONStrings(text[start:]))).Decode(&value); err != nil {
-		return fmt.Errorf("not valid JSON: %w", err)
-	}
-	return json.Unmarshal(value, target)
+	return fmt.Errorf("not valid JSON: %w", firstErr)
 }
+
+// maxJSONStarts bounds how many opening braces are tried in one reply.
+const maxJSONStarts = 64
 
 // openingWords is the start of a reply, on one line, for a failure message.
 func openingWords(content string, maxRunes int) string {
