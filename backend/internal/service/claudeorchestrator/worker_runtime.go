@@ -384,6 +384,7 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	authorRequest := ports.CodeAuthorRequest{
 		Provider:        request.Task.Provider,
 		Title:           request.Task.Title,
+		Brief:           request.Task.Brief,
 		Instructions:    request.Task.Instructions,
 		Attempt:         request.Attempt,
 		PreviousFailure: request.PreviousFailure,

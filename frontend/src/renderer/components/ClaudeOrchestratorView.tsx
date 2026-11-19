@@ -595,6 +595,12 @@ function RunDetails({ run, info }: { run: ClaudeOrchestratorRun; info?: ClaudeOr
 						<dd className="tabular-nums">{run.replans}</dd>
 					</>
 				) : null}
+				{run.failure ? (
+					<>
+						<dt className="self-start text-muted-foreground">{t("orchestrator.detail.failure")}</dt>
+						<dd className="min-w-0 whitespace-pre-wrap break-words text-status-exited" data-testid="claude-orchestrator-failure">{run.failure}</dd>
+					</>
+				) : null}
 				{run.pullRequestUrl ? (
 					<>
 						<dt className="text-muted-foreground">{t("orchestrator.detail.pullRequest")}</dt>

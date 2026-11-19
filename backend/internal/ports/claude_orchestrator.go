@@ -125,6 +125,10 @@ type PlannedSubtask struct {
 	// writer receives (design taste, Arabic typography, ...).
 	Skills   []string          `json:"skills,omitempty"`
 	Metadata map[string]string `json:"-"`
+	// Brief is the whole job the crew is building: the person's task and the
+	// plan's shared approach. The service sets it when a subtask runs, so
+	// every writer sees what its part belongs to; a plan never carries it.
+	Brief string `json:"-"`
 }
 
 // ExecutionPlan is the executive's typed decomposition of a task.

@@ -14,13 +14,18 @@ import (
 const (
 	selectFilesPrompt = "You are a software engineer about to change a repository. " +
 		"repository_files maps each directory (\".\" is the repository root) to the names of the files in it. " +
+		"brief, when present, is the whole job a crew of writers is building at the same time, and instructions are your part of it. " +
 		"From repository_files, choose the files you must read to complete the instructions, including every existing file you will change " +
+		"and the shared files your part builds on, such as the design tokens and base styles " +
 		"(at most 20, only files listed in repository_files). " +
 		"Return only valid JSON matching {\"paths\":[string]}, each path slash-separated and relative to the repository root " +
 		"(the directory, a slash, then the name; just the name for a file in \".\"). Do not include markdown."
 
 	proposeEditsPrompt = "You are a software engineer completing one task in a repository. " +
 		"files holds the current content of the files you asked to read. " +
+		"brief, when present, is the whole job a crew of writers is building at the same time, and instructions are your part of it: " +
+		"do only your part, but wherever the brief touches it, follow the brief exactly (its design tokens, wording, content, behaviour and quality bar). " +
+		"Change a file another part owns only when your instructions say so, and keep to the shared names (ids, classes, data attributes, markers) they give. " +
 		"skills, when present, is guidance chosen for this task: follow it closely, it sets the standard your work is judged by. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
 		"You write the task over several short replies, never all at once: each reply carries at most about 300 new lines (two or three files), " +
@@ -65,6 +70,7 @@ func (a *ProviderAdapter) ProposeEdits(ctx context.Context, request ports.CodeAu
 // space a flat list of its first files took.
 type authorRequestInput struct {
 	Title           string                `json:"title,omitempty"`
+	Brief           string                `json:"brief,omitempty"`
 	Instructions    string                `json:"instructions"`
 	Attempt         int                   `json:"attempt"`
 	Turn            int                   `json:"turn,omitempty"`
@@ -78,6 +84,7 @@ type authorRequestInput struct {
 func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorRequestInput {
 	input := authorRequestInput{
 		Title:           request.Title,
+		Brief:           request.Brief,
 		Instructions:    request.Instructions,
 		Attempt:         request.Attempt,
 		Turn:            request.Turn,

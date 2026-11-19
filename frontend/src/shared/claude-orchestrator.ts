@@ -114,6 +114,8 @@ export type ClaudeOrchestratorRun = {
 	pullRequestUrl?: string;
 	/** Open this to create the pull request by hand. */
 	compareUrl?: string;
+	/** Why a failed run stopped, short and redacted by the daemon. */
+	failure?: string;
 };
 
 export type ClaudeOrchestratorStartInput = { task: string; maxRetries: number; approvePlan?: boolean };
@@ -241,6 +243,8 @@ export function parseClaudeOrchestratorRun(value: unknown): ClaudeOrchestratorRu
 	if (pullRequestUrl) run.pullRequestUrl = pullRequestUrl;
 	const compareUrl = reviewUrl(candidate.compareUrl);
 	if (compareUrl) run.compareUrl = compareUrl;
+	const failure = typeof candidate.failure === "string" ? Array.from(candidate.failure).slice(0, 400).join("").trim() : "";
+	if (failure && state === "failed") run.failure = failure;
 	const createdAt = isoTime(candidate.createdAt);
 	const updatedAt = isoTime(candidate.updatedAt);
 	if (createdAt) run.createdAt = createdAt;

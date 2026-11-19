@@ -248,10 +248,11 @@ const planningSystemPrompt = "Create a bounded execution plan for a software cha
 	"and it already links a stylesheet and a script for each contribution (for example css/hero.css and js/hero.js). " +
 	"Every later subtask depends on the foundation, replaces only the content between its own markers, and keeps its styles and script in its own files. " +
 	"End with an integration subtask that depends on all the others and makes everything fit together: consistency, responsiveness, accessibility, no dead links or code. " +
-	"Instructions: each subtask's instructions must stand on their own, because its writer sees only them, its skills and the files it chooses to read, and stay under about 1200 characters: " +
-	"name the files it owns and the markers it fills, repeat the design tokens it must use, and give the real content. " +
-	"For a user-facing page or screen, write the design brief into the foundation's instructions: the audience and goal, the visual direction in a few words, a palette as hex values, " +
-	"a font pairing, the sections in order, the imagery approach, the motion, and how it adapts to phones; each section's subtask restates what it needs of that brief. " +
+	"Every writer also receives the whole task and the plan's summary as its brief, so instructions need not repeat them: each subtask's instructions name the part of the task it carries out, " +
+	"the files it owns, the markers it fills, and the names it shares with other subtasks (ids, classes, data attributes, scripts), in at most about 700 characters. " +
+	"summary is the approach the whole crew shares, in at most about 1200 characters; for a user-facing page or screen whose task does not already set one, it carries the design brief: " +
+	"the audience and goal, the visual direction in a few words, a palette as hex values, a font pairing, the sections in order, the imagery approach, the motion, and how it adapts to phones. " +
+	"Keep the whole plan short enough to write in one reply. " +
 	"skills lists, by name, the guidance from available_skills that the subtask's writer needs (at most four). " +
 	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, split what failed into smaller subtasks, and take a different approach for it. " +
 	"Do not include markdown."
@@ -303,20 +304,38 @@ func (a *ProviderAdapter) validateRequestProvider(provider ports.ModelProvider) 
 	return ErrProviderMismatch
 }
 
-// Plan implements ports.ModelGateway with JSON-only plan decoding.
+// planCutOffNote asks again, shorter, after a plan ran past the output limit.
+const planCutOffNote = "Your previous plan was cut off at the output limit and was discarded. Write a shorter plan: " +
+	"instructions of at most 500 characters each and a summary of at most 800, because every writer already sees the whole task."
+
+// Plan implements ports.ModelGateway with JSON-only plan decoding. A plan cut
+// off at the output limit is asked for once more, shorter.
 func (a *ProviderAdapter) Plan(ctx context.Context, request ports.PlanRequest) (ports.ExecutionPlan, error) {
 	var result ports.ExecutionPlan
 	chatRequest, err := a.MapPlanRequest(request)
 	if err != nil {
 		return result, err
 	}
-	response, err := a.complete(ctx, chatRequest)
-	if err != nil {
-		return result, err
-	}
-	content, err := responseContent(response)
-	if err != nil {
-		return result, err
+	content := ""
+	for asked := 1; ; asked++ {
+		response, err := a.complete(ctx, chatRequest)
+		if err != nil {
+			return result, err
+		}
+		content, err = responseContent(response)
+		if errors.Is(err, ports.ErrReplyCutOff) && asked < 2 {
+			// One user turn keeps the exchange valid for every provider.
+			last := len(chatRequest.Messages) - 1
+			chatRequest.Messages[last].Content += "\n\n" + planCutOffNote
+			continue
+		}
+		if errors.Is(err, ports.ErrReplyCutOff) {
+			return result, errors.New("the plan was cut off at the output limit twice")
+		}
+		if err != nil {
+			return result, err
+		}
+		break
 	}
 	if err := decodeModelJSON(content, &result); err != nil {
 		return ports.ExecutionPlan{}, errors.New("model gateway returned an invalid execution plan")

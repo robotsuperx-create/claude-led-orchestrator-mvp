@@ -11,8 +11,11 @@ import (
 type CodeAuthorRequest struct {
 	// Provider selects which model writes the code. An empty value lets the
 	// author fall back to its configured default worker provider.
-	Provider        ModelProvider  `json:"-"`
-	Title           string         `json:"title,omitempty"`
+	Provider ModelProvider `json:"-"`
+	Title    string        `json:"title,omitempty"`
+	// Brief is the whole job a crew of writers is building at once;
+	// Instructions are this writer's part of it.
+	Brief           string         `json:"brief,omitempty"`
 	Instructions    string         `json:"instructions"`
 	Attempt         int            `json:"attempt"`
 	PreviousFailure string         `json:"previous_failure,omitempty"`
