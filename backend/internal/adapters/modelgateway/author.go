@@ -62,7 +62,8 @@ const (
 		"replacements apply in order and the rest of the file stays as it is. " +
 		"Use content only to create a new file or to rewrite a short one you were given: it becomes the whole file. " +
 		"Set delete to true to remove a file you were given. An existing file you were not given cannot be rewritten or deleted. " +
-		"Never edit .git or secret files. Do not include markdown."
+		"Never edit .git or secret files. Do not include markdown. " +
+		"Your whole reply is that one JSON object, with no words before or after it: say what you need to say in summary, never in prose."
 )
 
 var _ ports.CodeAuthor = (*ProviderAdapter)(nil)
@@ -275,7 +276,7 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 		slog.Warn("model reply could not be decoded", "provider", a.config.Provider, "reply_bytes", len(content), "error", err)
 		// The opening words say what went wrong (a question, a refusal,
 		// prose); the service redacts and bounds failures before showing them.
-		return fmt.Errorf("model gateway returned an invalid %s response: %w; it began %q", a.config.Provider, err, openingWords(content, 160))
+		return fmt.Errorf("model gateway returned an invalid %s response (%w): %w; it began %q", a.config.Provider, ports.ErrReplyNotJSON, err, openingWords(content, 160))
 	}
 	return nil
 }

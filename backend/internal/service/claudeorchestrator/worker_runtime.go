@@ -411,6 +411,7 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		applied  appliedEdits
 		progress []string
 		cutOffs  int
+		prose    int
 		reviewed bool
 		// slowest is the longest reply so far: with less time than that
 		// left, another reply would most likely be cut short and lost.
@@ -452,6 +453,21 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 			}
 			return "", &authorAttemptError{stage: "propose edits", err: errors.New("every reply was cut off at the output limit before one file in it was complete; write one file per reply")}
 		}
+		if errors.Is(replyErr, ports.ErrReplyNotJSON) {
+			// The writer talked instead of answering: nothing was applied.
+			// Tell it, with its own opening words, and ask again.
+			prose++
+			if prose < maxProseInARow && turn < maxAuthorTurns {
+				authorRequest.PreviousFailure = "Your last reply was not the JSON object, so nothing from it was applied (" + boundedText(replyErr.Error(), 400) +
+					"). Answer with the JSON object only; anything you want to say goes in summary."
+				continue
+			}
+			if wrote() {
+				break
+			}
+			return "", &authorAttemptError{stage: "propose edits", err: replyErr}
+		}
+		prose = 0
 		if replyErr != nil {
 			if wrote() && turn > 1 {
 				// Earlier replies already wrote work; keep it and let the
@@ -542,6 +558,8 @@ const (
 	// maxCutOffsInARow ends an attempt whose replies keep running past the
 	// output limit with nothing complete in them, instead of paying for more.
 	maxCutOffsInARow = 2
+	// maxProseInARow ends an attempt whose writer keeps answering in prose.
+	maxProseInARow = 3
 )
 
 const (

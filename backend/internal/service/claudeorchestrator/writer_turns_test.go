@@ -2,6 +2,7 @@ package claudeorchestrator
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -267,5 +268,45 @@ func TestAWriterStopsWhileItCanStillKeepItsWork(t *testing.T) {
 	}
 	if len(author.requests) != 1 || len(author.reviews) != 0 {
 		t.Fatalf("replies = %d, reviews = %d; want one reply and no more calls", len(author.requests), len(author.reviews))
+	}
+}
+
+// A writer that answers in prose is told so, with its words, and asked again,
+// instead of the attempt failing.
+func TestAProseReplyIsSentBackToTheWriter(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	runner := &lsFilesRunner{files: []string{"index.html"}}
+	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{}, fmt.Errorf("invalid response (%w); it began %q", ports.ErrReplyNotJSON, "The dialog is written")
+		},
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "page", Edits: []ports.FileEdit{{Path: "index.html", Replace: []ports.TextReplacement{{Old: "<main></main>", New: "<main>hi</main>"}}}}}, nil
+		},
+	}}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+	if err != nil || execution.Status != ports.WorkerOutcomeCompleted {
+		t.Fatalf("Execute = %+v, %v", execution, err)
+	}
+	if second := author.requests[1]; !strings.Contains(second.PreviousFailure, "not the JSON object") || !strings.Contains(second.PreviousFailure, "The dialog is written") {
+		t.Fatalf("the writer was asked again with %q", second.PreviousFailure)
+	}
+}
+
+func TestAWriterThatKeepsTalkingFailsTheAttemptAfterAFewTries(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	author := &turnsAuthor{}
+	for range maxAuthorTurns {
+		author.replies = append(author.replies, func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{}, fmt.Errorf("invalid response (%w)", ports.ErrReplyNotJSON)
+		})
+	}
+	runtime, _ := newAuthoringRuntime(t, worktree, &lsFilesRunner{files: []string{"index.html"}}, author)
+	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+	if err != nil || execution.Status != ports.WorkerOutcomeFailed || len(author.requests) != maxProseInARow {
+		t.Fatalf("execution = %+v, %v after %d replies; want a failed attempt after %d", execution, err, len(author.requests), maxProseInARow)
 	}
 }

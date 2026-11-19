@@ -75,3 +75,14 @@ func TestTheWriterIsTaughtToWriteLongFilesInParts(t *testing.T) {
 		}
 	}
 }
+
+func TestAProseReplyIsNamedAsNotJSON(t *testing.T) {
+	server, _ := chatServer(t, "The product dialog is written, but I have not opened it in a browser.")
+	_, err := claudeAdapterFor(t, server.URL).ProposeEdits(context.Background(), ports.CodeAuthorRequest{Instructions: "x"})
+	if !errors.Is(err, ports.ErrReplyNotJSON) || !strings.Contains(err.Error(), "The product dialog is written") {
+		t.Fatalf("err = %v, want it named as not JSON, with its opening words", err)
+	}
+	if !strings.Contains(proposeEditsPrompt, "with no words before or after it") {
+		t.Fatal("the writer is not told the whole reply is the JSON object")
+	}
+}

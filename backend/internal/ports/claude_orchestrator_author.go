@@ -94,3 +94,7 @@ type CodeAuthor interface {
 // its reply: the reply is incomplete and cannot be used. A writer asked to
 // write less in one reply can carry on.
 var ErrReplyCutOff = errors.New("the reply was cut off at the output limit before it was complete; write less in one reply")
+
+// ErrReplyNotJSON means the writer answered in prose, or in JSON that could
+// not be read, instead of the JSON object it was asked for.
+var ErrReplyNotJSON = errors.New("the reply was not the JSON object asked for")
