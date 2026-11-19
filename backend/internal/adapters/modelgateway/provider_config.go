@@ -453,24 +453,53 @@ func supportedProvider(provider ports.ModelProvider) bool {
 // whose budget is spent makes no further calls, and every answered call adds
 // its provider-reported token counts.
 func (a *ProviderAdapter) complete(ctx context.Context, request ChatRequest) (ChatResponse, error) {
-	meter := ports.UsageMeterFrom(ctx)
-	if meter != nil {
-		if err := meter.Reserve(a.config.Provider); err != nil {
+	finish := func(int, int) {}
+	if meter := ports.UsageMeterFrom(ctx); meter != nil {
+		var err error
+		if finish, err = meter.Reserve(ctx, a.config.Provider, a.estimate(request)); err != nil {
 			return ChatResponse{}, err
 		}
 	}
 	response, err := a.client.CreateChatCompletion(ctx, request)
 	if err != nil {
+		finish(0, 0)
 		return response, err
 	}
-	if meter != nil {
-		input, output := response.Usage.PromptTokens, response.Usage.CompletionTokens
-		if input == 0 && output == 0 && response.Usage.TotalTokens > 0 {
-			input = response.Usage.TotalTokens
-		}
-		meter.Record(a.config.Provider, input, output)
+	input, output := response.Usage.PromptTokens, response.Usage.CompletionTokens
+	if input == 0 && output == 0 && response.Usage.TotalTokens > 0 {
+		input = response.Usage.TotalTokens
 	}
+	finish(input, output)
 	return response, nil
+}
+
+// estimate is the most a chat request can use: its text at about three
+// bytes a token, each picture at the most a picture is billed, and its whole
+// output limit.
+func (a *ProviderAdapter) estimate(request ChatRequest) ports.CallEstimate {
+	text, pictures := 0, 0
+	for _, message := range request.Messages {
+		text += len(message.Content)
+		pictures += len(message.Images)
+	}
+	output := a.config.MaxTokens
+	if request.MaxTokens != nil {
+		output = *request.MaxTokens
+	}
+	if output <= 0 {
+		output = DefaultProviderMaxTokens
+	}
+	return ports.CallEstimate{InputTokens: estimatedTokens(text, pictures), MaxOutputTokens: output}
+}
+
+// maxPictureTokens is about the most one picture is billed: a picture is
+// scaled to at most about 1.15 megapixels, at 750 pixels a token.
+const maxPictureTokens = 1600
+
+// estimatedTokens is a generous count for text of the given bytes plus
+// pictures: code and JSON run about three to four bytes a token.
+func estimatedTokens(textBytes, pictures int) int {
+	return textBytes/3 + pictures*maxPictureTokens + 64
 }
 
 var _ ports.ModelGateway = (*ProviderAdapter)(nil)

@@ -145,19 +145,28 @@ func (c *VisualCritic) Critique(ctx context.Context, request ports.VisualCritiqu
 	if len(request.Shots) == 0 {
 		return ports.VisualCritique{}, errors.New("there is nothing to look at")
 	}
-	meter := ports.UsageMeterFrom(ctx)
-	if meter != nil {
-		if err := meter.Reserve(ports.ModelProviderClaude); err != nil {
-			return ports.VisualCritique{}, err
-		}
-	}
-	body, err := json.Marshal(c.request(request))
+	built := c.request(request)
+	body, err := json.Marshal(built)
 	if err != nil {
 		return ports.VisualCritique{}, errors.New("the critique request could not be encoded")
 	}
 	if len(body) > criticMaxRequestBytes {
 		return ports.VisualCritique{}, ErrRequestTooLarge
 	}
+	finish := func(int, int) {}
+	if meter := ports.UsageMeterFrom(ctx); meter != nil {
+		if finish, err = meter.Reserve(ctx, ports.ModelProviderClaude, built.estimate()); err != nil {
+			return ports.VisualCritique{}, err
+		}
+	}
+	// Whatever happens below, the hold is released; usage is recorded once
+	// the answer is in.
+	recorded := false
+	defer func() {
+		if !recorded {
+			finish(0, 0)
+		}
+	}()
 	var answer messagesResponse
 	for attempt := 0; ; attempt++ {
 		status, header, err := c.send(ctx, body, &answer)
@@ -174,10 +183,8 @@ func (c *VisualCritic) Critique(ctx context.Context, request ports.VisualCritiqu
 			return ports.VisualCritique{}, fmt.Errorf("model gateway request interrupted: %w", err)
 		}
 	}
-	if meter != nil {
-		input := answer.Usage.InputTokens + answer.Usage.CacheReadInputTokens + answer.Usage.CacheCreationInputTokens
-		meter.Record(ports.ModelProviderClaude, input, answer.Usage.OutputTokens)
-	}
+	recorded = true
+	finish(answer.Usage.InputTokens+answer.Usage.CacheReadInputTokens+answer.Usage.CacheCreationInputTokens, answer.Usage.OutputTokens)
 	var text strings.Builder
 	for _, block := range answer.Content {
 		if block.Type == "text" {
@@ -245,6 +252,21 @@ func (c *VisualCritic) request(request ports.VisualCritiqueRequest) messagesRequ
 		Model: c.model, MaxTokens: c.maxTokens, System: visualCriticPrompt,
 		Messages: []messagesTurn{{Role: "user", Content: content}},
 	}
+}
+
+// estimate is the most this request can use.
+func (r messagesRequest) estimate() ports.CallEstimate {
+	text, pictures := len(r.System), 0
+	for _, turn := range r.Messages {
+		for _, part := range turn.Content {
+			if part.Type == "image" {
+				pictures++
+				continue
+			}
+			text += len(part.Text)
+		}
+	}
+	return ports.CallEstimate{InputTokens: estimatedTokens(text, pictures), MaxOutputTokens: r.MaxTokens}
 }
 
 // pictures returns every shot's parts and the ones the critic is shown: the

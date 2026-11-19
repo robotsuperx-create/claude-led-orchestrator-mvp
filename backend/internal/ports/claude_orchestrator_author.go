@@ -24,6 +24,9 @@ type CodeAuthorRequest struct {
 	PreviousFailure string         `json:"previous_failure,omitempty"`
 	RepositoryFiles []string       `json:"repository_files"`
 	Files           []FileSnapshot `json:"files,omitempty"`
+	// NotShown names files the writer asked for that were not sent: too
+	// large, or past what one reply may be sent.
+	NotShown []string `json:"-"`
 	// Skills is the guidance the plan chose for this subtask.
 	Skills []SkillGuidance `json:"skills,omitempty"`
 	// Turn counts the writer's replies within one attempt, from 1: a subtask

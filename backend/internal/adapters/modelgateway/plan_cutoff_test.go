@@ -97,3 +97,15 @@ func TestAWriterIsShownTheWholeBriefWithItsPart(t *testing.T) {
 		}
 	}
 }
+
+// A writer is told which of the files it asked for were not sent.
+func TestAWriterIsToldWhichFilesWereNotSent(t *testing.T) {
+	request := ports.CodeAuthorRequest{Instructions: "x", NotShown: []string{"css/big.css"}}
+	encoded, err := json.Marshal(authorInput(request, false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"files_not_shown":["css/big.css"]`) || !strings.Contains(proposeEditsPrompt, "files_not_shown") {
+		t.Fatalf("writer input = %s, want the files not sent named and explained", encoded)
+	}
+}

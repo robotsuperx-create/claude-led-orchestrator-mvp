@@ -18,17 +18,19 @@ type recordingMeter struct {
 	provider ports.ModelProvider
 	input    int
 	output   int
+	estimate ports.CallEstimate
+	finished int
 }
 
-func (m *recordingMeter) Reserve(ports.ModelProvider) error {
+func (m *recordingMeter) Reserve(_ context.Context, provider ports.ModelProvider, estimate ports.CallEstimate) (func(int, int), error) {
 	if m.refuse {
-		return ports.ErrRunBudgetExceeded
+		return nil, ports.ErrRunBudgetExceeded
 	}
-	return nil
-}
-
-func (m *recordingMeter) Record(provider ports.ModelProvider, input, output int) {
-	m.provider, m.input, m.output = provider, m.input+input, m.output+output
+	m.estimate = estimate
+	return func(input, output int) {
+		m.finished++
+		m.provider, m.input, m.output = provider, m.input+input, m.output+output
+	}, nil
 }
 
 func TestModelCallsReportUsageToTheRunMeter(t *testing.T) {
@@ -49,8 +51,12 @@ func TestModelCallsReportUsageToTheRunMeter(t *testing.T) {
 	if _, err := adapter.Plan(ctx, ports.PlanRequest{Task: "t", PreviousAttempt: "- b: FAILED: tests"}); err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	if meter.provider != ports.ModelProviderLocal || meter.input != 321 || meter.output != 45 {
-		t.Fatalf("meter = %+v, want the provider-reported counts", meter)
+	if meter.provider != ports.ModelProviderLocal || meter.input != 321 || meter.output != 45 || meter.finished != 1 {
+		t.Fatalf("meter = %+v, want the provider-reported counts, finished once", meter)
+	}
+	// The hold is the call's worst case: its input and its whole output limit.
+	if meter.estimate.InputTokens <= 0 || meter.estimate.MaxOutputTokens != DefaultProviderMaxTokens {
+		t.Fatalf("estimate = %+v, want the input and the default output limit", meter.estimate)
 	}
 	if !strings.Contains(lastBody, "previous_attempt") {
 		t.Fatalf("revision request did not carry the previous attempt: %s", lastBody)

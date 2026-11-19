@@ -31,12 +31,21 @@ type RunUsage struct {
 // TotalTokens is input plus output tokens.
 func (u RunUsage) TotalTokens() int64 { return u.InputTokens + u.OutputTokens }
 
+// CallEstimate is the most one model call can use: the input it sends and
+// the most output it may produce.
+type CallEstimate struct {
+	InputTokens     int
+	MaxOutputTokens int
+}
+
 // UsageMeter accounts for one run's model calls. Reserve is called before a
-// call and refuses it once the budget is spent; Record adds what the provider
-// reported after the call.
+// call: it holds the call's estimate against the run's budget, waits while
+// calls already in flight hold what is left, and refuses the call when the
+// budget could not pay for it. The returned finish records what the provider
+// reported (zero counts for a call that failed) and releases the hold; it
+// must be called once.
 type UsageMeter interface {
-	Reserve(provider ModelProvider) error
-	Record(provider ModelProvider, inputTokens, outputTokens int)
+	Reserve(ctx context.Context, provider ModelProvider, estimate CallEstimate) (finish func(inputTokens, outputTokens int), err error)
 }
 
 // OrchestrationUsageReporter exposes a run's live usage.

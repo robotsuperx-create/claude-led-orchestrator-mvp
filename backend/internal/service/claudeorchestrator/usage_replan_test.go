@@ -33,11 +33,12 @@ func TestUsageMeterCountsTokensAndEstimatesCost(t *testing.T) {
 
 func TestUsageMeterRefusesCallsOnceTheBudgetIsSpent(t *testing.T) {
 	meter := newUsageMeter(UsageBudget{MaxTokens: 100})
-	if err := meter.Reserve(ports.ModelProviderClaude); err != nil {
+	finish, err := meter.Reserve(context.Background(), ports.ModelProviderClaude, ports.CallEstimate{})
+	if err != nil {
 		t.Fatalf("first reserve: %v", err)
 	}
-	meter.Record(ports.ModelProviderClaude, 80, 30)
-	if err := meter.Reserve(ports.ModelProviderClaude); !errors.Is(err, ports.ErrRunBudgetExceeded) {
+	finish(80, 30)
+	if _, err := meter.Reserve(context.Background(), ports.ModelProviderClaude, ports.CallEstimate{}); !errors.Is(err, ports.ErrRunBudgetExceeded) {
 		t.Fatalf("reserve after budget = %v, want ErrRunBudgetExceeded", err)
 	}
 	if usage := meter.snapshot(); !usage.Exhausted || usage.BudgetTokens != 100 {
@@ -48,7 +49,7 @@ func TestUsageMeterRefusesCallsOnceTheBudgetIsSpent(t *testing.T) {
 		ports.ModelProviderClaude: {InputUSDPerMTok: 10, OutputUSDPerMTok: 10},
 	}})
 	costly.Record(ports.ModelProviderClaude, 1000, 0) // 10_000 micro-dollars = $0.01
-	if err := costly.Reserve(ports.ModelProviderClaude); !errors.Is(err, ports.ErrRunBudgetExceeded) {
+	if _, err := costly.Reserve(context.Background(), ports.ModelProviderClaude, ports.CallEstimate{}); !errors.Is(err, ports.ErrRunBudgetExceeded) {
 		t.Fatalf("reserve after cost budget = %v", err)
 	}
 }
@@ -65,10 +66,11 @@ func (m *meteredModel) Plan(ctx context.Context, request ports.PlanRequest) (por
 	if meter == nil {
 		return ports.ExecutionPlan{}, errors.New("no usage meter on the run context")
 	}
-	if err := meter.Reserve(request.Provider); err != nil {
+	finish, err := meter.Reserve(ctx, request.Provider, ports.CallEstimate{})
+	if err != nil {
 		return ports.ExecutionPlan{}, err
 	}
-	meter.Record(request.Provider, 100, 50)
+	finish(100, 50)
 	m.mu.Lock()
 	m.planned = append(m.planned, request)
 	m.mu.Unlock()
@@ -77,10 +79,11 @@ func (m *meteredModel) Plan(ctx context.Context, request ports.PlanRequest) (por
 
 func (m *meteredModel) Review(ctx context.Context, request ports.ReviewRequest) (ports.ReviewDecision, error) {
 	meter := ports.UsageMeterFrom(ctx)
-	if err := meter.Reserve(request.Provider); err != nil {
+	finish, err := meter.Reserve(ctx, request.Provider, ports.CallEstimate{})
+	if err != nil {
 		return ports.ReviewDecision{}, err
 	}
-	meter.Record(request.Provider, 40, 10)
+	finish(40, 10)
 	return ports.ReviewDecision{Decision: ports.ReviewOutcomeApprove}, nil
 }
 
