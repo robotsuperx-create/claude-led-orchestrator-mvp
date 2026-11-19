@@ -16,6 +16,8 @@ export const CLAUDE_ORCHESTRATOR_SETTING_KEYS = [
 	"AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL",
 	// Optional: the Claude model that writes code, on the same key.
 	"AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL",
+	// Optional: the Claude model that writes the plan's design work, on the same key.
+	"AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL",
 	"AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL",
 	"AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_MODEL",
 	"AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL",
