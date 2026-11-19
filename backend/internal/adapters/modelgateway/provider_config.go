@@ -231,23 +231,29 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 	}, 0)
 }
 
-// planningSystemPrompt asks the executive for a bounded, dependency-aware plan.
-// Subtasks without dependencies on each other run at the same time and do not
-// see each other's work, so work that must fit together (a page and its
-// styles) stays in one subtask, and user-facing work carries a design brief and
-// the skills its writer needs.
-const planningSystemPrompt = "Create a bounded execution plan for a software change. " +
+// planningSystemPrompt asks the executive for a plan a crew of writers can
+// carry out in parallel. Each subtask is small enough to finish in a few short
+// replies, owns its own files, and shares a file with other subtasks only
+// through the placeholders a foundation subtask lays out first, so parallel
+// work merges cleanly and fits together.
+const planningSystemPrompt = "Create a bounded execution plan for a software change, carried out by a crew of up to 16 writers who work at the same time. " +
 	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string],\"skills\":[string]}]}. " +
 	"Use short unique ids. provider is \"claude\", \"deepseek\" or \"local\". " +
 	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. Never create a dependency cycle. " +
-	"Subtasks without dependencies run at the same time and cannot see each other's work, so split only work that is truly independent and touches different files. " +
-	"Keep work that must fit together in one subtask: a web page's HTML, its CSS and its JavaScript are one subtask, as are a component and its styles, or a change and its tests. " +
-	"When a subtask builds on files another subtask writes, list that subtask in depends_on. Prefer a few complete subtasks over many fragments. " +
-	"Each subtask's instructions must stand on their own: its writer sees only them, its skills and the files it chooses to read. " +
-	"For a user-facing page or screen, write a design brief into its instructions: the audience and goal, the visual direction in a few words, a palette as hex values, " +
-	"a font pairing, the sections in order with their real content, the imagery approach, the motion, and how it adapts to phones. " +
+	"Size: every subtask must be small enough for one writer to finish in a few short replies, about three files and 400 new lines at most. " +
+	"Split large work into more subtasks rather than making one subtask large; use as many subtasks as the work needs, up to 16. " +
+	"Files: subtasks without dependencies run at the same time and cannot see each other's work, so two of them must never write the same file. " +
+	"When several subtasks contribute to one shared file (the sections of one page, for example), plan a foundation subtask first: it creates that file with a marked placeholder for each later contribution " +
+	"(for HTML, a comment pair such as <!-- section:hero --> and <!-- /section:hero --> on their own lines), the shared design tokens and base styles, and the entry script, " +
+	"and it already links a stylesheet and a script for each contribution (for example css/hero.css and js/hero.js). " +
+	"Every later subtask depends on the foundation, replaces only the content between its own markers, and keeps its styles and script in its own files. " +
+	"End with an integration subtask that depends on all the others and makes everything fit together: consistency, responsiveness, accessibility, no dead links or code. " +
+	"Instructions: each subtask's instructions must stand on their own, because its writer sees only them, its skills and the files it chooses to read, and stay under about 1200 characters: " +
+	"name the files it owns and the markers it fills, repeat the design tokens it must use, and give the real content. " +
+	"For a user-facing page or screen, write the design brief into the foundation's instructions: the audience and goal, the visual direction in a few words, a palette as hex values, " +
+	"a font pairing, the sections in order, the imagery approach, the motion, and how it adapts to phones; each section's subtask restates what it needs of that brief. " +
 	"skills lists, by name, the guidance from available_skills that the subtask's writer needs (at most four). " +
-	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, and take a different approach for what failed. " +
+	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, split what failed into smaller subtasks, and take a different approach for it. " +
 	"Do not include markdown."
 
 // MapReviewRequest converts a ReviewRequest into the portable HTTP-client request.
@@ -359,6 +365,11 @@ func (a *ProviderAdapter) Converse(ctx context.Context, messages []ChatMessage, 
 func responseContent(response ChatResponse) (string, error) {
 	if len(response.Choices) == 0 {
 		return "", errors.New("model gateway returned no completion choices")
+	}
+	// OpenAI-compatible APIs say "length"; Anthropic's says "max_tokens".
+	switch response.Choices[0].FinishReason {
+	case "length", "max_tokens":
+		return "", ports.ErrReplyCutOff
 	}
 	return response.Choices[0].Message.Content, nil
 }

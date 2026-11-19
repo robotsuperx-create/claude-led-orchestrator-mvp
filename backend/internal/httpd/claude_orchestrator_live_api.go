@@ -38,6 +38,8 @@ type ClaudeOrchestratorLiveStep struct {
 	Title   string `json:"title"`
 	State   string `json:"state"`
 	Attempt int    `json:"attempt,omitempty"`
+	// Failure is why the last attempt failed (bounded, redacted).
+	Failure string `json:"failure,omitempty"`
 }
 
 // ClaudeOrchestratorLiveFile is one file the run has written to.
@@ -114,6 +116,7 @@ func displayLive(runID string, work ports.LiveWork) ClaudeOrchestratorLive {
 			Title:   boundedPlanText(step.Title, claudeOrchestratorMaxPlanTitleRunes),
 			State:   string(step.State),
 			Attempt: max(step.Attempt, 0),
+			Failure: claudeorchestrator.RedactSecrets(boundedPlanText(step.Failure, 280)),
 		})
 	}
 	for _, file := range work.Files {

@@ -2905,5 +2905,6 @@
 	"settings.media.runpodPodDescription": "Lässt die App den Pod für Arbeit starten und im Leerlauf stoppen.",
 	"settings.media.runpodKey": "RunPod-API-Schlüssel",
 	"x00.handsFreeOn": "Freihändig an: sag „X-00“ und sprich",
-	"x00.handsFreeOff": "Freihändig: antworten, wenn ich „X-00“ sage"
+	"x00.handsFreeOff": "Freihändig: antworten, wenn ich „X-00“ sage",
+	"deck.map.lastFailure": "Letzter Versuch gescheitert: {{reason}}"
 }

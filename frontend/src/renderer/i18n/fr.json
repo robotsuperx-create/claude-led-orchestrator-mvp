@@ -2936,5 +2936,6 @@
 	"settings.media.runpodPodDescription": "Permet à l'app de démarrer le pod pour le travail et de l'arrêter s'il est inactif.",
 	"settings.media.runpodKey": "Clé API RunPod",
 	"x00.handsFreeOn": "Mains libres activé : dites « X-00 » puis parlez",
-	"x00.handsFreeOff": "Mains libres : répondre quand je dis « X-00 »"
+	"x00.handsFreeOff": "Mains libres : répondre quand je dis « X-00 »",
+	"deck.map.lastFailure": "Dernière tentative échouée : {{reason}}"
 }

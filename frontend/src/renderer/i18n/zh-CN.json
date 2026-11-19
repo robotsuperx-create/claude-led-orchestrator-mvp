@@ -2887,5 +2887,6 @@
 	"settings.media.runpodPodDescription": "让应用在有任务时启动 pod，空闲时停止。",
 	"settings.media.runpodKey": "RunPod API 密钥",
 	"x00.handsFreeOn": "免提已开启：先说“X-00”再讲话",
-	"x00.handsFreeOff": "免提：我说“X-00”时回应"
+	"x00.handsFreeOff": "免提：我说“X-00”时回应",
+	"deck.map.lastFailure": "上次尝试失败：{{reason}}"
 }

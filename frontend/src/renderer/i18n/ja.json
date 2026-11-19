@@ -2905,5 +2905,6 @@
 	"settings.media.runpodPodDescription": "アプリが作業時にpodを起動し、アイドル時に停止できるようにします。",
 	"settings.media.runpodKey": "RunPod APIキー",
 	"x00.handsFreeOn": "ハンズフリー中：「X-00」と言ってから話す",
-	"x00.handsFreeOff": "ハンズフリー：「X-00」と言ったら応答"
+	"x00.handsFreeOff": "ハンズフリー：「X-00」と言ったら応答",
+	"deck.map.lastFailure": "前回の試行に失敗：{{reason}}"
 }

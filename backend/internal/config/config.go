@@ -657,8 +657,12 @@ type ClaudeOrchestratorWorkerConfig struct {
 // Parallel agent subtasks: the default, and a ceiling that keeps a run from
 // starting more agent sessions than one machine can sensibly host.
 const (
-	DefaultClaudeOrchestratorMaxParallelSubtasks = 3
-	MaxClaudeOrchestratorParallelSubtasks        = 8
+	DefaultClaudeOrchestratorMaxParallelSubtasks = 8
+	// DefaultClaudeOrchestratorRunCostBudgetUSD caps what one run may spend
+	// when the person set no budget, so a run that goes wrong cannot run up
+	// a large bill.
+	DefaultClaudeOrchestratorRunCostBudgetUSD = 25.0
+	MaxClaudeOrchestratorParallelSubtasks     = 16
 )
 
 // Worker modes.
@@ -1314,11 +1318,21 @@ func loadClaudeOrchestratorBudget(getenv func(string) string) (ClaudeOrchestrato
 		}
 		budget.MaxTokens = tokens
 	}
-	cost, err := parseOptionalNonNegativeFloat(getenv, "AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD")
-	if err != nil {
-		return budget, err
+	// A run stops before it spends more than this; with no setting it is
+	// DefaultClaudeOrchestratorRunCostBudgetUSD, and "0" or "off" removes it.
+	const costName = "AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD"
+	switch raw := strings.ToLower(strings.TrimSpace(getenv(costName))); raw {
+	case "":
+		budget.MaxCostUSD = DefaultClaudeOrchestratorRunCostBudgetUSD
+	case "0", "off":
+		budget.MaxCostUSD = 0
+	default:
+		cost, err := parseOptionalNonNegativeFloat(getenv, costName)
+		if err != nil {
+			return budget, err
+		}
+		budget.MaxCostUSD = cost
 	}
-	budget.MaxCostUSD = cost
 	for provider, prefix := range map[ports.ModelProvider]string{
 		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_CLAUDE",
 		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK",

@@ -2885,5 +2885,6 @@
 	"settings.media.runpodPodDescription": "Let the app start the pod for work and stop it when idle.",
 	"settings.media.runpodKey": "RunPod API key",
 	"x00.handsFreeOn": "Hands-free is on: say \"X-00\" and speak",
-	"x00.handsFreeOff": "Hands-free: answer when I say \"X-00\""
+	"x00.handsFreeOff": "Hands-free: answer when I say \"X-00\"",
+	"deck.map.lastFailure": "Last attempt failed: {{reason}}"
 }

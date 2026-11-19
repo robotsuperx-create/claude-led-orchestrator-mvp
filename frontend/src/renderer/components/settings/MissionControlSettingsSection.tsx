@@ -37,7 +37,7 @@ const PLACEHOLDERS: Partial<Record<Key, string>> = {
 	AO_CLAUDE_ORCHESTRATOR_WORKER_TIMEOUT: "30m",
 	AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT: "10m",
 	AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET: "2000000",
-	AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS: "3",
+	AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS: "8",
 	AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
 	AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES: "index.html, shop.html",
 	AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE: "ghcr.io/…/orchestrator-worker",
@@ -286,7 +286,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 	const enabled = isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED);
 	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const workerMode = draft.AO_CLAUDE_ORCHESTRATOR_WORKER_MODE || "model";
-	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "3";
+	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "8";
 	// Unset follows the daemon's default: on when one Claude key runs everything.
 	const visualSetting = (draft.AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW ?? "").trim();
 	const visualOn = visualSetting ? isOn(visualSetting) : claudeOnly;

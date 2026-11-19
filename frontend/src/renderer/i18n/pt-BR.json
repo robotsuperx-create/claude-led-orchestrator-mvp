@@ -2936,5 +2936,6 @@
 	"settings.media.runpodPodDescription": "Permite que o app ligue o pod para trabalhar e o desligue quando ocioso.",
 	"settings.media.runpodKey": "Chave de API RunPod",
 	"x00.handsFreeOn": "Mãos livres ligado: diga “X-00” e fale",
-	"x00.handsFreeOff": "Mãos livres: responder quando eu disser “X-00”"
+	"x00.handsFreeOff": "Mãos livres: responder quando eu disser “X-00”",
+	"deck.map.lastFailure": "Última tentativa falhou: {{reason}}"
 }

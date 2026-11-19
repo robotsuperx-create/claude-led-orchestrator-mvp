@@ -23,6 +23,9 @@ type LiveStep struct {
 	Title   string
 	State   LiveStepState
 	Attempt int
+	// Failure is why the step's last attempt failed, bounded and redacted,
+	// so the person can see what went wrong while the crew retries.
+	Failure string
 }
 
 // LiveFileChange is what the run has written to one file so far: how many

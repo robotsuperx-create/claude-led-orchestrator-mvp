@@ -1,6 +1,9 @@
 package ports
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // CodeAuthorRequest is everything a coding model sees for one subtask
 // attempt. It deliberately carries no local filesystem paths: files are named
@@ -17,6 +20,11 @@ type CodeAuthorRequest struct {
 	Files           []FileSnapshot `json:"files,omitempty"`
 	// Skills is the guidance the plan chose for this subtask.
 	Skills []SkillGuidance `json:"skills,omitempty"`
+	// Turn counts the writer's replies within one attempt, from 1: a subtask
+	// is written over several short replies rather than one long one.
+	Turn int `json:"turn,omitempty"`
+	// Progress says what the earlier replies of this attempt already did.
+	Progress []string `json:"progress,omitempty"`
 }
 
 // FileSnapshot is the current content of one repository file.
@@ -52,6 +60,9 @@ type TextReplacement struct {
 type EditProposal struct {
 	Summary string     `json:"summary"`
 	Edits   []FileEdit `json:"edits"`
+	// More is true when the writer has more of the subtask to write: it is
+	// called again with the files as they are now.
+	More bool `json:"more,omitempty"`
 }
 
 // CodeAuthor asks a model to write code for a delegated subtask. It only
@@ -61,3 +72,8 @@ type CodeAuthor interface {
 	SelectFiles(ctx context.Context, request CodeAuthorRequest) (FileSelection, error)
 	ProposeEdits(ctx context.Context, request CodeAuthorRequest) (EditProposal, error)
 }
+
+// ErrReplyCutOff means a model reached its output limit before it finished
+// its reply: the reply is incomplete and cannot be used. A writer asked to
+// write less in one reply can carry on.
+var ErrReplyCutOff = errors.New("the reply was cut off at the output limit before it was complete; write less in one reply")

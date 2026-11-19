@@ -23,8 +23,11 @@ const (
 		"files holds the current content of the files you asked to read. " +
 		"skills, when present, is guidance chosen for this task: follow it closely, it sets the standard your work is judged by. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
+		"You write the task over several short replies, never all at once: each reply carries at most about 300 new lines (two or three files), " +
+		"and sets more to true while work remains; you are then called again with turn increased, progress listing what your earlier replies did, " +
+		"and files holding their current content. Set more to false only when the whole task is done. " +
 		"Return only valid JSON matching " +
-		"{\"summary\":string,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
+		"{\"summary\":string,\"more\":boolean,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
 		"path is slash-separated and relative to the repository root. Each edit uses exactly one of replace, content or delete. " +
 		"To change a file you were given, use replace: each old is a passage copied exactly from the file's current content, " +
 		"whitespace included, that occurs in it only once (add neighbouring lines if needed), and new is the text that takes its place; " +
@@ -64,6 +67,8 @@ type authorRequestInput struct {
 	Title           string                `json:"title,omitempty"`
 	Instructions    string                `json:"instructions"`
 	Attempt         int                   `json:"attempt"`
+	Turn            int                   `json:"turn,omitempty"`
+	Progress        []string              `json:"progress,omitempty"`
 	PreviousFailure string                `json:"previous_failure,omitempty"`
 	RepositoryFiles map[string][]string   `json:"repository_files,omitempty"`
 	Files           []ports.FileSnapshot  `json:"files,omitempty"`
@@ -75,6 +80,8 @@ func authorInput(request ports.CodeAuthorRequest, withRepository bool) authorReq
 		Title:           request.Title,
 		Instructions:    request.Instructions,
 		Attempt:         request.Attempt,
+		Turn:            request.Turn,
+		Progress:        request.Progress,
 		PreviousFailure: request.PreviousFailure,
 		Files:           request.Files,
 	}

@@ -389,6 +389,8 @@ export type ClaudeOrchestratorLiveStep = {
 	title: string;
 	state: ClaudeOrchestratorLiveStepState;
 	attempt: number;
+	/** Why the last attempt failed, while the crew retries or after it gave up. */
+	failure?: string;
 };
 
 /**
@@ -436,6 +438,7 @@ export function parseClaudeOrchestratorLive(value: unknown): ClaudeOrchestratorL
 			title: boundedText(step.title, 800) ?? "",
 			state: state as ClaudeOrchestratorLiveStepState,
 			attempt: Math.min(Math.floor(count(step.attempt) ?? 0), 99),
+			...(boundedText(step.failure, 300) ? { failure: boundedText(step.failure, 300) } : {}),
 		});
 	}
 	const files: ClaudeOrchestratorLiveFile[] = [];

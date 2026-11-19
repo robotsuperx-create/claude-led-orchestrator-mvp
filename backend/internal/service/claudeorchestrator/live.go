@@ -66,6 +66,25 @@ func (s *Service) liveStep(runID, taskID string, state ports.LiveStepState, atte
 	if attempt > 0 {
 		board.steps[i].Attempt = attempt
 	}
+	if state == ports.LiveStepDone {
+		board.steps[i].Failure = ""
+	}
+}
+
+// maxLiveFailureRunes bounds the reason a step shows for its last failed attempt.
+const maxLiveFailureRunes = 280
+
+// liveFailure records why a step's attempt failed.
+func (s *Service) liveFailure(runID, taskID, reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	board, ok := s.live[runID]
+	if !ok {
+		return
+	}
+	if i, known := board.index[taskID]; known {
+		board.steps[i].Failure = boundedText(RedactSecrets(reason), maxLiveFailureRunes)
+	}
 }
 
 func (s *Service) liveRunLocked(runID string) *liveRun {

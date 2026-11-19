@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -397,16 +398,50 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	if err != nil {
 		return "", err
 	}
-	proposal, err := author.ProposeEdits(ctx, authorRequest)
-	if err != nil {
-		return "", &authorAttemptError{stage: "propose edits", err: err}
-	}
-	if err := requireReadBeforeRewrite(worktreePath, proposal.Edits, authorRequest.Files); err != nil {
-		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
-	}
-	applied, err := applyEdits(worktreePath, proposal.Edits)
-	if err != nil {
-		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+	// The writer works in short replies, each applied before the next, so a
+	// large subtask never has to fit in one reply's output limit.
+	var (
+		proposal ports.EditProposal
+		applied  appliedEdits
+		progress []string
+	)
+	for turn := 1; turn <= maxAuthorTurns; turn++ {
+		authorRequest.Turn = turn
+		authorRequest.Progress = progress
+		reply, replyErr := author.ProposeEdits(ctx, authorRequest)
+		if errors.Is(replyErr, ports.ErrReplyCutOff) && turn < maxAuthorTurns {
+			// The reply was lost; ask again for a smaller one.
+			authorRequest.PreviousFailure = "Your last reply was cut off at the output limit and was discarded. Write less in each reply: at most two files, and set more to true."
+			continue
+		}
+		if replyErr != nil {
+			if len(applied.Written)+len(applied.Deleted) > 0 && turn > 1 {
+				// Earlier replies already wrote work; keep it and let the
+				// validator decide whether the subtask is done.
+				break
+			}
+			return "", &authorAttemptError{stage: "propose edits", err: replyErr}
+		}
+		if err := requireReadBeforeRewrite(worktreePath, reply.Edits, authorRequest.Files); err != nil {
+			return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+		}
+		done, err := applyEdits(worktreePath, reply.Edits)
+		if err != nil {
+			return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+		}
+		applied.Written = appendNew(applied.Written, done.Written...)
+		applied.Deleted = appendNew(applied.Deleted, done.Deleted...)
+		proposal.Summary = joinSummary(proposal.Summary, reply.Summary)
+		if !reply.More || len(reply.Edits) == 0 {
+			break
+		}
+		progress = append(progress, boundedText(reply.Summary, 300))
+		authorRequest.PreviousFailure = request.PreviousFailure
+		// The next reply sees the files as they are now, its own new ones included.
+		authorRequest.Files, err = readSnapshots(worktreePath, appendNew(append([]string(nil), selection.Paths...), done.Written...), currentFiles(ctx, runner, worktreePath, files))
+		if err != nil {
+			return "", err
+		}
 	}
 	var parts []string
 	if text := strings.TrimSpace(proposal.Summary); text != "" {
@@ -424,6 +459,51 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		}
 	}
 	return strings.Join(parts, "; "), nil
+}
+
+// maxAuthorTurns bounds the replies one attempt may take.
+const maxAuthorTurns = 8
+
+// currentFiles lists the repository again after a reply wrote new files,
+// keeping the earlier list if Git cannot answer.
+func currentFiles(ctx context.Context, runner WorktreeCommandRunner, worktreePath string, earlier []string) []string {
+	files, err := listRepositoryFiles(ctx, runner, worktreePath)
+	if err != nil {
+		return earlier
+	}
+	return files
+}
+
+// appendNew appends the values not already in list.
+func appendNew(list []string, values ...string) []string {
+	for _, value := range values {
+		if !slices.Contains(list, value) {
+			list = append(list, value)
+		}
+	}
+	return list
+}
+
+// joinSummary joins the summaries of an attempt's replies.
+func joinSummary(earlier, next string) string {
+	next = strings.TrimSpace(next)
+	switch {
+	case next == "":
+		return earlier
+	case earlier == "":
+		return next
+	default:
+		return earlier + " " + next
+	}
+}
+
+// boundedText keeps at most limit runes of text.
+func boundedText(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	if runes := []rune(text); len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return text
 }
 
 // listRepositoryFiles lists tracked and untracked, non-ignored files with a

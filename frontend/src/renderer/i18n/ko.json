@@ -2905,5 +2905,6 @@
 	"settings.media.runpodPodDescription": "앱이 작업할 때 pod를 시작하고 유휴 시 정지하게 합니다.",
 	"settings.media.runpodKey": "RunPod API 키",
 	"x00.handsFreeOn": "핸즈프리 켜짐: \"X-00\"이라고 말한 뒤 말하세요",
-	"x00.handsFreeOff": "핸즈프리: \"X-00\"이라고 하면 응답"
+	"x00.handsFreeOff": "핸즈프리: \"X-00\"이라고 하면 응답",
+	"deck.map.lastFailure": "마지막 시도 실패: {{reason}}"
 }

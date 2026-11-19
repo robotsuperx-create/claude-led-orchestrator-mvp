@@ -670,6 +670,7 @@ func (s *Service) runSubtask(ctx context.Context, runID string, task ports.Plann
 			break
 		}
 		previousFailure = workerFailure(execution)
+		s.liveFailure(runID, task.ID, previousFailure)
 		if ctx.Err() != nil {
 			break
 		}
