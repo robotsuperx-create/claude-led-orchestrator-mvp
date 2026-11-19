@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ThemePreference, ThemeStyle } from "../../lib/theme";
+import { themeStyleHasLight, type ThemePreference, type ThemeStyle } from "../../lib/theme";
 import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useSoundNotificationsStore } from "../../stores/sound-notifications-store";
@@ -187,12 +187,15 @@ export function GeneralSettingsSection({
 							options={COLOR_THEME_OPTIONS}
 							onChange={setThemeStyle}
 						/>
-						<SettingsOptionMenu
-							aria-label={t("settings.theme")}
-							value={themePreference}
-							options={themeOptions}
-							onChange={setThemePreference}
-						/>
+						{/* X-ROBOT-AI is always the dark observatory; only the other palettes have a light variant. */}
+						{themeStyleHasLight(themeStyle) ? (
+							<SettingsOptionMenu
+								aria-label={t("settings.theme")}
+								value={themePreference}
+								options={themeOptions}
+								onChange={setThemePreference}
+							/>
+						) : null}
 					</div>
 				</SettingsRow>
 				<SettingsRow label={t("settings.language")}>

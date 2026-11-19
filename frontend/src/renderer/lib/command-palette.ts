@@ -88,6 +88,8 @@ export type CommandPaletteContext = {
 	 * rather than rendered with a guessed enabled state.
 	 */
 	reviewStatesBySessionId?: Readonly<Record<string, PRReviewState[]>>;
+	/** False when the palette has no light variant (X-ROBOT-AI): no theme toggle then. */
+	themeHasLight?: boolean;
 };
 
 export const commandGroupOrder: CommandGroupId[] = ["current", "attention", "files", "projects", "sessions", "prs", "global"];
@@ -488,13 +490,15 @@ export function buildCommands(ctx: CommandPaletteContext, t: TFunction = appI18n
 		keywords: ["settings", "preferences", "config"],
 		action: { kind: "navigate", target: { to: "/settings" } },
 	});
-	items.push({
-		id: "global-theme",
-		group: "global",
-		title: t("command.toggleTheme"),
-		keywords: ["dark", "light", "appearance"],
-		action: { kind: "toggle-theme" },
-	});
+	if (ctx.themeHasLight !== false) {
+		items.push({
+			id: "global-theme",
+			group: "global",
+			title: t("command.toggleTheme"),
+			keywords: ["dark", "light", "appearance"],
+			action: { kind: "toggle-theme" },
+		});
+	}
 
 	return items;
 }

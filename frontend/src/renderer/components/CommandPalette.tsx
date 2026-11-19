@@ -10,6 +10,7 @@ import { cloudSessionsQueryKey, useWorkspaceQuery, workspaceQueryKey } from "../
 import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { aoBridge } from "../lib/bridge";
 import { spawnCloudOrchestrator } from "../lib/cloud-orchestrator";
+import { themeStyleHasLight } from "../lib/theme";
 import {
 	buildCommands,
 	buildFileSessionCommands,
@@ -78,6 +79,7 @@ export function CommandPalette() {
 	const { cloneProject, createProject, initializeProjectRepository } = useShell();
 	const resolvedTheme = useUiStore((s) => s.resolvedTheme);
 	const setThemePreference = useUiStore((s) => s.setThemePreference);
+	const themeStyle = useUiStore((s) => s.themeStyle);
 	const isOpen = useUiStore((s) => s.isCommandPaletteOpen);
 	const setOpen = useUiStore((s) => s.setCommandPaletteOpen);
 	const restartingProjectIds = useUiStore((s) => s.restartingProjectIds);
@@ -223,8 +225,9 @@ export function CommandPalette() {
 				currentHostId: params.hostId,
 				restartingProjectIds,
 				reviewStatesBySessionId: reviewStatesForCommands,
+				themeHasLight: themeStyleHasLight(themeStyle),
 			}, t),
-		[workspaces, currentProjectId, params.hostId, params.sessionId, restartingProjectIds, reviewStatesForCommands, t, i18n.resolvedLanguage],
+		[workspaces, currentProjectId, params.hostId, params.sessionId, restartingProjectIds, reviewStatesForCommands, themeStyle, t, i18n.resolvedLanguage],
 	);
 	const scoped = useMemo(
 		() => (view.mode === "session-actions" ? findSession(workspaces, view.sessionId) : undefined),

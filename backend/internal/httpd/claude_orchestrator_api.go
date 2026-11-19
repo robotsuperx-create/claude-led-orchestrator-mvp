@@ -823,6 +823,8 @@ type ClaudeOrchestratorPlanSubtask struct {
 	DependsOn    []string            `json:"dependsOn,omitempty"`
 	// Skills are names from the writers' library, already checked against it.
 	Skills []string `json:"skills,omitempty"`
+	// Tier is "design" when the design model writes the step.
+	Tier string `json:"tier,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) planApprover() (ports.OrchestrationPlanApprover, bool) {
@@ -865,6 +867,9 @@ func displayPlan(runID string, plan ports.ExecutionPlan) ClaudeOrchestratorPlan 
 			Title:        boundedPlanText(task.Title, claudeOrchestratorMaxPlanTitleRunes),
 			Instructions: boundedPlanText(task.Instructions, claudeOrchestratorMaxPlanInstrRunes),
 			Provider:     ports.ModelProvider(boundedPlanText(string(task.Provider), claudeOrchestratorMaxPlanIdentRunes)),
+		}
+		if task.Tier == ports.SubtaskTierDesign {
+			step.Tier = ports.SubtaskTierDesign
 		}
 		for i, dependency := range task.DependsOn {
 			if i == claudeOrchestratorMaxPlanDependencies {

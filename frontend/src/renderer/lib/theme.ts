@@ -41,8 +41,17 @@ export function readStoredThemePreference(): ThemePreference {
 	return DEFAULT_THEME_PREFERENCE;
 }
 
-/** Resolve the active light/dark appearance from a stored preference. */
-export function resolveTheme(preference: ThemePreference = readStoredThemePreference()): Theme {
+/**
+ * Whether a palette has a light variant. X-ROBOT-AI is the observatory: one
+ * void-black room in every part of the app, day or night, so it has none.
+ */
+export function themeStyleHasLight(style: ThemeStyle): boolean {
+	return style !== "x-robot";
+}
+
+/** Resolve the active light/dark appearance from a stored preference and palette. */
+export function resolveTheme(preference: ThemePreference = readStoredThemePreference(), style: ThemeStyle = readStoredThemeStyle()): Theme {
+	if (!themeStyleHasLight(style)) return "dark";
 	if (preference === "system") return systemTheme();
 	return preference;
 }

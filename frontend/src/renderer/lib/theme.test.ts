@@ -3,7 +3,9 @@ import {
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
 	readStoredThemeStyle,
+	resolveTheme,
 	runThemeTransition,
+	themeStyleHasLight,
 	themeStyleStorageKey,
 } from "./theme";
 
@@ -90,5 +92,20 @@ describe("applyDocumentThemeStyle", () => {
 		document.documentElement.dataset.styleTheme = "nord";
 		applyDocumentThemeStyle("orchestrate");
 		expect(document.documentElement.dataset.styleTheme).toBeUndefined();
+	});
+});
+
+describe("resolveTheme", () => {
+	it("keeps X-ROBOT-AI dark whatever the light/dark preference", () => {
+		for (const preference of ["light", "dark", "system"] as const) {
+			expect(resolveTheme(preference, "x-robot")).toBe("dark");
+		}
+		expect(themeStyleHasLight("x-robot")).toBe(false);
+	});
+
+	it("follows the preference for palettes with a light variant", () => {
+		expect(resolveTheme("light", "github")).toBe("light");
+		expect(resolveTheme("dark", "nord")).toBe("dark");
+		expect(themeStyleHasLight("github")).toBe(true);
 	});
 });

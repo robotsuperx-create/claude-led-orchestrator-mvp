@@ -766,6 +766,8 @@ describe("CommandPalette actions", () => {
 	});
 
 	it("toggles the theme and closes", async () => {
+		// Only palettes with a light variant have the toggle.
+		act(() => useUiStore.getState().setThemeStyle("github"));
 		renderPalette();
 		act(() => useUiStore.getState().setCommandPaletteOpen(true));
 		const input = await screen.findByPlaceholderText(/search projects/i);
@@ -774,6 +776,21 @@ describe("CommandPalette actions", () => {
 		expect(useUiStore.getState().resolvedTheme).toBe("light");
 		expect(input).toHaveValue("toggle theme");
 		await waitFor(() => expect(paletteInput()).toBeNull());
+		act(() => {
+			useUiStore.getState().setThemePreference("dark");
+			useUiStore.getState().setThemeStyle("x-robot");
+		});
+	});
+
+	it("offers no theme toggle for X-ROBOT-AI, which is always dark", async () => {
+		act(() => useUiStore.getState().setThemeStyle("x-robot"));
+		act(() => useUiStore.getState().setThemePreference("light"));
+		expect(useUiStore.getState().resolvedTheme).toBe("dark");
+		renderPalette();
+		act(() => useUiStore.getState().setCommandPaletteOpen(true));
+		const input = await screen.findByPlaceholderText(/search projects/i);
+		fireEvent.change(input, { target: { value: "toggle theme" } });
+		expect(screen.queryByText("Toggle theme")).toBeNull();
 	});
 
 	it("opens the new-project path picker and closes the palette", async () => {
