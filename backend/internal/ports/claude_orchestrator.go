@@ -133,6 +133,10 @@ type PlannedSubtask struct {
 	// plan's shared approach. The service sets it when a subtask runs, so
 	// every writer sees what its part belongs to; a plan never carries it.
 	Brief string `json:"-"`
+	// Looks are screenshots of the pages as they render now, shown to the
+	// writer as pictures: the art director's polish rounds carry the ones it
+	// judged. A plan never carries them.
+	Looks []VisualShot `json:"-"`
 }
 
 // SubtaskTierDesign marks a subtask whose result people judge by eye.

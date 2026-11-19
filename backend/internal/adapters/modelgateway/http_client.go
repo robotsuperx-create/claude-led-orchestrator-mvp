@@ -3,6 +3,7 @@ package modelgateway
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,8 +18,11 @@ import (
 )
 
 const (
-	defaultTimeout          = 30 * time.Second
-	defaultMaxRequestBytes  = 1 << 20
+	defaultTimeout         = 30 * time.Second
+	defaultMaxRequestBytes = 1 << 20
+	// writerMaxRequestBytes allows a writer's files and up to maxWriterImages
+	// screenshots in one request; the provider accepts far more.
+	writerMaxRequestBytes   = 16 << 20
 	defaultMaxResponseBytes = 4 << 20
 )
 
@@ -168,6 +172,68 @@ func retryDelay(header http.Header, attempt int, now time.Time) time.Duration {
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// Images are JPEG pictures sent after the text, in order. A message with
+	// images is sent as content parts, the OpenAI-compatible way.
+	Images [][]byte `json:"-"`
+}
+
+// MarshalJSON sends a message with images as text and image parts.
+func (m ChatMessage) MarshalJSON() ([]byte, error) {
+	type plain struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	if len(m.Images) == 0 {
+		return json.Marshal(plain{Role: m.Role, Content: m.Content})
+	}
+	type imageURL struct {
+		URL string `json:"url"`
+	}
+	type part struct {
+		Type     string    `json:"type"`
+		Text     string    `json:"text,omitempty"`
+		ImageURL *imageURL `json:"image_url,omitempty"`
+	}
+	parts := []part{{Type: "text", Text: m.Content}}
+	for _, image := range m.Images {
+		parts = append(parts, part{Type: "image_url", ImageURL: &imageURL{URL: "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(image)}})
+	}
+	return json.Marshal(struct {
+		Role    string `json:"role"`
+		Content []part `json:"content"`
+	}{Role: m.Role, Content: parts})
+}
+
+// UnmarshalJSON reads a reply's message, whose content is text.
+func (m *ChatMessage) UnmarshalJSON(data []byte) error {
+	var plain struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	if err := json.Unmarshal(data, &plain); err != nil {
+		return err
+	}
+	m.Role, m.Content, m.Images = plain.Role, "", nil
+	if len(plain.Content) == 0 || string(plain.Content) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(plain.Content, &m.Content); err == nil {
+		return nil
+	}
+	// Content parts: keep the text, in order.
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(plain.Content, &parts); err != nil {
+		return err
+	}
+	for _, part := range parts {
+		if part.Type == "text" {
+			m.Content += part.Text
+		}
+	}
+	return nil
 }
 
 // ChatRequest contains the common portable fields accepted by chat-completion

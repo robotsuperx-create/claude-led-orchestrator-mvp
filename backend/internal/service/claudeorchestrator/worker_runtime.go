@@ -386,6 +386,7 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		Tier:            request.Task.Tier,
 		Title:           request.Task.Title,
 		Brief:           request.Task.Brief,
+		Looks:           request.Task.Looks,
 		Instructions:    request.Task.Instructions,
 		Attempt:         request.Attempt,
 		PreviousFailure: request.PreviousFailure,
@@ -411,6 +412,9 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		progress []string
 		cutOffs  int
 		reviewed bool
+		// slowest is the longest reply so far: with less time than that
+		// left, another reply would most likely be cut short and lost.
+		slowest time.Duration
 	)
 	wrote := func() bool { return len(applied.Written)+len(applied.Deleted) > 0 }
 	refresh := func() error {
@@ -421,13 +425,21 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		return err
 	}
 	for turn := 1; turn <= maxAuthorTurns; turn++ {
-		if deadline, ok := ctx.Deadline(); ok && wrote() && time.Until(deadline) < minAuthorTurnTime {
+		if deadline, ok := ctx.Deadline(); ok && wrote() && time.Until(deadline) < slowest+slowest/4 {
 			// Too little time for another reply: keep what is written.
 			break
 		}
 		authorRequest.Turn = turn
 		authorRequest.Progress = progress
+		// Screenshots are shown when the writer plans its change and when it
+		// reviews it; the replies between continue from the files.
+		authorRequest.Looks = nil
+		if turn == 1 || authorRequest.Review {
+			authorRequest.Looks = request.Task.Looks
+		}
+		asked := time.Now()
 		reply, replyErr := author.ProposeEdits(ctx, authorRequest)
+		slowest = max(slowest, time.Since(asked))
 		if errors.Is(replyErr, ports.ErrReplyCutOff) {
 			// Nothing in the reply was complete enough to keep.
 			cutOffs++
@@ -528,9 +540,6 @@ const (
 	// maxCutOffsInARow ends an attempt whose replies keep running past the
 	// output limit with nothing complete in them, instead of paying for more.
 	maxCutOffsInARow = 2
-	// minAuthorTurnTime is about the longest one reply takes; with less of
-	// the attempt left, the work written so far is kept rather than lost.
-	minAuthorTurnTime = 4 * time.Minute
 )
 
 const (

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
@@ -253,10 +254,12 @@ func TestAWriterStopsWhileItCanStillKeepItsWork(t *testing.T) {
 	runner := &lsFilesRunner{files: []string{"index.html", "css/a.css"}}
 	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
 		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			time.Sleep(200 * time.Millisecond)
 			return ports.EditProposal{Summary: "styles", More: true, Edits: []ports.FileEdit{{Path: "css/a.css", Content: "a{}\n"}}}, nil
 		},
 	}}
-	ctx, cancel := context.WithTimeout(context.Background(), minAuthorTurnTime/2)
+	// The first reply takes 200ms; with less than that left, no second one.
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	summary, err := authorInWorktree(ctx, runner, author, worktree, authoringRequest(worktree))
 	if err != nil || !strings.Contains(summary, "css/a.css") {

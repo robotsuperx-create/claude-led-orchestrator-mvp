@@ -34,6 +34,8 @@ type CodeAuthorRequest struct {
 	// Review is set once the writer has said it is done: it then looks at its
 	// own work as a demanding reviewer and fixes what falls short.
 	Review bool `json:"review,omitempty"`
+	// Looks are screenshots of the pages, sent to the model as pictures.
+	Looks []VisualShot `json:"-"`
 }
 
 // FileSnapshot is the current content of one repository file.

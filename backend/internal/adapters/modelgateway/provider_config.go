@@ -142,11 +142,12 @@ func NewRegistry(configs ...ProviderConfig) (*Registry, error) {
 			return nil, err
 		}
 		client, err := NewClient(Config{
-			BaseURL:          normalized.BaseURL,
-			APIKey:           normalized.APIKey,
-			Model:            normalized.DefaultModel,
-			Timeout:          normalized.Timeout,
-			MaxRequestBytes:  defaultMaxRequestBytes,
+			BaseURL: normalized.BaseURL,
+			APIKey:  normalized.APIKey,
+			Model:   normalized.DefaultModel,
+			Timeout: normalized.Timeout,
+			// Writers may be shown screenshots, which are large.
+			MaxRequestBytes:  writerMaxRequestBytes,
 			MaxResponseBytes: defaultMaxResponseBytes,
 			HTTPClient:       normalized.HTTPClient,
 		})

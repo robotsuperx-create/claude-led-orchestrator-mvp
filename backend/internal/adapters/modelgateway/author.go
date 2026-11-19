@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -46,6 +47,8 @@ const (
 		"and files holding their current content. Set more to false only when the whole task is done. " +
 		"If you must see a file you were not given before you can write, list its path in read and leave edits empty; you are then called again with it. " +
 		"Always answer with the JSON object, even when you cannot finish: then leave edits empty and say why in summary. " +
+		"screenshots, when present, describe the pictures attached after this message, in order: the pages as they render now. Look at them closely, they are what people will see, " +
+		"and make your changes fix what they show. " +
 		"When review is true you have finished writing and files hold your work: read it against the brief and your instructions as a demanding reviewer " +
 		"(bugs, missing requirements, broken shared names, accessibility, small screens, reduced motion, weak craft) and fix what falls short with edits; " +
 		"if nothing needs fixing, return edits empty and more false. " +
@@ -76,7 +79,10 @@ func (a *ProviderAdapter) ProposeEdits(ctx context.Context, request ports.CodeAu
 	var result ports.EditProposal
 	// The repository listing is only needed to choose files; leaving it out
 	// here roughly halves what each written subtask costs.
-	err := a.authorCall(ctx, request.Provider, proposeEditsPrompt, authorInput(request, false), &result)
+	input := authorInput(request, false)
+	images, notes := writerImages(request.Looks)
+	input.Screenshots = notes
+	err := a.authorCall(ctx, request.Provider, proposeEditsPrompt, input, &result, images...)
 	var cut *cutOffReply
 	if errors.As(err, &cut) {
 		// The edits completed before the limit are paid for: keep them, and
@@ -90,6 +96,63 @@ func (a *ProviderAdapter) ProposeEdits(ctx context.Context, request ports.CodeAu
 		return ports.EditProposal{}, err
 	}
 	return result, nil
+}
+
+// screenshotNote says what one attached picture shows.
+type screenshotNote struct {
+	Image    int      `json:"image"`
+	Page     string   `json:"page"`
+	Viewport string   `json:"viewport"`
+	Part     string   `json:"part,omitempty"`
+	Findings []string `json:"findings,omitempty"`
+}
+
+// maxWriterImages bounds the pictures one writer reply is shown.
+const maxWriterImages = 14
+
+// writerImages orders the screenshots desktop, phone, then tablet, each top
+// to bottom, and keeps at most maxWriterImages pictures.
+func writerImages(looks []ports.VisualShot) ([][]byte, []screenshotNote) {
+	rank := func(viewport string) int {
+		switch viewport {
+		case "desktop":
+			return 0
+		case "phone":
+			return 1
+		default:
+			return 2
+		}
+	}
+	ordered := append([]ports.VisualShot(nil), looks...)
+	sort.SliceStable(ordered, func(i, j int) bool { return rank(ordered[i].Viewport) < rank(ordered[j].Viewport) })
+	var (
+		images [][]byte
+		notes  []screenshotNote
+	)
+	for _, shot := range ordered {
+		pieces := shot.Tiles
+		if len(pieces) == 0 && len(shot.JPEG) > 0 {
+			pieces = [][]byte{shot.JPEG}
+		}
+		for i, piece := range pieces {
+			if len(images) == maxWriterImages {
+				return images, notes
+			}
+			if len(piece) == 0 {
+				continue
+			}
+			note := screenshotNote{Image: len(images) + 1, Page: shot.Page, Viewport: shot.Viewport}
+			if len(pieces) > 1 {
+				note.Part = fmt.Sprintf("%d of %d, top to bottom", i+1, len(pieces))
+			}
+			if i == 0 {
+				note.Findings = shot.Findings
+			}
+			images = append(images, piece)
+			notes = append(notes, note)
+		}
+	}
+	return images, notes
 }
 
 // completeEdits reads the edits that were whole in a reply cut off at the
@@ -142,6 +205,7 @@ type authorRequestInput struct {
 	Turn            int                   `json:"turn,omitempty"`
 	Progress        []string              `json:"progress,omitempty"`
 	Review          bool                  `json:"review,omitempty"`
+	Screenshots     []screenshotNote      `json:"screenshots,omitempty"`
 	PreviousFailure string                `json:"previous_failure,omitempty"`
 	RepositoryFiles map[string][]string   `json:"repository_files,omitempty"`
 	Files           []ports.FileSnapshot  `json:"files,omitempty"`
@@ -182,7 +246,7 @@ func groupByDirectory(paths []string) map[string][]string {
 	return grouped
 }
 
-func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelProvider, system string, request authorRequestInput, target any) error {
+func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelProvider, system string, request authorRequestInput, target any, images ...[]byte) error {
 	if err := a.validateRequestProvider(provider); err != nil {
 		return err
 	}
@@ -192,7 +256,7 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 	}
 	chatRequest, err := a.mapRequest(a.config.DefaultModel, []ChatMessage{
 		{Role: "system", Content: system},
-		{Role: "user", Content: string(input)},
+		{Role: "user", Content: string(input), Images: images},
 	}, 0)
 	if err != nil {
 		return err

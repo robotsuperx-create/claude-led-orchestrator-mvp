@@ -144,9 +144,11 @@ func (s *Service) reviewVisually(ctx context.Context, request ports.Orchestratio
 			Instructions: polishInstructions(critique, shots),
 			WorkerID:     "visual-critic",
 			Provider:     s.writer,
-			// Polish is judged by eye: the design model writes it.
+			// Polish is judged by eye: the design model writes it, looking at
+			// the same pictures the art director judged.
 			Tier:   ports.SubtaskTierDesign,
 			Skills: writerskills.Known(polishSkills),
+			Looks:  shots,
 		}
 		round.Polish = polish.ID
 		s.addVisual(request.RunID, result, round)
