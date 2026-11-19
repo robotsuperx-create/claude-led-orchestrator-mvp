@@ -487,7 +487,9 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		applied.Written = appendNew(applied.Written, done.Written...)
 		applied.Deleted = appendNew(applied.Deleted, done.Deleted...)
 		proposal.Summary = joinSummary(proposal.Summary, reply.Summary)
-		authorRequest.PreviousFailure = ""
+		// The earlier attempt's failure stays in view, the review included,
+		// so the writer checks it is fixed.
+		authorRequest.PreviousFailure = request.PreviousFailure
 		if reply.CutOff {
 			// Its complete edits were kept; the rest has to be written again.
 			authorRequest.PreviousFailure = cutOffKeptNote
@@ -544,7 +546,7 @@ const (
 
 const (
 	cutOffLostNote = "Your last reply was cut off at the output limit before any edit in it was complete, so nothing from it was applied. " +
-		"Send one file per reply, and keep each reply well under the limit."
+		"Think briefly and send one file per reply; write a long file in parts, ending each part with the continue line and replacing it in the next reply."
 	cutOffKeptNote = "Your last reply was cut off at the output limit: its complete edits were applied, and the rest was lost. " +
 		"Continue from the files as they are now, one file per reply."
 )

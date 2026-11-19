@@ -67,3 +67,11 @@ func TestTheWriterIsGivenTheCrewCharacterAndTheReviewPass(t *testing.T) {
 		}
 	}
 }
+
+func TestTheWriterIsTaughtToWriteLongFilesInParts(t *testing.T) {
+	for _, want := range []string{"written in parts", "<!-- continue -->", "/* continue */", "think briefly", "a continue line left in a file"} {
+		if !strings.Contains(proposeEditsPrompt, want) {
+			t.Fatalf("the writer prompt lacks %q", want)
+		}
+	}
+}

@@ -122,9 +122,12 @@ const DefaultClaudeOrchestratorClaudeModel = "claude-opus-5-5"
 
 // Claude's current models (Opus 5.5, Fable 5.2) always think before they
 // answer, and thinking counts toward max_tokens and the request's time. These
-// defaults leave room for it when the person sets neither.
+// defaults leave room for it when the person sets neither: at 16000, Fable's
+// thinking plus one large file ran past the limit on every foundation reply,
+// and at about 100 tokens a second 32000 still finishes well inside the
+// timeout.
 const (
-	DefaultClaudeOrchestratorClaudeMaxTokens = 16000
+	DefaultClaudeOrchestratorClaudeMaxTokens = 32000
 	DefaultClaudeOrchestratorClaudeTimeout   = 10 * time.Minute
 )
 

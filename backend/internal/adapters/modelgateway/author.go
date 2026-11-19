@@ -43,6 +43,8 @@ const (
 		"skills, when present, is guidance chosen for this task: follow it closely, it sets the standard your work is judged by. " +
 		"If previous_failure is set, your last attempt failed for that reason: fix it. " +
 		"You write the task over several short replies, never all at once: each reply stays well under the output limit, at most about 300 new lines (one large file, or two or three small ones), " +
+		"and you think briefly, because thinking counts toward that limit. A file longer than about 300 lines is written in parts: create it with its first part and end it with the line " +
+		"<!-- continue --> (/* continue */ in CSS and JavaScript), then in the next reply replace that line with the next part, until the file is whole and the line is gone. " +
 		"and sets more to true while work remains; you are then called again with turn increased, progress listing what your earlier replies did, " +
 		"and files holding their current content. Set more to false only when the whole task is done. " +
 		"If you must see a file you were not given before you can write, list its path in read and leave edits empty; you are then called again with it. " +
@@ -50,7 +52,7 @@ const (
 		"screenshots, when present, describe the pictures attached after this message, in order: the pages as they render now. Look at them closely, they are what people will see, " +
 		"and make your changes fix what they show. " +
 		"When review is true you have finished writing and files hold your work: read it against the brief and your instructions as a demanding reviewer " +
-		"(bugs, missing requirements, broken shared names, accessibility, small screens, reduced motion, weak craft) and fix what falls short with edits; " +
+		"(bugs, missing requirements, broken shared names, accessibility, small screens, reduced motion, weak craft, a continue line left in a file) and fix what falls short with edits; " +
 		"if nothing needs fixing, return edits empty and more false. " +
 		"Return only valid JSON matching " +
 		"{\"summary\":string,\"more\":boolean,\"read\":[string],\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
