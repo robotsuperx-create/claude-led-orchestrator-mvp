@@ -2553,6 +2553,7 @@
 	"orchestrator.usage.ofBudget": "{{percent}} do orçamento de {{budget}} tokens",
 	"orchestrator.usage.agentsNote": "Sessões de agentes são cobradas pelas próprias ferramentas e não entram nesta conta.",
 	"orchestrator.detail.replans": "Revisões do plano",
+	"orchestrator.detail.failure": "Por que parou",
 	"orchestrator.outcome.budget": "Interrompida: esta execução esgotou o orçamento de modelos. Aumente o orçamento nas configurações do daemon ou divida a tarefa em execuções menores.",
 	"orchestrator.detail.pullRequest": "Pull request",
 	"orchestrator.publish.action": "Publicar para revisão",
@@ -2589,6 +2590,9 @@
 	"settings.missionControl.claudeWriterModel": "Modelo do Claude para escrever código",
 	"settings.missionControl.claudeWriterModelDescription": "Opcional, com a mesma chave. Por exemplo, o Fable 5.2 planeja e revisa enquanto o Sonnet 5.5 escreve mais rápido.",
 	"settings.missionControl.claudeWriterModelSame": "O mesmo do planejamento",
+	"settings.missionControl.claudeDesignModel": "Modelo do Claude para o design",
+	"settings.missionControl.claudeDesignModelDescription": "Opcional, com a mesma chave. Escreve o que se julga com os olhos: o sistema de design de uma página, o hero, ilustrações, movimento e as rodadas de acabamento do diretor de arte. Por exemplo, Fable 5.2 para o design e Opus 5.5 para o resto.",
+	"settings.missionControl.claudeDesignModelSame": "O mesmo que escreve o código",
 	"settings.missionControl.claudeApiKey": "Chave de API do Claude",
 	"settings.missionControl.workers": "Workers",
 	"settings.missionControl.workerMode": "Quem escreve o código",
@@ -2800,6 +2804,7 @@
 	"deck.blocker.published": "Concluída; o pull request está aberto.",
 	"deck.blocker.held": "Retida: as mudanças precisam do seu olhar.",
 	"deck.blocker.failed": "Falhou. Abra no centro de controle para ver por quê.",
+	"deck.blocker.failedBecause": "Falhou: {{reason}}",
 	"deck.blocker.canceled": "Cancelada.",
 	"deck.blocker.interrupted": "Parou quando o app fechou.",
 	"deck.hint": "Pressione “Falar com o comandante” para falar",
@@ -2936,5 +2941,6 @@
 	"settings.media.runpodPodDescription": "Permite que o app ligue o pod para trabalhar e o desligue quando ocioso.",
 	"settings.media.runpodKey": "Chave de API RunPod",
 	"x00.handsFreeOn": "Mãos livres ligado: diga “X-00” e fale",
-	"x00.handsFreeOff": "Mãos livres: responder quando eu disser “X-00”"
+	"x00.handsFreeOff": "Mãos livres: responder quando eu disser “X-00”",
+	"deck.map.lastFailure": "Última tentativa falhou: {{reason}}"
 }

@@ -110,6 +110,9 @@ func TestVisualReviewPolishesUntilThePagesScoreHighEnough(t *testing.T) {
 		!strings.Contains(strings.Join(task.Skills, ","), "design-taste") {
 		t.Fatalf("polish task = %+v", task)
 	}
+	if task.Tier != ports.SubtaskTierDesign || len(task.Looks) == 0 || task.Looks[0].Viewport == "" {
+		t.Fatalf("the polish writer is not shown what the art director saw: tier %q, %d looks", task.Tier, len(task.Looks))
+	}
 	if len(result.Visual) != 2 || result.Visual[0].Polish != "visual-1" || result.Visual[1].Score != 9.2 || result.Visual[0].Shots[0].Name != "r1-index-phone.jpg" {
 		t.Fatalf("visual rounds = %+v", result.Visual)
 	}

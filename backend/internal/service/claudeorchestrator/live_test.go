@@ -91,6 +91,9 @@ func TestLiveBoardFollowsEachStepAndTheRunsWriting(t *testing.T) {
 	if work.Steps[1].Attempt != 2 || work.Steps[1].Title != "Fix the quoting" {
 		t.Errorf("the retried step = %+v, want its second attempt", work.Steps[1])
 	}
+	if !strings.Contains(work.Steps[1].Failure, "quoting still wrong") || work.Steps[0].Failure != "" {
+		t.Errorf("failures on the board = %q / %q, want why the failed step failed and nothing on the done one", work.Steps[1].Failure, work.Steps[0].Failure)
+	}
 	if len(work.Files) != 1 || work.Files[0].Path != "parser.go" {
 		t.Errorf("files = %+v", work.Files)
 	}

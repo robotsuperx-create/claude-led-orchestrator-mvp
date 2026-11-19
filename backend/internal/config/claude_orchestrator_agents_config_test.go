@@ -81,6 +81,9 @@ func TestLoadClaudeOrchestratorBudgetLocalModelAndReplans(t *testing.T) {
 		t.Fatalf("a local model should count as free by default: %+v", orchestrator.Budget.Prices)
 	}
 
+	if orchestrator.Budget.MaxCostUSD != DefaultClaudeOrchestratorRunCostBudgetUSD {
+		t.Fatalf("a run with no cost budget set = %v, want the default cap", orchestrator.Budget.MaxCostUSD)
+	}
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET", "off")
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD", "2.5")
 	t.Setenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_PRICE_INPUT_PER_MTOK", "3")

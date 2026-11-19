@@ -114,6 +114,8 @@ export type ClaudeOrchestratorRun = {
 	pullRequestUrl?: string;
 	/** Open this to create the pull request by hand. */
 	compareUrl?: string;
+	/** Why a failed run stopped, short and redacted by the daemon. */
+	failure?: string;
 };
 
 export type ClaudeOrchestratorStartInput = { task: string; maxRetries: number; approvePlan?: boolean };
@@ -241,6 +243,8 @@ export function parseClaudeOrchestratorRun(value: unknown): ClaudeOrchestratorRu
 	if (pullRequestUrl) run.pullRequestUrl = pullRequestUrl;
 	const compareUrl = reviewUrl(candidate.compareUrl);
 	if (compareUrl) run.compareUrl = compareUrl;
+	const failure = typeof candidate.failure === "string" ? Array.from(candidate.failure).slice(0, 400).join("").trim() : "";
+	if (failure && state === "failed") run.failure = failure;
 	const createdAt = isoTime(candidate.createdAt);
 	const updatedAt = isoTime(candidate.updatedAt);
 	if (createdAt) run.createdAt = createdAt;
@@ -389,6 +393,8 @@ export type ClaudeOrchestratorLiveStep = {
 	title: string;
 	state: ClaudeOrchestratorLiveStepState;
 	attempt: number;
+	/** Why the last attempt failed, while the crew retries or after it gave up. */
+	failure?: string;
 };
 
 /**
@@ -430,12 +436,15 @@ export function parseClaudeOrchestratorLive(value: unknown): ClaudeOrchestratorL
 		if (!step || !id || typeof state !== "string" || !(CLAUDE_ORCHESTRATOR_LIVE_STEP_STATES as readonly string[]).includes(state)) continue;
 		const index = count(step.index);
 		if (index === undefined || !Number.isInteger(index) || index >= LIVE_MAX_STEPS) continue;
+		// The daemon bounds a failure reason in runes; keep at most 300 here too.
+		const failure = typeof step.failure === "string" ? Array.from(step.failure).slice(0, 300).join("").trim() : "";
 		steps.push({
 			index,
 			id,
 			title: boundedText(step.title, 800) ?? "",
 			state: state as ClaudeOrchestratorLiveStepState,
 			attempt: Math.min(Math.floor(count(step.attempt) ?? 0), 99),
+			...(failure ? { failure } : {}),
 		});
 	}
 	const files: ClaudeOrchestratorLiveFile[] = [];

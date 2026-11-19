@@ -307,6 +307,7 @@ func mountClaudeOrchestrator(r chi.Router, service ClaudeOrchestratorRunService,
 			PlannerModel:   modelOf(planner),
 			WorkerProvider: cfg.Worker.DefaultProvider,
 			WorkerModel:    workerModel,
+			DesignModel:    designModelOf(cfg, workerMode, workerModel),
 			WorkerMode:     workerMode,
 			Sandboxed:      cfg.Worker.SandboxEnabled,
 			MaxActiveRuns:  DefaultClaudeOrchestratorMaxActiveRuns,
@@ -507,4 +508,14 @@ func daemonProbePayload(status string, cfg config.Config) map[string]any {
 		payload["appImagePath"] = appImage
 	}
 	return payload
+}
+
+// designModelOf is the model that writes design-tier subtasks, when it is not
+// the writer model: it applies only to Claude writing through the API.
+func designModelOf(cfg config.ClaudeOrchestratorConfig, workerMode, workerModel string) string {
+	design := strings.TrimSpace(cfg.ClaudeDesignModel)
+	if design == "" || design == workerModel || workerMode != config.ClaudeOrchestratorWorkerModeModel || cfg.Worker.DefaultProvider != ports.ModelProviderClaude {
+		return ""
+	}
+	return design
 }

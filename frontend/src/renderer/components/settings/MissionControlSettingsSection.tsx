@@ -37,7 +37,7 @@ const PLACEHOLDERS: Partial<Record<Key, string>> = {
 	AO_CLAUDE_ORCHESTRATOR_WORKER_TIMEOUT: "30m",
 	AO_CLAUDE_ORCHESTRATOR_VALIDATOR_TIMEOUT: "10m",
 	AO_CLAUDE_ORCHESTRATOR_RUN_TOKEN_BUDGET: "2000000",
-	AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS: "3",
+	AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS: "8",
 	AO_CLAUDE_ORCHESTRATOR_VISUAL_BROWSER: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
 	AO_CLAUDE_ORCHESTRATOR_VISUAL_PAGES: "index.html, shop.html",
 	AO_CLAUDE_ORCHESTRATOR_WORKER_SANDBOX_IMAGE: "ghcr.io/…/orchestrator-worker",
@@ -80,7 +80,7 @@ function validate(draft: Draft, commands: { worker: string; validator: string },
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_LOCAL_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_BASE_URL", "AO_CLAUDE_ORCHESTRATOR_MEDIA_GPU_URL"] as const) {
 		if (value(key) && !/^https?:\/\/\S+$/.test(value(key))) errors[key] = "url";
 	}
-	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_MODEL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL"] as const) {
+	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_MODEL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL", "AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL"] as const) {
 		if (value(key) && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(value(key))) errors[key] = "model";
 	}
 	for (const key of ["AO_CLAUDE_ORCHESTRATOR_X00_VOICE_STT_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_TTS_MODEL", "AO_CLAUDE_ORCHESTRATOR_X00_VOICE_NAME"] as const) {
@@ -286,7 +286,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 	const enabled = isOn(draft.AO_CLAUDE_ORCHESTRATOR_FEATURE_ENABLED);
 	const claudeOnly = isOn(draft.AO_CLAUDE_ORCHESTRATOR_CLAUDE_ONLY);
 	const workerMode = draft.AO_CLAUDE_ORCHESTRATOR_WORKER_MODE || "model";
-	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "3";
+	const parallelLimit = (draft.AO_CLAUDE_ORCHESTRATOR_MAX_PARALLEL_SUBTASKS ?? "").trim() || "8";
 	// Unset follows the daemon's default: on when one Claude key runs everything.
 	const visualSetting = (draft.AO_CLAUDE_ORCHESTRATOR_VISUAL_REVIEW ?? "").trim();
 	const visualOn = visualSetting ? isOn(visualSetting) : claudeOnly;
@@ -385,6 +385,7 @@ export function MissionControlSettingsSection({ titleHidden }: { titleHidden?: b
 				{field("AO_CLAUDE_ORCHESTRATOR_CLAUDE_BASE_URL", t("settings.missionControl.claudeBaseUrl"), { mono: true })}
 				{claudeModel("AO_CLAUDE_ORCHESTRATOR_CLAUDE_MODEL", t("settings.missionControl.claudeModel"), "claude-opus-5-5")}
 				{claudeModel("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL", t("settings.missionControl.claudeWriterModel"), "", t("settings.missionControl.claudeWriterModelDescription"), t("settings.missionControl.claudeWriterModelSame"))}
+				{claudeModel("AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL", t("settings.missionControl.claudeDesignModel"), "", t("settings.missionControl.claudeDesignModelDescription"), t("settings.missionControl.claudeDesignModelSame"))}
 			</SettingsSection>
 
 			<SettingsSection title={t("settings.missionControl.workers")} grouped>

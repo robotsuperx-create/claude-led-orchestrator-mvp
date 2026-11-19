@@ -2522,6 +2522,7 @@
 	"orchestrator.usage.ofBudget": "예산 {{budget}} 토큰 중 {{percent}}",
 	"orchestrator.usage.agentsNote": "에이전트 세션은 자체 도구로 청구되며 여기에는 포함되지 않습니다.",
 	"orchestrator.detail.replans": "계획 수정",
+	"orchestrator.detail.failure": "멈춘 이유",
 	"orchestrator.outcome.budget": "중지됨: 이 실행이 모델 예산을 모두 사용했습니다. 데몬 설정에서 예산을 늘리거나 작업을 더 작은 실행으로 나누세요.",
 	"orchestrator.detail.pullRequest": "풀 리퀘스트",
 	"orchestrator.publish.action": "리뷰용으로 게시",
@@ -2558,6 +2559,9 @@
 	"settings.missionControl.claudeWriterModel": "코드 작성용 Claude 모델",
 	"settings.missionControl.claudeWriterModelDescription": "선택 사항이며 같은 키를 씁니다. 예: Fable 5.2가 계획·검토하고 Sonnet 5.5가 더 빠르게 작성.",
 	"settings.missionControl.claudeWriterModelSame": "계획 모델과 같음",
+	"settings.missionControl.claudeDesignModel": "디자인 작업용 Claude 모델",
+	"settings.missionControl.claudeDesignModelDescription": "선택 사항이며 같은 키를 씁니다. 눈으로 판단하는 부분(페이지의 디자인 시스템, 히어로, 일러스트, 모션, 아트 디렉터의 다듬기)을 작성합니다. 예: 디자인은 Fable 5.2, 나머지는 Opus 5.5.",
+	"settings.missionControl.claudeDesignModelSame": "코드 작성 모델과 같음",
 	"settings.missionControl.claudeApiKey": "Claude API 키",
 	"settings.missionControl.workers": "워커",
 	"settings.missionControl.workerMode": "코드를 작성하는 주체",
@@ -2769,6 +2773,7 @@
 	"deck.blocker.published": "완료. 풀 리퀘스트가 열려 있습니다.",
 	"deck.blocker.held": "보류: 변경 사항을 직접 확인해야 합니다.",
 	"deck.blocker.failed": "실패했습니다. 미션 컨트롤에서 이유를 확인하세요.",
+	"deck.blocker.failedBecause": "실패했습니다: {{reason}}",
 	"deck.blocker.canceled": "취소되었습니다.",
 	"deck.blocker.interrupted": "앱이 닫힐 때 중지되었습니다.",
 	"deck.hint": "“사령관과 대화”를 눌러 말하세요",
@@ -2905,5 +2910,6 @@
 	"settings.media.runpodPodDescription": "앱이 작업할 때 pod를 시작하고 유휴 시 정지하게 합니다.",
 	"settings.media.runpodKey": "RunPod API 키",
 	"x00.handsFreeOn": "핸즈프리 켜짐: \"X-00\"이라고 말한 뒤 말하세요",
-	"x00.handsFreeOff": "핸즈프리: \"X-00\"이라고 하면 응답"
+	"x00.handsFreeOff": "핸즈프리: \"X-00\"이라고 하면 응답",
+	"deck.map.lastFailure": "마지막 시도 실패: {{reason}}"
 }

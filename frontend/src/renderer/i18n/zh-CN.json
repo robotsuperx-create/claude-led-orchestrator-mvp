@@ -2504,6 +2504,7 @@
 	"orchestrator.usage.ofBudget": "已用 {{budget}} token 预算的 {{percent}}",
 	"orchestrator.usage.agentsNote": "代理会话由其自身工具计费，不计入此处。",
 	"orchestrator.detail.replans": "计划修订",
+	"orchestrator.detail.failure": "停止原因",
 	"orchestrator.outcome.budget": "已停止：此次运行用完了模型预算。请在守护进程设置中提高预算，或将任务拆分为更小的运行。",
 	"orchestrator.detail.pullRequest": "拉取请求",
 	"orchestrator.publish.action": "发布以供审查",
@@ -2540,6 +2541,9 @@
 	"settings.missionControl.claudeWriterModel": "编写代码的 Claude 模型",
 	"settings.missionControl.claudeWriterModelDescription": "可选，使用同一密钥。例如由 Fable 5.2 规划和审查，Sonnet 5.5 更快地编写。",
 	"settings.missionControl.claudeWriterModelSame": "与规划模型相同",
+	"settings.missionControl.claudeDesignModel": "用于设计工作的 Claude 模型",
+	"settings.missionControl.claudeDesignModelDescription": "可选，使用同一密钥。编写需要用眼睛评判的部分：页面的设计系统、主视觉、插画、动效以及艺术总监的润色轮次。例如：设计用 Fable 5.2，其余用 Opus 5.5。",
+	"settings.missionControl.claudeDesignModelSame": "与写代码的模型相同",
 	"settings.missionControl.claudeApiKey": "Claude API 密钥",
 	"settings.missionControl.workers": "执行者",
 	"settings.missionControl.workerMode": "由谁编写代码",
@@ -2751,6 +2755,7 @@
 	"deck.blocker.published": "已完成；拉取请求已打开。",
 	"deck.blocker.held": "已暂停：更改需要你过目。",
 	"deck.blocker.failed": "失败了。在任务控制中打开查看原因。",
+	"deck.blocker.failedBecause": "失败了：{{reason}}",
 	"deck.blocker.canceled": "已取消。",
 	"deck.blocker.interrupted": "应用关闭时已停止。",
 	"deck.hint": "按“与指挥官交谈”开始说话",
@@ -2887,5 +2892,6 @@
 	"settings.media.runpodPodDescription": "让应用在有任务时启动 pod，空闲时停止。",
 	"settings.media.runpodKey": "RunPod API 密钥",
 	"x00.handsFreeOn": "免提已开启：先说“X-00”再讲话",
-	"x00.handsFreeOff": "免提：我说“X-00”时回应"
+	"x00.handsFreeOff": "免提：我说“X-00”时回应",
+	"deck.map.lastFailure": "上次尝试失败：{{reason}}"
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -382,7 +383,10 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	}
 	authorRequest := ports.CodeAuthorRequest{
 		Provider:        request.Task.Provider,
+		Tier:            request.Task.Tier,
 		Title:           request.Task.Title,
+		Brief:           request.Task.Brief,
+		Looks:           request.Task.Looks,
 		Instructions:    request.Task.Instructions,
 		Attempt:         request.Attempt,
 		PreviousFailure: request.PreviousFailure,
@@ -397,16 +401,136 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 	if err != nil {
 		return "", err
 	}
-	proposal, err := author.ProposeEdits(ctx, authorRequest)
-	if err != nil {
-		return "", &authorAttemptError{stage: "propose edits", err: err}
+	// The writer works in short replies, each applied before the next, so a
+	// large subtask never has to fit in one reply's output limit. Nothing a
+	// reply wrote is thrown away for a later reply's mistake: a rejected or
+	// cut-off reply is reported back in the same attempt, and once the writer
+	// says it is done it reviews its own work once before handing it over.
+	var (
+		proposal ports.EditProposal
+		applied  appliedEdits
+		progress []string
+		cutOffs  int
+		prose    int
+		reviewed bool
+		// slowest is the longest reply so far: with less time than that
+		// left, another reply would most likely be cut short and lost.
+		slowest time.Duration
+	)
+	wrote := func() bool { return len(applied.Written)+len(applied.Deleted) > 0 }
+	refresh := func() error {
+		// The next reply sees every file it chose and every file this
+		// attempt wrote, as they are now.
+		var err error
+		authorRequest.Files, err = readSnapshots(worktreePath, appendNew(append([]string(nil), selection.Paths...), applied.Written...), currentFiles(ctx, runner, worktreePath, files))
+		return err
 	}
-	if err := requireReadBeforeRewrite(worktreePath, proposal.Edits, authorRequest.Files); err != nil {
-		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
-	}
-	applied, err := applyEdits(worktreePath, proposal.Edits)
-	if err != nil {
-		return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
+	for turn := 1; turn <= maxAuthorTurns; turn++ {
+		if deadline, ok := ctx.Deadline(); ok && wrote() && time.Until(deadline) < slowest+slowest/4 {
+			// Too little time for another reply: keep what is written.
+			break
+		}
+		authorRequest.Turn = turn
+		authorRequest.Progress = progress
+		// Screenshots are shown when the writer plans its change and when it
+		// reviews it; the replies between continue from the files.
+		authorRequest.Looks = nil
+		if turn == 1 || authorRequest.Review {
+			authorRequest.Looks = request.Task.Looks
+		}
+		asked := time.Now()
+		reply, replyErr := author.ProposeEdits(ctx, authorRequest)
+		slowest = max(slowest, time.Since(asked))
+		if errors.Is(replyErr, ports.ErrReplyCutOff) {
+			// Nothing in the reply was complete enough to keep.
+			cutOffs++
+			if cutOffs < maxCutOffsInARow && turn < maxAuthorTurns {
+				authorRequest.PreviousFailure = cutOffLostNote
+				continue
+			}
+			if wrote() {
+				break
+			}
+			return "", &authorAttemptError{stage: "propose edits", err: errors.New("every reply was cut off at the output limit before one file in it was complete; write one file per reply")}
+		}
+		if errors.Is(replyErr, ports.ErrReplyNotJSON) {
+			// The writer talked instead of answering: nothing was applied.
+			// Tell it, with its own opening words, and ask again.
+			prose++
+			if prose < maxProseInARow && turn < maxAuthorTurns {
+				authorRequest.PreviousFailure = "Your last reply was not the JSON object, so nothing from it was applied (" + boundedText(replyErr.Error(), 400) +
+					"). Answer with the JSON object only; anything you want to say goes in summary."
+				continue
+			}
+			if wrote() {
+				break
+			}
+			return "", &authorAttemptError{stage: "propose edits", err: replyErr}
+		}
+		prose = 0
+		if replyErr != nil {
+			if wrote() && turn > 1 {
+				// Earlier replies already wrote work; keep it and let the
+				// validator decide whether the subtask is done.
+				break
+			}
+			return "", &authorAttemptError{stage: "propose edits", err: replyErr}
+		}
+		if len(reply.Edits) == 0 && len(reply.Read) > 0 && turn < maxAuthorTurns {
+			// The writer asked to see more before writing: show it, then ask again.
+			selection.Paths = appendNew(selection.Paths, reply.Read...)
+			if err := refresh(); err != nil {
+				return "", err
+			}
+			continue
+		}
+		done, rejected := applyReply(worktreePath, reply.Edits, authorRequest.Files)
+		if rejected != nil {
+			// Nothing from this reply was applied. Say why and let the
+			// writer send it again against the files as they are.
+			if turn < maxAuthorTurns {
+				authorRequest.PreviousFailure = "Your last reply's edits were rejected, and nothing from it was applied: " + boundedText(rejected.Error(), 600) + ". Send those edits again, corrected, against the files as they are now."
+				if err := refresh(); err != nil {
+					return "", err
+				}
+				continue
+			}
+			if wrote() {
+				break
+			}
+			return "", &authorAttemptError{stage: "the proposed edits were rejected", err: rejected}
+		}
+		applied.Written = appendNew(applied.Written, done.Written...)
+		applied.Deleted = appendNew(applied.Deleted, done.Deleted...)
+		proposal.Summary = joinSummary(proposal.Summary, reply.Summary)
+		// The earlier attempt's failure stays in view, the review included,
+		// so the writer checks it is fixed.
+		authorRequest.PreviousFailure = request.PreviousFailure
+		if reply.CutOff {
+			// Its complete edits were kept; the rest has to be written again.
+			authorRequest.PreviousFailure = cutOffKeptNote
+		} else {
+			cutOffs = 0
+		}
+		if (reply.More || reply.CutOff) && len(reply.Edits) > 0 {
+			progress = append(progress, boundedText(reply.Summary, 300))
+			if err := refresh(); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if !reviewed && wrote() && turn < maxAuthorTurns {
+			// The writer says it is done: one look at its own work, as a
+			// demanding reviewer would, before it is handed over.
+			reviewed = true
+			authorRequest.Review = true
+			progress = append(progress, boundedText(reply.Summary, 300))
+			if err := refresh(); err != nil {
+				return "", err
+			}
+			continue
+		}
+		break
 	}
 	var parts []string
 	if text := strings.TrimSpace(proposal.Summary); text != "" {
@@ -424,6 +548,76 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 		}
 	}
 	return strings.Join(parts, "; "), nil
+}
+
+// The writer's replies within one attempt.
+const (
+	// maxAuthorTurns bounds the replies one attempt may take, the review
+	// reply included.
+	maxAuthorTurns = 10
+	// maxCutOffsInARow ends an attempt whose replies keep running past the
+	// output limit with nothing complete in them, instead of paying for more.
+	maxCutOffsInARow = 2
+	// maxProseInARow ends an attempt whose writer keeps answering in prose.
+	maxProseInARow = 3
+)
+
+const (
+	cutOffLostNote = "Your last reply was cut off at the output limit before any edit in it was complete, so nothing from it was applied. " +
+		"Think briefly and send one file per reply; write a long file in parts, ending each part with the continue line and replacing it in the next reply."
+	cutOffKeptNote = "Your last reply was cut off at the output limit: its complete edits were applied, and the rest was lost. " +
+		"Continue from the files as they are now, one file per reply."
+)
+
+// applyReply checks a reply's edits and applies them all or none. The error
+// is the writer's to fix.
+func applyReply(worktreePath string, edits []ports.FileEdit, given []ports.FileSnapshot) (appliedEdits, error) {
+	if err := requireReadBeforeRewrite(worktreePath, edits, given); err != nil {
+		return appliedEdits{}, err
+	}
+	return applyEdits(worktreePath, edits)
+}
+
+// currentFiles lists the repository again after a reply wrote new files,
+// keeping the earlier list if Git cannot answer.
+func currentFiles(ctx context.Context, runner WorktreeCommandRunner, worktreePath string, earlier []string) []string {
+	files, err := listRepositoryFiles(ctx, runner, worktreePath)
+	if err != nil {
+		return earlier
+	}
+	return files
+}
+
+// appendNew appends the values not already in list.
+func appendNew(list []string, values ...string) []string {
+	for _, value := range values {
+		if !slices.Contains(list, value) {
+			list = append(list, value)
+		}
+	}
+	return list
+}
+
+// joinSummary joins the summaries of an attempt's replies.
+func joinSummary(earlier, next string) string {
+	next = strings.TrimSpace(next)
+	switch {
+	case next == "":
+		return earlier
+	case earlier == "":
+		return next
+	default:
+		return earlier + " " + next
+	}
+}
+
+// boundedText keeps at most limit runes of text.
+func boundedText(text string, limit int) string {
+	text = strings.TrimSpace(text)
+	if runes := []rune(text); len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return text
 }
 
 // listRepositoryFiles lists tracked and untracked, non-ignored files with a

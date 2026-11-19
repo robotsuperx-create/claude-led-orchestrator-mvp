@@ -83,7 +83,7 @@ describe("MissionControlSettingsSection", () => {
 		expect(screen.queryByLabelText("DeepSeek API key")).not.toBeInTheDocument();
 		expect(screen.queryByLabelText("Local model")).not.toBeInTheDocument();
 		expect(screen.queryByText("Plans and reviews")).not.toBeInTheDocument();
-		expect(screen.getByText(/^Claude, up to 3 subtasks at once/)).toBeInTheDocument();
+		expect(screen.getByText(/^Claude, up to 8 subtasks at once/)).toBeInTheDocument();
 		await user.type(screen.getByLabelText("Subtasks at once"), "5");
 		expect(screen.getByText(/^Claude, up to 5 subtasks at once/)).toBeInTheDocument();
 

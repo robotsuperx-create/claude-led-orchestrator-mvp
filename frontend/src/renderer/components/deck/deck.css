@@ -423,3 +423,6 @@ to { opacity: 1; transform: none; }
 .xrd .media-act.armed { color: var(--veto); }
 @keyframes xrd-media-work { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .xrd .media-card.running .media-frame, .xrd .media-card.queued .media-frame { animation: none; } }
+
+/* X-ROBOT-AI: why a step's last attempt failed, in the crew map's card. */
+.xrd .grid-card-failure { display: block; margin-top: 6px; max-width: 34ch; font-size: 12px; line-height: 17px; color: var(--short); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }

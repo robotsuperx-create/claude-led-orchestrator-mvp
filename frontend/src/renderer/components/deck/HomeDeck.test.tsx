@@ -126,6 +126,12 @@ describe("HomeDeck", () => {
 		expect(screen.getByText("It failed. Open it in Mission control to see why.")).toBeInTheDocument();
 	});
 
+	it("says why a failed run stopped when the daemon tells it", () => {
+		mocks.runs = [run({ state: "failed", failure: "request executive plan: the plan was cut off at the output limit twice" })];
+		render(<HomeDeck projects={null} />);
+		expect(screen.getByText("It failed: request executive plan: the plan was cut off at the output limit twice")).toBeInTheDocument();
+	});
+
 	it("says what X-00 said last", () => {
 		render(<HomeDeck projects={null} />);
 		act(() => {

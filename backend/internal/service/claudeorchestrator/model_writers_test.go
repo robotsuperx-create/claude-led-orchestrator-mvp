@@ -22,6 +22,9 @@ func (a writerAuthor) SelectFiles(context.Context, ports.CodeAuthorRequest) (por
 }
 
 func (a writerAuthor) ProposeEdits(_ context.Context, request ports.CodeAuthorRequest) (ports.EditProposal, error) {
+	if request.Review {
+		return ports.EditProposal{Summary: "nothing to fix"}, nil
+	}
 	edits, err := a.edits(request)
 	return ports.EditProposal{Summary: "edited for " + request.Title, Edits: edits}, err
 }

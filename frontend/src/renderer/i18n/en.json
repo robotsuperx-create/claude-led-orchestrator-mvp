@@ -2502,6 +2502,7 @@
 	"orchestrator.usage.ofBudget": "{{percent}} of the {{budget}}-token budget",
 	"orchestrator.usage.agentsNote": "Agent sessions bill through their own tools and are not counted here.",
 	"orchestrator.detail.replans": "Plan revisions",
+	"orchestrator.detail.failure": "Why it stopped",
 	"orchestrator.outcome.budget": "Stopped: this run used up its model budget. Raise the budget in the daemon settings or split the task into smaller runs.",
 	"orchestrator.detail.pullRequest": "Pull request",
 	"orchestrator.publish.action": "Publish for review",
@@ -2538,6 +2539,9 @@
 	"settings.missionControl.claudeWriterModel": "Claude model for writing code",
 	"settings.missionControl.claudeWriterModelDescription": "Optional, on the same key. For example, Fable 5.2 plans and reviews while Sonnet 5.5 writes faster.",
 	"settings.missionControl.claudeWriterModelSame": "Same as the planner",
+	"settings.missionControl.claudeDesignModel": "Claude model for design work",
+	"settings.missionControl.claudeDesignModelDescription": "Optional, on the same key. Writes what people judge by eye: a page's design system, the hero, illustration, motion, and the art director's polish rounds. For example, Fable 5.2 for design while Opus 5.5 writes the rest.",
+	"settings.missionControl.claudeDesignModelSame": "Same as the code writer",
 	"settings.missionControl.claudeApiKey": "Claude API key",
 	"settings.missionControl.workers": "Workers",
 	"settings.missionControl.workerMode": "Who writes the code",
@@ -2749,6 +2753,7 @@
 	"deck.blocker.published": "Done; the pull request is open.",
 	"deck.blocker.held": "Held: its changes need your eyes.",
 	"deck.blocker.failed": "It failed. Open it in Mission control to see why.",
+	"deck.blocker.failedBecause": "It failed: {{reason}}",
 	"deck.blocker.canceled": "Canceled.",
 	"deck.blocker.interrupted": "It stopped when the app closed.",
 	"deck.hint": "Press “Talk to the commander” to talk",
@@ -2885,5 +2890,6 @@
 	"settings.media.runpodPodDescription": "Let the app start the pod for work and stop it when idle.",
 	"settings.media.runpodKey": "RunPod API key",
 	"x00.handsFreeOn": "Hands-free is on: say \"X-00\" and speak",
-	"x00.handsFreeOff": "Hands-free: answer when I say \"X-00\""
+	"x00.handsFreeOff": "Hands-free: answer when I say \"X-00\"",
+	"deck.map.lastFailure": "Last attempt failed: {{reason}}"
 }

@@ -220,6 +220,16 @@ describe("ClaudeOrchestratorClient", () => {
 		expect(init.body).toBeUndefined();
 	});
 
+	it("keeps a failed run's reason, bounded, and drops it on any other state", async () => {
+		const reason = "request executive plan: the plan was cut off at the output limit twice";
+		const failed = clientWith(() => jsonResponse(200, { runId: RUN_ID, state: "failed", failure: `${reason} ${"x".repeat(600)}` }));
+		const result = await failed.client.approve(RUN_ID);
+		expect(result.ok && result.value.failure?.startsWith(reason)).toBe(true);
+		expect(result.ok && Array.from(result.value.failure ?? "").length).toBe(400);
+		const held = clientWith(() => jsonResponse(200, { runId: RUN_ID, state: "held", failure: reason }));
+		expect(await held.client.approve(RUN_ID)).toEqual({ ok: true, value: { runId: RUN_ID, state: "held", title: "" } });
+	});
+
 	it("explains why a publish failed using only the daemon's error code", async () => {
 		const cases: Array<[number, unknown, string]> = [
 			[502, { code: "NO_REMOTE", message: "remote https://user:secret@x" }, "no_remote"],

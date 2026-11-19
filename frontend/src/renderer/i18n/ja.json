@@ -2522,6 +2522,7 @@
 	"orchestrator.usage.ofBudget": "予算 {{budget}} トークンの {{percent}}",
 	"orchestrator.usage.agentsNote": "エージェントセッションの料金は各ツール側で計上され、ここには含まれません。",
 	"orchestrator.detail.replans": "計画の見直し",
+	"orchestrator.detail.failure": "停止した理由",
 	"orchestrator.outcome.budget": "停止しました: この実行はモデル予算を使い切りました。デーモン設定で予算を増やすか、タスクを小さな実行に分けてください。",
 	"orchestrator.detail.pullRequest": "プルリクエスト",
 	"orchestrator.publish.action": "レビュー用に公開",
@@ -2558,6 +2559,9 @@
 	"settings.missionControl.claudeWriterModel": "コードを書く Claude モデル",
 	"settings.missionControl.claudeWriterModelDescription": "任意。同じキーで使います。例：Fable 5.2 が計画とレビュー、Sonnet 5.5 がより速く書く。",
 	"settings.missionControl.claudeWriterModelSame": "計画と同じ",
+	"settings.missionControl.claudeDesignModel": "デザイン作業用の Claude モデル",
+	"settings.missionControl.claudeDesignModelDescription": "任意。同じキーを使います。目で判断されるもの（ページのデザインシステム、ヒーロー、イラスト、モーション、アートディレクターの仕上げ）を書きます。例：デザインは Fable 5.2、それ以外は Opus 5.5。",
+	"settings.missionControl.claudeDesignModelSame": "コード用と同じ",
 	"settings.missionControl.claudeApiKey": "Claude の API キー",
 	"settings.missionControl.workers": "ワーカー",
 	"settings.missionControl.workerMode": "コードを書くのは",
@@ -2769,6 +2773,7 @@
 	"deck.blocker.published": "完了。プルリクエストが開いています。",
 	"deck.blocker.held": "保留：変更の確認が必要です。",
 	"deck.blocker.failed": "失敗しました。ミッションコントロールで理由を確認してください。",
+	"deck.blocker.failedBecause": "失敗しました：{{reason}}",
 	"deck.blocker.canceled": "キャンセルされました。",
 	"deck.blocker.interrupted": "アプリの終了時に停止しました。",
 	"deck.hint": "「司令官と話す」を押して話します",
@@ -2905,5 +2910,6 @@
 	"settings.media.runpodPodDescription": "アプリが作業時にpodを起動し、アイドル時に停止できるようにします。",
 	"settings.media.runpodKey": "RunPod APIキー",
 	"x00.handsFreeOn": "ハンズフリー中：「X-00」と言ってから話す",
-	"x00.handsFreeOff": "ハンズフリー：「X-00」と言ったら応答"
+	"x00.handsFreeOff": "ハンズフリー：「X-00」と言ったら応答",
+	"deck.map.lastFailure": "前回の試行に失敗：{{reason}}"
 }

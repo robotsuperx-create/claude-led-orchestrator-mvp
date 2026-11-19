@@ -122,9 +122,12 @@ const DefaultClaudeOrchestratorClaudeModel = "claude-opus-5-5"
 
 // Claude's current models (Opus 5.5, Fable 5.2) always think before they
 // answer, and thinking counts toward max_tokens and the request's time. These
-// defaults leave room for it when the person sets neither.
+// defaults leave room for it when the person sets neither: at 16000, Fable's
+// thinking plus one large file ran past the limit on every foundation reply,
+// and at about 100 tokens a second 32000 still finishes well inside the
+// timeout.
 const (
-	DefaultClaudeOrchestratorClaudeMaxTokens = 16000
+	DefaultClaudeOrchestratorClaudeMaxTokens = 32000
 	DefaultClaudeOrchestratorClaudeTimeout   = 10 * time.Minute
 )
 
@@ -140,6 +143,10 @@ type ClaudeOrchestratorConfig struct {
 	// the same key; ClaudeProvider's model still plans and reviews. Empty
 	// writes with the planner's model.
 	ClaudeWriterModel string
+	// ClaudeDesignModel, when set, is the Claude model that writes the plan's
+	// design-tier subtasks (and the art director's polish rounds), on the
+	// same key. Empty writes them with the writer model.
+	ClaudeDesignModel string
 	ClaudeProvider    modelgateway.ProviderConfig
 	DeepSeekProvider  modelgateway.ProviderConfig
 	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
@@ -657,8 +664,12 @@ type ClaudeOrchestratorWorkerConfig struct {
 // Parallel agent subtasks: the default, and a ceiling that keeps a run from
 // starting more agent sessions than one machine can sensibly host.
 const (
-	DefaultClaudeOrchestratorMaxParallelSubtasks = 3
-	MaxClaudeOrchestratorParallelSubtasks        = 8
+	DefaultClaudeOrchestratorMaxParallelSubtasks = 8
+	// DefaultClaudeOrchestratorRunCostBudgetUSD caps what one run may spend
+	// when the person set no budget, so a run that goes wrong cannot run up
+	// a large bill.
+	DefaultClaudeOrchestratorRunCostBudgetUSD = 25.0
+	MaxClaudeOrchestratorParallelSubtasks     = 16
 )
 
 // Worker modes.
@@ -1158,6 +1169,10 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 	if len(cfg.ClaudeWriterModel) > 128 || strings.ContainsAny(cfg.ClaudeWriterModel, " \t\r\n\x00") {
 		return errors.New("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL is not a valid model name")
 	}
+	cfg.ClaudeDesignModel = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL"))
+	if len(cfg.ClaudeDesignModel) > 128 || strings.ContainsAny(cfg.ClaudeDesignModel, " \t\r\n\x00") {
+		return errors.New("AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL is not a valid model name")
+	}
 	if cfg.ClaudeOnly || strings.TrimSpace(cfg.ClaudeProvider.APIKey) != "" {
 		// With a Claude key, only the key is required: the address and model
 		// default to Anthropic's API and the model shown in the app.
@@ -1314,11 +1329,21 @@ func loadClaudeOrchestratorBudget(getenv func(string) string) (ClaudeOrchestrato
 		}
 		budget.MaxTokens = tokens
 	}
-	cost, err := parseOptionalNonNegativeFloat(getenv, "AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD")
-	if err != nil {
-		return budget, err
+	// A run stops before it spends more than this; with no setting it is
+	// DefaultClaudeOrchestratorRunCostBudgetUSD, and "0" or "off" removes it.
+	const costName = "AO_CLAUDE_ORCHESTRATOR_RUN_COST_BUDGET_USD"
+	switch raw := strings.ToLower(strings.TrimSpace(getenv(costName))); raw {
+	case "":
+		budget.MaxCostUSD = DefaultClaudeOrchestratorRunCostBudgetUSD
+	case "0", "off":
+		budget.MaxCostUSD = 0
+	default:
+		cost, err := parseOptionalNonNegativeFloat(getenv, costName)
+		if err != nil {
+			return budget, err
+		}
+		budget.MaxCostUSD = cost
 	}
-	budget.MaxCostUSD = cost
 	for provider, prefix := range map[ports.ModelProvider]string{
 		ports.ModelProviderClaude:   "AO_CLAUDE_ORCHESTRATOR_CLAUDE",
 		ports.ModelProviderDeepSeek: "AO_CLAUDE_ORCHESTRATOR_DEEPSEEK",

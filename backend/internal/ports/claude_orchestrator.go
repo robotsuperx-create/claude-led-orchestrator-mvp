@@ -123,9 +123,24 @@ type PlannedSubtask struct {
 	DependsOn []string `json:"depends_on,omitempty"`
 	// Skills names guidance from the writers' library that this subtask's
 	// writer receives (design taste, Arabic typography, ...).
-	Skills   []string          `json:"skills,omitempty"`
+	Skills []string `json:"skills,omitempty"`
+	// Tier is SubtaskTierDesign for work people judge by eye (the design
+	// system, the hero, illustration, motion); it is written by the design
+	// model. Anything else is written by the writer model.
+	Tier     string            `json:"tier,omitempty"`
 	Metadata map[string]string `json:"-"`
+	// Brief is the whole job the crew is building: the person's task and the
+	// plan's shared approach. The service sets it when a subtask runs, so
+	// every writer sees what its part belongs to; a plan never carries it.
+	Brief string `json:"-"`
+	// Looks are screenshots of the pages as they render now, shown to the
+	// writer as pictures: the art director's polish rounds carry the ones it
+	// judged. A plan never carries them.
+	Looks []VisualShot `json:"-"`
 }
+
+// SubtaskTierDesign marks a subtask whose result people judge by eye.
+const SubtaskTierDesign = "design"
 
 // ExecutionPlan is the executive's typed decomposition of a task.
 type ExecutionPlan struct {

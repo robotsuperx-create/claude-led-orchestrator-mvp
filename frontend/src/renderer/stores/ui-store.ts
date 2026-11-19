@@ -11,7 +11,6 @@ import {
 	readStoredThemeStyle,
 	resolveTheme,
 	runThemeTransition,
-	systemTheme,
 	themeStorageKey,
 	themeStyleStorageKey,
 	type Theme,
@@ -308,7 +307,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	isCommandPaletteOpen: false,
 	settingsModal: null,
 	themePreference: initialThemePreference,
-	resolvedTheme: resolveTheme(initialThemePreference),
+	resolvedTheme: resolveTheme(initialThemePreference, initialThemeStyle),
 	themeStyle: initialThemeStyle,
 	developerMode: initialDeveloperModeValue,
 	remoteHosts: initialRemoteHosts(),
@@ -331,7 +330,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	setThemePreference: (themePreference) => {
 		if (get().themePreference === themePreference) return;
 		runThemeTransition(() => {
-			const resolvedTheme = resolveTheme(themePreference);
+			const resolvedTheme = resolveTheme(themePreference, get().themeStyle);
 			getLocalStorage()?.setItem(themeStorageKey, themePreference);
 			applyDocumentTheme(resolvedTheme);
 			set({ themePreference, resolvedTheme });
@@ -342,7 +341,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 		runThemeTransition(() => {
 			getLocalStorage()?.setItem(themeStyleStorageKey, themeStyle);
 			applyDocumentThemeStyle(themeStyle);
-			set({ themeStyle });
+			// A palette without a light variant (X-ROBOT-AI) is always dark.
+			const resolvedTheme = resolveTheme(get().themePreference, themeStyle);
+			applyDocumentTheme(resolvedTheme);
+			set({ themeStyle, resolvedTheme });
 		});
 	},
 	setDeveloperMode: (developerMode) => {
@@ -387,9 +389,9 @@ export const useUiStore = create<UiState>((set, get) => ({
 		settingsModal: state.settingsModal?.scope === "global" ? state.settingsModal.returnTo ?? null : null,
 	})),
 	syncSystemTheme: () => {
-		const { themePreference, resolvedTheme } = get();
+		const { themePreference, resolvedTheme, themeStyle } = get();
 		if (themePreference !== "system") return;
-		const next = systemTheme();
+		const next = resolveTheme(themePreference, themeStyle);
 		if (next === resolvedTheme) return;
 		runThemeTransition(() => {
 			applyDocumentTheme(next);

@@ -75,9 +75,11 @@ type Options struct {
 	PageTimeout time.Duration
 }
 
+// Long one-page sites run 6000-9000px on a phone; their footers must be
+// seen too, so a capture goes to 10000px.
 const (
 	defaultSettle      = 1500 * time.Millisecond
-	defaultMaxHeight   = 6000
+	defaultMaxHeight   = 10000
 	defaultPageTimeout = 45 * time.Second
 	startTimeout       = 20 * time.Second
 	jpegQuality        = 80
@@ -86,7 +88,7 @@ const (
 	// than that, and a page is cut into at most maxTiles of them.
 	tilePixels = 1_600_000
 	tileEdge   = 1568
-	maxTiles   = 6
+	maxTiles   = 9
 )
 
 // tileHeight is how tall one tile of a page this wide may be.

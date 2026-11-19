@@ -558,6 +558,16 @@ func (s *Service) record(ctx context.Context, result ports.OrchestrationResult) 
 	})
 }
 
+// crewBrief is what every writer sees of the whole job: the person's task and
+// the approach the plan says the crew shares.
+func crewBrief(task, summary string) string {
+	brief := strings.TrimSpace(task)
+	if summary = strings.TrimSpace(summary); summary != "" {
+		brief += "\n\nCREW PLAN\n" + summary
+	}
+	return brief
+}
+
 // executePlan runs every subtask once its dependencies have completed, up to
 // maxParallel at a time. A subtask whose dependency did not complete is not
 // run and is reported as blocked. Results keep plan order.
@@ -566,6 +576,7 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 	if maxAttempts < 1 {
 		maxAttempts = 1
 	}
+	brief := crewBrief(request.Task, plan.Summary)
 	results := make([]ports.CollectedTaskResult, len(plan.Subtasks))
 	index := make(map[string]int, len(plan.Subtasks))
 	for i, task := range plan.Subtasks {
@@ -618,6 +629,7 @@ func (s *Service) executePlan(ctx context.Context, request ports.OrchestrationRe
 			status[i] = running
 			active++
 			go func(i int, task ports.PlannedSubtask) {
+				task.Brief = brief
 				results[i] = s.runSubtask(ctx, request.RunID, task, maxAttempts)
 				finished <- i
 			}(i, task)
@@ -670,6 +682,7 @@ func (s *Service) runSubtask(ctx context.Context, runID string, task ports.Plann
 			break
 		}
 		previousFailure = workerFailure(execution)
+		s.liveFailure(runID, task.ID, previousFailure)
 		if ctx.Err() != nil {
 			break
 		}
@@ -683,6 +696,10 @@ func keepKnownSkills(plan ports.ExecutionPlan) ports.ExecutionPlan {
 	subtasks := make([]ports.PlannedSubtask, len(plan.Subtasks))
 	for i, task := range plan.Subtasks {
 		task.Skills = writerskills.Known(task.Skills)
+		// The tier is model output: only the one known value means anything.
+		if task.Tier != ports.SubtaskTierDesign {
+			task.Tier = ""
+		}
 		subtasks[i] = task
 	}
 	plan.Subtasks = subtasks

@@ -83,6 +83,9 @@ type ClaudeOrchestratorInfo struct {
 	PlannerModel   string              `json:"plannerModel"`
 	WorkerProvider ports.ModelProvider `json:"workerProvider"`
 	WorkerModel    string              `json:"workerModel"`
+	// DesignModel writes the plan's design-tier subtasks when it differs
+	// from WorkerModel.
+	DesignModel string `json:"designModel,omitempty"`
 	// WorkerMode is "model" when an API model writes the code and "agents"
 	// when AO agent sessions do; WorkerModel then names the agent harness.
 	WorkerMode    string `json:"workerMode"`
@@ -152,7 +155,13 @@ type claudeOrchestratorRunDetails struct {
 	Replans        int
 	PullRequestURL string
 	Publishing     bool
+	// Failure is why a failed run stopped, short and redacted; it is kept
+	// in memory only.
+	Failure string
 }
+
+// maxRunFailureRunes bounds the reason a failed run shows.
+const maxRunFailureRunes = 400
 
 // claudeOrchestratorMaxTitleRunes bounds the task excerpt kept for history.
 const claudeOrchestratorMaxTitleRunes = 160
@@ -202,7 +211,8 @@ type claudeOrchestratorRunRequest struct {
 // ClaudeOrchestratorRunResponse is intentionally limited to opaque run
 // identity, lifecycle state, and where the result lives: the run branch, its
 // commit, and the merge recommendation. It does not serialize prompts, model
-// output, worker output, errors, credentials, or provider configuration.
+// output, worker output, credentials, or provider configuration; of errors it
+// carries only a short, redacted reason when a run fails.
 type ClaudeOrchestratorRunResponse struct {
 	RunID          string             `json:"runId"`
 	State          ports.RunState     `json:"state"`
@@ -219,6 +229,8 @@ type ClaudeOrchestratorRunResponse struct {
 	// CompareURL when a pull request has to be opened by hand.
 	PullRequestURL string `json:"pullRequestUrl,omitempty"`
 	CompareURL     string `json:"compareUrl,omitempty"`
+	// Failure says why a failed run stopped.
+	Failure string `json:"failure,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) start(w http.ResponseWriter, r *http.Request) {
@@ -362,12 +374,16 @@ func (api *ClaudeOrchestratorAPI) response(runID string, state ports.RunState) C
 }
 
 func (details claudeOrchestratorRunDetails) response(runID string, state ports.RunState) ClaudeOrchestratorRunResponse {
-	return ClaudeOrchestratorRunResponse{
+	response := ClaudeOrchestratorRunResponse{
 		RunID: runID, State: state,
 		Branch: details.Branch, Commit: details.Commit, Recommendation: details.Recommendation,
 		Interrupted: details.Interrupted, Usage: displayUsage(details.Usage), Replans: details.Replans,
 		PullRequestURL: details.PullRequestURL,
 	}
+	if state == ports.RunStateFailed {
+		response.Failure = details.Failure
+	}
+	return response
 }
 
 // reserveRun registers a new pending run unless the active-run limit is
@@ -431,6 +447,10 @@ func (api *ClaudeOrchestratorAPI) recordDetails(runID string, result ports.Orche
 	usage := result.Usage
 	details.Usage = &usage
 	details.Replans = result.Replans
+	details.Failure = ""
+	if result.State == ports.RunStateFailed {
+		details.Failure = boundedPlanText(strings.Join(result.MergeDecision.Reasons, "; "), maxRunFailureRunes)
+	}
 	details.UpdatedAt = time.Now().UTC()
 	api.details[runID] = details
 }
@@ -803,6 +823,8 @@ type ClaudeOrchestratorPlanSubtask struct {
 	DependsOn    []string            `json:"dependsOn,omitempty"`
 	// Skills are names from the writers' library, already checked against it.
 	Skills []string `json:"skills,omitempty"`
+	// Tier is "design" when the design model writes the step.
+	Tier string `json:"tier,omitempty"`
 }
 
 func (api *ClaudeOrchestratorAPI) planApprover() (ports.OrchestrationPlanApprover, bool) {
@@ -845,6 +867,9 @@ func displayPlan(runID string, plan ports.ExecutionPlan) ClaudeOrchestratorPlan 
 			Title:        boundedPlanText(task.Title, claudeOrchestratorMaxPlanTitleRunes),
 			Instructions: boundedPlanText(task.Instructions, claudeOrchestratorMaxPlanInstrRunes),
 			Provider:     ports.ModelProvider(boundedPlanText(string(task.Provider), claudeOrchestratorMaxPlanIdentRunes)),
+		}
+		if task.Tier == ports.SubtaskTierDesign {
+			step.Tier = ports.SubtaskTierDesign
 		}
 		for i, dependency := range task.DependsOn {
 			if i == claudeOrchestratorMaxPlanDependencies {

@@ -116,7 +116,7 @@ function useRunText() {
 			case "held":
 				return t("deck.blocker.held");
 			case "failed":
-				return t("deck.blocker.failed");
+				return run.failure ? t("deck.blocker.failedBecause", { reason: run.failure }) : t("deck.blocker.failed");
 			default:
 				return t("deck.blocker.canceled");
 		}

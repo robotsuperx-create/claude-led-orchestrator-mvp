@@ -102,9 +102,11 @@ func TestProviderAdapterMapPlanRequest(t *testing.T) {
 	}
 }
 
-// The planner sees the skill library and is told to keep a page in one
-// subtask, to order dependent work, and to write a design brief for UI.
-func TestPlanRequestOffersSkillsAndKeepsPagesWhole(t *testing.T) {
+// The planner sees the skill library and is told to split work into small
+// subtasks for a parallel crew, never to let two parallel subtasks write the
+// same file (a foundation lays out placeholders instead), to order dependent
+// work, and to write a design brief for UI.
+func TestPlanRequestOffersSkillsAndSplitsWorkForTheCrew(t *testing.T) {
 	adapter := newTestAdapter(t, ProviderConfig{Provider: ports.ModelProviderClaude, BaseURL: "https://claude.example.invalid/v1", DefaultModel: "m"})
 	request, err := adapter.MapPlanRequest(ports.PlanRequest{
 		Provider: ports.ModelProviderClaude, Task: "build a landing page",
@@ -117,9 +119,14 @@ func TestPlanRequestOffersSkillsAndKeepsPagesWhole(t *testing.T) {
 		t.Fatalf("plan input missing %s: %s", want, request.Messages[1].Content)
 	}
 	system := request.Messages[0].Content
-	for _, want := range []string{`"skills":[string]`, "HTML, its CSS and its JavaScript are one subtask", "design brief", "depends_on"} {
+	for _, want := range []string{`"skills":[string]`, "up to 16 writers", "about three files and 400 new lines", "must never write the same file", "foundation subtask", "<!-- section:hero -->", "integration subtask", "design brief", "depends_on"} {
 		if !strings.Contains(system, want) {
 			t.Errorf("planning prompt is missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{"HTML, its CSS and its JavaScript are one subtask", "Prefer a few complete subtasks"} {
+		if strings.Contains(system, unwanted) {
+			t.Errorf("planning prompt still says %q, which sent half a site to one writer", unwanted)
 		}
 	}
 }

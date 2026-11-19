@@ -43,6 +43,8 @@ type authorFake struct {
 	proposeErr    error
 	selectRequest ports.CodeAuthorRequest
 	editRequest   ports.CodeAuthorRequest
+	// reviewRequest is the writer's look at its own finished work.
+	reviewRequest *ports.CodeAuthorRequest
 }
 
 func (f *authorFake) SelectFiles(_ context.Context, request ports.CodeAuthorRequest) (ports.FileSelection, error) {
@@ -51,6 +53,10 @@ func (f *authorFake) SelectFiles(_ context.Context, request ports.CodeAuthorRequ
 }
 
 func (f *authorFake) ProposeEdits(_ context.Context, request ports.CodeAuthorRequest) (ports.EditProposal, error) {
+	if request.Review {
+		f.reviewRequest = &request
+		return ports.EditProposal{Summary: "nothing to fix"}, nil
+	}
 	f.editRequest = request
 	return f.proposal, f.proposeErr
 }

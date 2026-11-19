@@ -2522,6 +2522,7 @@
 	"orchestrator.usage.ofBudget": "{{percent}} des Budgets von {{budget}} Tokens",
 	"orchestrator.usage.agentsNote": "Agent-Sitzungen rechnen über ihre eigenen Werkzeuge ab und werden hier nicht gezählt.",
 	"orchestrator.detail.replans": "Planrevisionen",
+	"orchestrator.detail.failure": "Warum er stoppte",
 	"orchestrator.outcome.budget": "Gestoppt: Dieser Lauf hat sein Modellbudget aufgebraucht. Erhöhe das Budget in den Daemon-Einstellungen oder teile die Aufgabe in kleinere Läufe.",
 	"orchestrator.detail.pullRequest": "Pull Request",
 	"orchestrator.publish.action": "Zur Prüfung veröffentlichen",
@@ -2558,6 +2559,9 @@
 	"settings.missionControl.claudeWriterModel": "Claude-Modell zum Schreiben von Code",
 	"settings.missionControl.claudeWriterModelDescription": "Optional, mit demselben Schlüssel. Zum Beispiel plant und prüft Fable 5.2, während Sonnet 5.5 schneller schreibt.",
 	"settings.missionControl.claudeWriterModelSame": "Wie beim Planen",
+	"settings.missionControl.claudeDesignModel": "Claude-Modell für Designarbeit",
+	"settings.missionControl.claudeDesignModelDescription": "Optional, mit demselben Schlüssel. Schreibt, was man mit dem Auge beurteilt: das Designsystem einer Seite, den Hero, Illustration, Bewegung und die Feinschliff-Runden des Art Directors. Zum Beispiel Fable 5.2 für Design, Opus 5.5 für den Rest.",
+	"settings.missionControl.claudeDesignModelSame": "Wie das Code-Modell",
 	"settings.missionControl.claudeApiKey": "Claude-API-Schlüssel",
 	"settings.missionControl.workers": "Worker",
 	"settings.missionControl.workerMode": "Wer den Code schreibt",
@@ -2769,6 +2773,7 @@
 	"deck.blocker.published": "Fertig; der Pull Request ist offen.",
 	"deck.blocker.held": "Angehalten: die Änderungen brauchen deinen Blick.",
 	"deck.blocker.failed": "Fehlgeschlagen. Öffne ihn in Mission Control, um den Grund zu sehen.",
+	"deck.blocker.failedBecause": "Fehlgeschlagen: {{reason}}",
 	"deck.blocker.canceled": "Abgebrochen.",
 	"deck.blocker.interrupted": "Beim Schließen der App angehalten.",
 	"deck.hint": "Drücke „Mit dem Kommandanten sprechen“, um zu sprechen",
@@ -2905,5 +2910,6 @@
 	"settings.media.runpodPodDescription": "Lässt die App den Pod für Arbeit starten und im Leerlauf stoppen.",
 	"settings.media.runpodKey": "RunPod-API-Schlüssel",
 	"x00.handsFreeOn": "Freihändig an: sag „X-00“ und sprich",
-	"x00.handsFreeOff": "Freihändig: antworten, wenn ich „X-00“ sage"
+	"x00.handsFreeOff": "Freihändig: antworten, wenn ich „X-00“ sage",
+	"deck.map.lastFailure": "Letzter Versuch gescheitert: {{reason}}"
 }

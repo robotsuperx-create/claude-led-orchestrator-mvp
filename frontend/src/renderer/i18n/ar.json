@@ -2626,6 +2626,7 @@
 	"orchestrator.usage.ofBudget": "{{percent}} من ميزانية {{budget}} رمز",
 	"orchestrator.usage.agentsNote": "جلسات الوكلاء تُحتسب تكلفتها عبر أدواتها الخاصة ولا تُعدّ هنا.",
 	"orchestrator.detail.replans": "مرات إعادة التخطيط",
+	"orchestrator.detail.failure": "سبب التوقف",
 	"orchestrator.outcome.budget": "توقّف: استهلك هذا التشغيل ميزانية النماذج كاملة. ارفع الميزانية في إعدادات الخدمة أو قسّم المهمة إلى عمليات أصغر.",
 	"orchestrator.detail.pullRequest": "طلب الدمج",
 	"orchestrator.publish.action": "انشر للمراجعة",
@@ -2662,6 +2663,9 @@
 	"settings.missionControl.claudeWriterModel": "نموذج Claude لكتابة الكود",
 	"settings.missionControl.claudeWriterModelDescription": "اختياري، بالمفتاح نفسه. مثلاً: Fable 5.2 يخطّط ويراجع، وSonnet 5.5 يكتب أسرع.",
 	"settings.missionControl.claudeWriterModelSame": "نفس نموذج التخطيط",
+	"settings.missionControl.claudeDesignModel": "نموذج Claude لأعمال التصميم",
+	"settings.missionControl.claudeDesignModelDescription": "اختياري، بالمفتاح نفسه. يكتب ما يُحكم عليه بالعين: نظام تصميم الصفحة، والواجهة الرئيسية، والرسوم، والحركة، وجولات تحسين المدير الفني. مثلاً: Fable 5.2 للتصميم وOpus 5.5 لبقية الكود.",
+	"settings.missionControl.claudeDesignModelSame": "نفس نموذج كتابة الكود",
 	"settings.missionControl.claudeApiKey": "مفتاح Claude",
 	"settings.missionControl.workers": "المنفّذون",
 	"settings.missionControl.workerMode": "من يكتب الكود",
@@ -2873,6 +2877,7 @@
 	"deck.blocker.published": "انتهت، وطلب الدمج مفتوح.",
 	"deck.blocker.held": "موقوفة: تغييراتها تحتاج نظرك.",
 	"deck.blocker.failed": "فشلت. افتحها في غرفة القيادة لترى السبب.",
+	"deck.blocker.failedBecause": "فشلت: {{reason}}",
 	"deck.blocker.canceled": "أُلغيت.",
 	"deck.blocker.interrupted": "توقفت حين أُغلق التطبيق.",
 	"deck.hint": "اضغط «تحدث مع القائد» ليتكلم",
@@ -3009,5 +3014,6 @@
 	"settings.media.runpodPodDescription": "يسمح للتطبيق بتشغيل السيرفر للعمل وإيقافه عند الخمول.",
 	"settings.media.runpodKey": "مفتاح RunPod API",
 	"x00.handsFreeOn": "الاستماع الدائم مفعّل: قل «X-00» ثم تكلم",
-	"x00.handsFreeOff": "الاستماع الدائم: يرد حين أقول «X-00»"
+	"x00.handsFreeOff": "الاستماع الدائم: يرد حين أقول «X-00»",
+	"deck.map.lastFailure": "فشلت المحاولة الأخيرة: {{reason}}"
 }

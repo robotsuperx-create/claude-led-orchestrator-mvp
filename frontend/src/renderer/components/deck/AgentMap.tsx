@@ -277,6 +277,11 @@ export function AgentMap({ steps, plan, files, live }: { steps: ClaudeOrchestrat
 								{t(`deck.map.state.${focus.step.state}`)}
 								{focus.step.attempt > 1 ? ` · ${t("deck.map.attempt", { n: focus.step.attempt })}` : ""}
 							</span>
+							{focus.step.failure && focus.step.state !== "done" ? (
+								<span className="grid-card-failure" dir="auto" title={focus.step.failure} data-testid="deck-map-failure">
+									{t("deck.map.lastFailure", { reason: focus.step.failure })}
+								</span>
+							) : null}
 						</div>
 					) : null}
 				</div>
