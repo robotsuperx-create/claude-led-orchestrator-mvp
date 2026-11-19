@@ -113,17 +113,19 @@ func TestSelectFilesSendsTheRepositoryGroupedByDirectory(t *testing.T) {
 	}
 }
 
-func TestDecodeModelJSONToleratesOneFenceOnly(t *testing.T) {
+// A fence or a sentence around the value is forgiven; an answer with no JSON
+// value in it is not.
+func TestDecodeModelJSONReadsTheValuePastAFenceOrASentence(t *testing.T) {
 	var target struct {
 		A int `json:"a"`
 	}
-	for _, input := range []string{`{"a":1}`, "  {\"a\":1}\n", "```json\n{\"a\":1}\n```", "```\n{\"a\":1}\n```"} {
+	for _, input := range []string{`{"a":1}`, "  {\"a\":1}\n", "```json\n{\"a\":1}\n```", "```\n{\"a\":1}\n```", "Here you go: {\"a\":1}", "Here:\n```json\n{\"a\":1}\n```"} {
 		target.A = 0
 		if err := decodeModelJSON(input, &target); err != nil || target.A != 1 {
 			t.Errorf("decodeModelJSON(%q) = %d, %v; want 1", input, target.A, err)
 		}
 	}
-	for _, input := range []string{"Here you go: {\"a\":1}", "", "```json\nnot json\n```"} {
+	for _, input := range []string{"", "```json\nnot json\n```", "I cannot do that."} {
 		if err := decodeModelJSON(input, &target); err == nil {
 			t.Errorf("decodeModelJSON(%q) succeeded, want error", input)
 		}
