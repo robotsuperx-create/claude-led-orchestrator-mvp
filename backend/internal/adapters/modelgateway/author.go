@@ -144,7 +144,7 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 		slog.Warn("model reply could not be decoded", "provider", a.config.Provider, "reply_bytes", len(content), "error", err)
 		// The opening words say what went wrong (a question, a refusal,
 		// prose); the service redacts and bounds failures before showing them.
-		return fmt.Errorf("model gateway returned an invalid %s response: %v; it began %q", a.config.Provider, err, openingWords(content, 160))
+		return fmt.Errorf("model gateway returned an invalid %s response: %w; it began %q", a.config.Provider, err, openingWords(content, 160))
 	}
 	return nil
 }
@@ -307,7 +307,7 @@ func repairJSONStrings(text string) string {
 func isHex4(text string) bool {
 	for i := 0; i < 4; i++ {
 		c := text[i]
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
 			return false
 		}
 	}
