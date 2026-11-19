@@ -153,6 +153,9 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 // by the subtask, falling back to a configured default worker provider.
 type AuthorRouter struct {
 	registry *Registry
+	// design, when set, writes design-tier subtasks: the same providers and
+	// keys with a stronger model.
+	design   *Registry
 	fallback ports.ModelProvider
 }
 
@@ -168,6 +171,15 @@ func NewAuthorRouter(registry *Registry, fallback ports.ModelProvider) (*AuthorR
 		return nil, fmt.Errorf("author router fallback provider: %w", err)
 	}
 	return &AuthorRouter{registry: registry, fallback: fallback}, nil
+}
+
+// WithDesignWriters makes design-tier subtasks go to design, a registry of
+// the same providers with the design model. Nil leaves them with the others.
+func (r *AuthorRouter) WithDesignWriters(design *Registry) *AuthorRouter {
+	if r != nil {
+		r.design = design
+	}
+	return r
 }
 
 // SelectFiles implements ports.CodeAuthor.
@@ -196,7 +208,13 @@ func (r *AuthorRouter) route(request ports.CodeAuthorRequest) (*ProviderAdapter,
 	if provider == "" {
 		provider = r.fallback
 	}
-	adapter, err := r.registry.Provider(provider)
+	registry := r.registry
+	if request.Tier == ports.SubtaskTierDesign && r.design != nil {
+		if _, err := r.design.Provider(provider); err == nil {
+			registry = r.design
+		}
+	}
+	adapter, err := registry.Provider(provider)
 	if err != nil {
 		// A plan naming an unconfigured provider is served by the fallback
 		// rather than failing the subtask: the plan is model output.

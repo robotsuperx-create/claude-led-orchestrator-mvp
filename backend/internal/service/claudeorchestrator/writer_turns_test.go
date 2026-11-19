@@ -134,3 +134,24 @@ func TestAWriterThatAsksToReadAFileIsShownItAndWrites(t *testing.T) {
 		t.Fatalf("css/styles.css = %q", got)
 	}
 }
+
+// A design-tier subtask asks its writer as design work, on every reply.
+func TestADesignTierSubtaskIsWrittenAsDesignWork(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	runner := &lsFilesRunner{files: []string{"index.html"}}
+	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "hero", Edits: []ports.FileEdit{{Path: "index.html", Replace: []ports.TextReplacement{{Old: "<main></main>", New: "<main>hero</main>"}}}}}, nil
+		},
+	}}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	request := authoringRequest(worktree)
+	request.Task.Tier = ports.SubtaskTierDesign
+	if _, err := runtime.Execute(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(author.requests) != 1 || author.requests[0].Tier != ports.SubtaskTierDesign {
+		t.Fatalf("requests = %+v, want the design tier", author.requests)
+	}
+}

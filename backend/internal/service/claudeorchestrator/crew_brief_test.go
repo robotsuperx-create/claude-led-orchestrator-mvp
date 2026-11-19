@@ -54,3 +54,15 @@ func TestACrewBriefWithoutAPlanSummaryIsTheTask(t *testing.T) {
 		t.Fatalf("crewBrief = %q", got)
 	}
 }
+
+// The tier is model output: only "design" means anything, and it survives.
+func TestAPlanKeepsOnlyTheKnownTier(t *testing.T) {
+	plan := keepKnownSkills(ports.ExecutionPlan{Subtasks: []ports.PlannedSubtask{
+		{ID: "a", Tier: ports.SubtaskTierDesign},
+		{ID: "b", Tier: "premium"},
+		{ID: "c"},
+	}})
+	if plan.Subtasks[0].Tier != ports.SubtaskTierDesign || plan.Subtasks[1].Tier != "" || plan.Subtasks[2].Tier != "" {
+		t.Fatalf("tiers = %q, %q, %q", plan.Subtasks[0].Tier, plan.Subtasks[1].Tier, plan.Subtasks[2].Tier)
+	}
+}

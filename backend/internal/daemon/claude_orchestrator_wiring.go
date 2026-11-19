@@ -204,10 +204,19 @@ func newClaudeOrchestratorWiring(cfg config.Config, injected claudeOrchestratorB
 			if err != nil {
 				return nil, fmt.Errorf("configure Claude orchestrator writer model: %w", err)
 			}
-			author, err = modelgateway.NewAuthorRouter(writers, workerProvider(cfg.ClaudeOrchestrator))
+			router, err := modelgateway.NewAuthorRouter(writers, workerProvider(cfg.ClaudeOrchestrator))
 			if err != nil {
 				return nil, fmt.Errorf("configure Claude orchestrator code author: %w", err)
 			}
+			if designModel := strings.TrimSpace(cfg.ClaudeOrchestrator.ClaudeDesignModel); designModel != "" {
+				// Design-tier subtasks get the stronger model on the same key.
+				designers, err := writerRegistry(registry, providers, designModel)
+				if err != nil {
+					return nil, fmt.Errorf("configure Claude orchestrator design model: %w", err)
+				}
+				router = router.WithDesignWriters(designers)
+			}
+			author = router
 		}
 	}
 

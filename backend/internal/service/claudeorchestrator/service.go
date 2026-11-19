@@ -696,6 +696,10 @@ func keepKnownSkills(plan ports.ExecutionPlan) ports.ExecutionPlan {
 	subtasks := make([]ports.PlannedSubtask, len(plan.Subtasks))
 	for i, task := range plan.Subtasks {
 		task.Skills = writerskills.Known(task.Skills)
+		// The tier is model output: only the one known value means anything.
+		if task.Tier != ports.SubtaskTierDesign {
+			task.Tier = ""
+		}
 		subtasks[i] = task
 	}
 	plan.Subtasks = subtasks

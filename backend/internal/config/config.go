@@ -140,6 +140,10 @@ type ClaudeOrchestratorConfig struct {
 	// the same key; ClaudeProvider's model still plans and reviews. Empty
 	// writes with the planner's model.
 	ClaudeWriterModel string
+	// ClaudeDesignModel, when set, is the Claude model that writes the plan's
+	// design-tier subtasks (and the art director's polish rounds), on the
+	// same key. Empty writes them with the writer model.
+	ClaudeDesignModel string
 	ClaudeProvider    modelgateway.ProviderConfig
 	DeepSeekProvider  modelgateway.ProviderConfig
 	// LocalProvider is an optional model on this machine (Ollama, llama.cpp)
@@ -1161,6 +1165,10 @@ func loadClaudeOrchestratorConfig(cfg *ClaudeOrchestratorConfig, getenv func(str
 	cfg.ClaudeWriterModel = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL"))
 	if len(cfg.ClaudeWriterModel) > 128 || strings.ContainsAny(cfg.ClaudeWriterModel, " \t\r\n\x00") {
 		return errors.New("AO_CLAUDE_ORCHESTRATOR_CLAUDE_WRITER_MODEL is not a valid model name")
+	}
+	cfg.ClaudeDesignModel = strings.TrimSpace(getenv("AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL"))
+	if len(cfg.ClaudeDesignModel) > 128 || strings.ContainsAny(cfg.ClaudeDesignModel, " \t\r\n\x00") {
+		return errors.New("AO_CLAUDE_ORCHESTRATOR_CLAUDE_DESIGN_MODEL is not a valid model name")
 	}
 	if cfg.ClaudeOnly || strings.TrimSpace(cfg.ClaudeProvider.APIKey) != "" {
 		// With a Claude key, only the key is required: the address and model

@@ -12,7 +12,10 @@ type CodeAuthorRequest struct {
 	// Provider selects which model writes the code. An empty value lets the
 	// author fall back to its configured default worker provider.
 	Provider ModelProvider `json:"-"`
-	Title    string        `json:"title,omitempty"`
+	// Tier is the subtask's tier: SubtaskTierDesign is written by the
+	// design model when one is configured.
+	Tier  string `json:"-"`
+	Title string `json:"title,omitempty"`
 	// Brief is the whole job a crew of writers is building at once;
 	// Instructions are this writer's part of it.
 	Brief           string         `json:"brief,omitempty"`

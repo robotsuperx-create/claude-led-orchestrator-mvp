@@ -237,7 +237,7 @@ func (a *ProviderAdapter) MapPlanRequest(request ports.PlanRequest) (ChatRequest
 // through the placeholders a foundation subtask lays out first, so parallel
 // work merges cleanly and fits together.
 const planningSystemPrompt = "Create a bounded execution plan for a software change, carried out by a crew of up to 16 writers who work at the same time. " +
-	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string],\"skills\":[string]}]}. " +
+	"Return only valid JSON matching {\"summary\":string,\"subtasks\":[{\"id\":string,\"title\":string,\"instructions\":string,\"worker_id\":string,\"provider\":string,\"depends_on\":[string],\"skills\":[string],\"tier\":string}]}. " +
 	"Use short unique ids. provider is \"claude\", \"deepseek\" or \"local\". " +
 	"depends_on lists ids of subtasks that must finish first; leave it empty when a subtask is independent. Never create a dependency cycle. " +
 	"Size: every subtask must be small enough for one writer to finish in a few short replies, about three files and 400 new lines at most. " +
@@ -254,6 +254,8 @@ const planningSystemPrompt = "Create a bounded execution plan for a software cha
 	"the audience and goal, the visual direction in a few words, a palette as hex values, a font pairing, the sections in order, the imagery approach, the motion, and how it adapts to phones. " +
 	"Keep the whole plan short enough to write in one reply. " +
 	"skills lists, by name, the guidance from available_skills that the subtask's writer needs (at most four). " +
+	"tier is \"design\" for a subtask people will judge by eye (the design system and foundation of a page or screen, a hero, illustration, imagery, motion, a visually rich section); " +
+	"a stronger model writes those. Leave it empty for wiring, data, forms, tests and integration. " +
 	"When previous_attempt is present, an earlier plan already ran: plan only the work still missing, split what failed into smaller subtasks, and take a different approach for it. " +
 	"Do not include markdown."
 

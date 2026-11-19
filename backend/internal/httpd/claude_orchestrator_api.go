@@ -83,6 +83,9 @@ type ClaudeOrchestratorInfo struct {
 	PlannerModel   string              `json:"plannerModel"`
 	WorkerProvider ports.ModelProvider `json:"workerProvider"`
 	WorkerModel    string              `json:"workerModel"`
+	// DesignModel writes the plan's design-tier subtasks when it differs
+	// from WorkerModel.
+	DesignModel string `json:"designModel,omitempty"`
 	// WorkerMode is "model" when an API model writes the code and "agents"
 	// when AO agent sessions do; WorkerModel then names the agent harness.
 	WorkerMode    string `json:"workerMode"`
