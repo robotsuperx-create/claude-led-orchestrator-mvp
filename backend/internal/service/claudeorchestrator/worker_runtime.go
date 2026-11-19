@@ -423,6 +423,15 @@ func authorInWorktree(ctx context.Context, runner WorktreeCommandRunner, author 
 			}
 			return "", &authorAttemptError{stage: "propose edits", err: replyErr}
 		}
+		if len(reply.Edits) == 0 && len(reply.Read) > 0 && turn < maxAuthorTurns {
+			// The writer asked to see more before writing: show it, then ask again.
+			selection.Paths = appendNew(selection.Paths, reply.Read...)
+			authorRequest.Files, err = readSnapshots(worktreePath, appendNew(append([]string(nil), selection.Paths...), applied.Written...), currentFiles(ctx, runner, worktreePath, files))
+			if err != nil {
+				return "", err
+			}
+			continue
+		}
 		if err := requireReadBeforeRewrite(worktreePath, reply.Edits, authorRequest.Files); err != nil {
 			return "", &authorAttemptError{stage: "the proposed edits were rejected", err: err}
 		}

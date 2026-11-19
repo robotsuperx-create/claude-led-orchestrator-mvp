@@ -66,6 +66,9 @@ type EditProposal struct {
 	// More is true when the writer has more of the subtask to write: it is
 	// called again with the files as they are now.
 	More bool `json:"more,omitempty"`
+	// Read names files the writer must see before it can write; it is then
+	// called again with them.
+	Read []string `json:"read,omitempty"`
 }
 
 // CodeAuthor asks a model to write code for a delegated subtask. It only

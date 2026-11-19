@@ -97,3 +97,40 @@ func TestAWriterThatKeepsGettingCutOffFailsTheAttemptWithTheReason(t *testing.T)
 		t.Errorf("replies asked = %d, want %d", len(author.requests), maxAuthorTurns)
 	}
 }
+
+// A writer that was not given a file it must change asks for it, and is
+// called again with it rather than failing the attempt.
+func TestAWriterThatAsksToReadAFileIsShownItAndWrites(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	mustWrite(t, filepath.Join(worktree, "css", "styles.css"), ":root { --red: #E41E2B; }\n")
+	runner := &lsFilesRunner{files: []string{"index.html", "css/styles.css"}}
+	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "need the tokens", Read: []string{"css/styles.css"}}, nil
+		},
+		func(request ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "used the red token", Edits: []ports.FileEdit{
+				{Path: "css/styles.css", Replace: []ports.TextReplacement{{Old: "--red: #E41E2B;", New: "--red: #E41E2B; --ink: #1A1A1A;"}}},
+			}}, nil
+		},
+	}}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+	if err != nil || execution.Status != ports.WorkerOutcomeCompleted {
+		t.Fatalf("Execute = %+v, %v", execution, err)
+	}
+	if len(author.requests) != 2 {
+		t.Fatalf("replies asked = %d, want 2", len(author.requests))
+	}
+	var shown bool
+	for _, file := range author.requests[1].Files {
+		shown = shown || file.Path == "css/styles.css"
+	}
+	if !shown {
+		t.Fatalf("the second reply was not shown the file asked for: %+v", author.requests[1].Files)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "css", "styles.css")); !strings.Contains(got, "--ink: #1A1A1A;") {
+		t.Fatalf("css/styles.css = %q", got)
+	}
+}

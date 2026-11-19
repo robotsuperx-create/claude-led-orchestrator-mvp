@@ -32,8 +32,10 @@ const (
 		"You write the task over several short replies, never all at once: each reply carries at most about 300 new lines (two or three files), " +
 		"and sets more to true while work remains; you are then called again with turn increased, progress listing what your earlier replies did, " +
 		"and files holding their current content. Set more to false only when the whole task is done. " +
+		"If you must see a file you were not given before you can write, list its path in read and leave edits empty; you are then called again with it. " +
+		"Always answer with the JSON object, even when you cannot finish: then leave edits empty and say why in summary. " +
 		"Return only valid JSON matching " +
-		"{\"summary\":string,\"more\":boolean,\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
+		"{\"summary\":string,\"more\":boolean,\"read\":[string],\"edits\":[{\"path\":string,\"replace\":[{\"old\":string,\"new\":string}],\"content\":string,\"delete\":boolean}]}. " +
 		"path is slash-separated and relative to the repository root. Each edit uses exactly one of replace, content or delete. " +
 		"To change a file you were given, use replace: each old is a passage copied exactly from the file's current content, " +
 		"whitespace included, that occurs in it only once (add neighbouring lines if needed), and new is the text that takes its place; " +
@@ -140,7 +142,9 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 	}
 	if err := decodeModelJSON(content, target); err != nil {
 		slog.Warn("model reply could not be decoded", "provider", a.config.Provider, "reply_bytes", len(content), "error", err)
-		return fmt.Errorf("model gateway returned an invalid %s response: %v", a.config.Provider, err)
+		// The opening words say what went wrong (a question, a refusal,
+		// prose); the service redacts and bounds failures before showing them.
+		return fmt.Errorf("model gateway returned an invalid %s response: %v; it began %q", a.config.Provider, err, openingWords(content, 160))
 	}
 	return nil
 }
@@ -228,16 +232,24 @@ func decodeModelJSON(content string, target any) error {
 	if json.Valid([]byte(text)) {
 		return json.Unmarshal([]byte(text), target)
 	}
-	first := json.Unmarshal([]byte(text), new(json.RawMessage))
 	start := strings.IndexAny(text, "{[")
 	if start < 0 {
-		return fmt.Errorf("not JSON: %w", first)
+		return fmt.Errorf("not JSON: %w", json.Unmarshal([]byte(text), new(json.RawMessage)))
 	}
 	var value json.RawMessage
 	if err := json.NewDecoder(strings.NewReader(repairJSONStrings(text[start:]))).Decode(&value); err != nil {
-		return fmt.Errorf("not valid JSON: %w", first)
+		return fmt.Errorf("not valid JSON: %w", err)
 	}
 	return json.Unmarshal(value, target)
+}
+
+// openingWords is the start of a reply, on one line, for a failure message.
+func openingWords(content string, maxRunes int) string {
+	text := strings.Join(strings.Fields(content), " ")
+	if runes := []rune(text); len(runes) > maxRunes {
+		text = string(runes[:maxRunes]) + "…"
+	}
+	return text
 }
 
 // repairJSONStrings escapes, inside string literals only, the raw control
