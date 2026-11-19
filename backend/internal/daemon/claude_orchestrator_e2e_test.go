@@ -204,17 +204,25 @@ func TestClaudeOrchestratorEndToEndWritesCodeOnRunBranch(t *testing.T) {
 		t.Fatalf("run worktree is not under the AO data dir:\n%s", worktreeList)
 	}
 
-	// Two authoring rounds (select + propose each), and the retry carried the
-	// validator's failure; the file the model asked for was shown to it.
+	// Two authoring rounds (select, propose, then the writer's review of its
+	// own work), and the retry carried the validator's failure; the file the
+	// model asked for was shown to it.
 	deepSeekCalls := deepSeek.calls()
-	if len(deepSeekCalls) != 4 {
-		t.Fatalf("DeepSeek calls = %d, want 4 (two attempts x select/propose)", len(deepSeekCalls))
+	if len(deepSeekCalls) != 6 {
+		t.Fatalf("DeepSeek calls = %d, want 6 (two attempts x select/propose/review)", len(deepSeekCalls))
 	}
 	if !strings.Contains(deepSeekCalls[1], "Write hello world to greet.txt") {
 		t.Fatalf("README content was not shown to the author: %s", deepSeekCalls[1])
 	}
-	if !strings.Contains(deepSeekCalls[3], `previous_failure`) || !strings.Contains(deepSeekCalls[3], "content") {
-		t.Fatalf("retry did not carry the validation failure: %s", deepSeekCalls[3])
+	for _, i := range []int{2, 5} {
+		if !strings.Contains(deepSeekCalls[i], `"review":true`) {
+			t.Fatalf("call %d was not the writer's review: %s", i, deepSeekCalls[i])
+		}
+	}
+	for _, i := range []int{4, 5} {
+		if !strings.Contains(deepSeekCalls[i], `previous_failure`) || !strings.Contains(deepSeekCalls[i], "content") {
+			t.Fatalf("retry call %d did not carry the validation failure: %s", i, deepSeekCalls[i])
+		}
 	}
 	// Claude planned and reviewed; it never saw a local path.
 	for _, input := range claude.calls() {
