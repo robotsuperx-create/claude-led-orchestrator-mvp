@@ -13,6 +13,10 @@ import (
 type turnsAuthor struct {
 	requests []ports.CodeAuthorRequest
 	replies  []func(ports.CodeAuthorRequest) (ports.EditProposal, error)
+	// reviews are the writer's looks at its finished work; unless a test
+	// scripts them, it finds nothing to fix.
+	reviews []ports.CodeAuthorRequest
+	review  func(ports.CodeAuthorRequest) (ports.EditProposal, error)
 }
 
 func (a *turnsAuthor) SelectFiles(context.Context, ports.CodeAuthorRequest) (ports.FileSelection, error) {
@@ -20,7 +24,17 @@ func (a *turnsAuthor) SelectFiles(context.Context, ports.CodeAuthorRequest) (por
 }
 
 func (a *turnsAuthor) ProposeEdits(_ context.Context, request ports.CodeAuthorRequest) (ports.EditProposal, error) {
+	if request.Review {
+		a.reviews = append(a.reviews, request)
+		if a.review != nil {
+			return a.review(request)
+		}
+		return ports.EditProposal{Summary: "nothing to fix"}, nil
+	}
 	a.requests = append(a.requests, request)
+	if len(a.requests) > len(a.replies) {
+		return ports.EditProposal{Summary: "done"}, nil
+	}
 	return a.replies[len(a.requests)-1](request)
 }
 
@@ -85,6 +99,8 @@ func TestAWriterThatKeepsGettingCutOffFailsTheAttemptWithTheReason(t *testing.T)
 	for range maxAuthorTurns {
 		author.replies = append(author.replies, cutOff)
 	}
+	// Replies that keep running past the limit with nothing complete in
+	// them end the attempt after maxCutOffsInARow, not after every turn.
 	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
 	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
 	if err != nil {
@@ -93,8 +109,8 @@ func TestAWriterThatKeepsGettingCutOffFailsTheAttemptWithTheReason(t *testing.T)
 	if execution.Status != ports.WorkerOutcomeFailed || !strings.Contains(execution.Error, "cut off") {
 		t.Fatalf("execution = %+v, want a failed attempt that says the replies were cut off", execution)
 	}
-	if len(author.requests) != maxAuthorTurns {
-		t.Errorf("replies asked = %d, want %d", len(author.requests), maxAuthorTurns)
+	if len(author.requests) != maxCutOffsInARow {
+		t.Errorf("replies asked = %d, want %d", len(author.requests), maxCutOffsInARow)
 	}
 }
 
@@ -153,5 +169,100 @@ func TestADesignTierSubtaskIsWrittenAsDesignWork(t *testing.T) {
 	}
 	if len(author.requests) != 1 || author.requests[0].Tier != ports.SubtaskTierDesign {
 		t.Fatalf("requests = %+v, want the design tier", author.requests)
+	}
+}
+
+// A reply whose edits are rejected costs nothing already written: the writer
+// is told why and sends them again in the same attempt.
+func TestARejectedReplyIsSentBackWithoutLosingEarlierWork(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	runner := &lsFilesRunner{files: []string{"index.html", "css/site.css"}}
+	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "styles", More: true, Edits: []ports.FileEdit{{Path: "css/site.css", Content: "body { margin: 0; }\n"}}}, nil
+		},
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			// The old text is misremembered: nothing in this reply applies.
+			return ports.EditProposal{Summary: "page", Edits: []ports.FileEdit{{Path: "index.html", Replace: []ports.TextReplacement{{Old: "<main> </main>", New: "<main>hi</main>"}}}}}, nil
+		},
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "page", Edits: []ports.FileEdit{{Path: "index.html", Replace: []ports.TextReplacement{{Old: "<main></main>", New: "<main>hi</main>"}}}}}, nil
+		},
+	}}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+	if err != nil || execution.Status != ports.WorkerOutcomeCompleted {
+		t.Fatalf("Execute = %+v, %v", execution, err)
+	}
+	if third := author.requests[2]; !strings.Contains(third.PreviousFailure, "rejected") {
+		t.Fatalf("the corrected reply was asked with %q, want the rejection", third.PreviousFailure)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "css", "site.css")); got != "body { margin: 0; }\n" {
+		t.Fatalf("earlier work was lost: css/site.css = %q", got)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "index.html")); got != "<main>hi</main>\n" {
+		t.Fatalf("index.html = %q", got)
+	}
+}
+
+// Once the writer says it is done, it looks at its own work once, with every
+// file it wrote in front of it, and its fixes are applied.
+func TestAWriterReviewsItsOwnWorkOnceBeforeHandingItOver(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	runner := &lsFilesRunner{files: []string{"index.html", "css/a.css", "js/a.js"}}
+	author := &turnsAuthor{
+		replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+			func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+				return ports.EditProposal{Summary: "styles", More: true, Edits: []ports.FileEdit{{Path: "css/a.css", Content: "a{}\n"}}}, nil
+			},
+			func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+				return ports.EditProposal{Summary: "script", Edits: []ports.FileEdit{{Path: "js/a.js", Content: "\"use strict\";\n"}}}, nil
+			},
+		},
+		review: func(request ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "focus style was missing", Edits: []ports.FileEdit{{Path: "css/a.css", Replace: []ports.TextReplacement{{Old: "a{}", New: "a{} a:focus-visible{outline:2px solid}"}}}}}, nil
+		},
+	}
+	runtime, _ := newAuthoringRuntime(t, worktree, runner, author)
+	execution, err := runtime.Execute(context.Background(), authoringRequest(worktree))
+	if err != nil || execution.Status != ports.WorkerOutcomeCompleted {
+		t.Fatalf("Execute = %+v, %v", execution, err)
+	}
+	if len(author.reviews) != 1 {
+		t.Fatalf("reviews = %d, want exactly one", len(author.reviews))
+	}
+	shown := map[string]bool{}
+	for _, file := range author.reviews[0].Files {
+		shown[file.Path] = true
+	}
+	if !shown["css/a.css"] || !shown["js/a.js"] {
+		t.Fatalf("the review did not see every file the attempt wrote: %v", shown)
+	}
+	if got := mustRead(t, filepath.Join(worktree, "css", "a.css")); !strings.Contains(got, "focus-visible") {
+		t.Fatalf("the review's fix was not applied: %q", got)
+	}
+}
+
+// With too little of the attempt left for another reply, what is written is
+// kept instead of being lost to the timeout.
+func TestAWriterStopsWhileItCanStillKeepItsWork(t *testing.T) {
+	worktree := t.TempDir()
+	mustWrite(t, filepath.Join(worktree, "index.html"), "<main></main>\n")
+	runner := &lsFilesRunner{files: []string{"index.html", "css/a.css"}}
+	author := &turnsAuthor{replies: []func(ports.CodeAuthorRequest) (ports.EditProposal, error){
+		func(ports.CodeAuthorRequest) (ports.EditProposal, error) {
+			return ports.EditProposal{Summary: "styles", More: true, Edits: []ports.FileEdit{{Path: "css/a.css", Content: "a{}\n"}}}, nil
+		},
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), minAuthorTurnTime/2)
+	defer cancel()
+	summary, err := authorInWorktree(ctx, runner, author, worktree, authoringRequest(worktree))
+	if err != nil || !strings.Contains(summary, "css/a.css") {
+		t.Fatalf("summary = %q, %v", summary, err)
+	}
+	if len(author.requests) != 1 || len(author.reviews) != 0 {
+		t.Fatalf("replies = %d, reviews = %d; want one reply and no more calls", len(author.requests), len(author.reviews))
 	}
 }

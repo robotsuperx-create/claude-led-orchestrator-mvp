@@ -31,6 +31,9 @@ type CodeAuthorRequest struct {
 	Turn int `json:"turn,omitempty"`
 	// Progress says what the earlier replies of this attempt already did.
 	Progress []string `json:"progress,omitempty"`
+	// Review is set once the writer has said it is done: it then looks at its
+	// own work as a demanding reviewer and fixes what falls short.
+	Review bool `json:"review,omitempty"`
 }
 
 // FileSnapshot is the current content of one repository file.
@@ -72,6 +75,9 @@ type EditProposal struct {
 	// Read names files the writer must see before it can write; it is then
 	// called again with them.
 	Read []string `json:"read,omitempty"`
+	// CutOff marks a reply that ran past the output limit: only the edits
+	// that were complete in it are here, and the writer must continue.
+	CutOff bool `json:"-"`
 }
 
 // CodeAuthor asks a model to write code for a delegated subtask. It only

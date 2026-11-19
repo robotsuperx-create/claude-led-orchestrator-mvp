@@ -92,10 +92,18 @@ func (m *ModelWriters) Implement(ctx context.Context, request ports.AgentImpleme
 		return ports.AgentWork{}, err
 	}
 	work := ports.AgentWork{Summary: boundedRedacted(summary), Base: base}
-	if _, err := m.gitOutput(ctx, scratch, "add", "--all"); err != nil {
+	commitCtx := ctx
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		// The attempt ran out of time after writing: what it wrote is kept
+		// and judged, not lost. A run that was stopped commits nothing.
+		var cancel context.CancelFunc
+		commitCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), modelWriterCleanupTimeout)
+		defer cancel()
+	}
+	if _, err := m.gitOutput(commitCtx, scratch, "add", "--all"); err != nil {
 		return ports.AgentWork{}, err
 	}
-	changed, err := m.hasStagedChanges(ctx, scratch)
+	changed, err := m.hasStagedChanges(commitCtx, scratch)
 	if err != nil {
 		return ports.AgentWork{}, err
 	}
@@ -105,7 +113,7 @@ func (m *ModelWriters) Implement(ctx context.Context, request ports.AgentImpleme
 		return work, nil
 	}
 	// Hooks are skipped so repository scripts never run on the host.
-	if _, err := m.gitOutput(ctx, scratch,
+	if _, err := m.gitOutput(commitCtx, scratch,
 		"-c", "user.name="+m.authorName, "-c", "user.email="+m.authorEmail,
 		"commit", "--no-verify", "--quiet", "-m", writerCommitMessage(request.Task)); err != nil {
 		return ports.AgentWork{}, err

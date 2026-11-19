@@ -390,10 +390,17 @@ func responseContent(response ChatResponse) (string, error) {
 	// OpenAI-compatible APIs say "length"; Anthropic's says "max_tokens".
 	switch response.Choices[0].FinishReason {
 	case "length", "max_tokens":
-		return "", ports.ErrReplyCutOff
+		return "", &cutOffReply{content: response.Choices[0].Message.Content}
 	}
 	return response.Choices[0].Message.Content, nil
 }
+
+// cutOffReply is ports.ErrReplyCutOff carrying what the reply said before the
+// limit, so a caller can keep the part of it that is complete.
+type cutOffReply struct{ content string }
+
+func (e *cutOffReply) Error() string        { return ports.ErrReplyCutOff.Error() }
+func (e *cutOffReply) Is(target error) bool { return target == ports.ErrReplyCutOff }
 
 func normalizeProviderConfig(config ProviderConfig) (ProviderConfig, error) {
 	config.BaseURL = strings.TrimSpace(config.BaseURL)
