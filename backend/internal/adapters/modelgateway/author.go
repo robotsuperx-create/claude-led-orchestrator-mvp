@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"strings"
 
@@ -138,7 +139,8 @@ func (a *ProviderAdapter) authorCall(ctx context.Context, provider ports.ModelPr
 		return err
 	}
 	if err := decodeModelJSON(content, target); err != nil {
-		return fmt.Errorf("model gateway returned an invalid %s response", a.config.Provider)
+		slog.Warn("model reply could not be decoded", "provider", a.config.Provider, "reply_bytes", len(content), "error", err)
+		return fmt.Errorf("model gateway returned an invalid %s response: %v", a.config.Provider, err)
 	}
 	return nil
 }
@@ -206,7 +208,11 @@ func (r *AuthorRouter) route(request ports.CodeAuthorRequest) (*ProviderAdapter,
 
 // decodeModelJSON decodes a model's JSON answer. Models frequently wrap JSON
 // in a Markdown code fence despite instructions, so one surrounding fence is
-// tolerated; anything else must be the JSON value itself.
+// tolerated. A long answer full of code also often slips in ways a reader
+// would forgive: a sentence before or after the value, a raw tab or newline
+// inside a string, or a backslash JSON does not know (CSS's "\2014", a
+// regular expression's "\d"). Those are repaired; anything else is an error
+// that names what is wrong without quoting the answer.
 func decodeModelJSON(content string, target any) error {
 	text := strings.TrimSpace(content)
 	if strings.HasPrefix(text, "```") {
@@ -219,5 +225,79 @@ func decodeModelJSON(content string, target any) error {
 		}
 		text = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(text), "```"))
 	}
-	return json.Unmarshal([]byte(text), target)
+	if json.Valid([]byte(text)) {
+		return json.Unmarshal([]byte(text), target)
+	}
+	first := json.Unmarshal([]byte(text), new(json.RawMessage))
+	start := strings.IndexAny(text, "{[")
+	if start < 0 {
+		return fmt.Errorf("not JSON: %w", first)
+	}
+	var value json.RawMessage
+	if err := json.NewDecoder(strings.NewReader(repairJSONStrings(text[start:]))).Decode(&value); err != nil {
+		return fmt.Errorf("not valid JSON: %w", first)
+	}
+	return json.Unmarshal(value, target)
+}
+
+// repairJSONStrings escapes, inside string literals only, the raw control
+// characters and unknown backslash escapes JSON rejects. Text outside strings
+// is left as it is.
+func repairJSONStrings(text string) string {
+	var out strings.Builder
+	out.Grow(len(text) + len(text)/64)
+	inString := false
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		if !inString {
+			out.WriteByte(c)
+			if c == '"' {
+				inString = true
+			}
+			continue
+		}
+		switch {
+		case c == '"':
+			out.WriteByte(c)
+			inString = false
+		case c == '\\':
+			next := byte(0)
+			if i+1 < len(text) {
+				next = text[i+1]
+			}
+			switch {
+			case next != 0 && strings.IndexByte(`"\/bfnrt`, next) >= 0:
+				out.WriteByte(c)
+				out.WriteByte(next)
+				i++
+			case next == 'u' && i+5 < len(text) && isHex4(text[i+2:i+6]):
+				out.WriteString(text[i : i+6])
+				i += 5
+			default:
+				// A backslash JSON does not know stands for itself.
+				out.WriteString(`\\`)
+			}
+		case c == '\n':
+			out.WriteString(`\n`)
+		case c == '\r':
+			out.WriteString(`\r`)
+		case c == '\t':
+			out.WriteString(`\t`)
+		case c < 0x20:
+			fmt.Fprintf(&out, `\u%04x`, c)
+		default:
+			out.WriteByte(c)
+		}
+	}
+	return out.String()
+}
+
+func isHex4(text string) bool {
+	for i := 0; i < 4; i++ {
+		c := text[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return false
+		}
+	}
+	return true
 }
